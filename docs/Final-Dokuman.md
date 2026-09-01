@@ -28,7 +28,7 @@ temporal versiyonlama, entity merge/conclude/verify'da zorunlu kullanıcı onay�
 | Frontend | Next.js + React + Tailwind | Global CLAUDE.md'deki dark glassmorphism disiplini ve shadcn/21st MCP araçları bu stack'le native çalışır; World Map/Entity Graph gibi zengin panelli dashboard için uygun. |
 | Evidence Storage | Yerel dosya sistemi + SHA-256 hash + metadata | Q18 kararı — kanıt dosyaları yerelde saklanır, bütünlük hash'i ve tam provenance metadata'sı (source, collected, first seen) tutulur. |
 | AI Sağlayıcı | Anthropic Claude (Claude Code agent + gerektiğinde API) | Q21 hibrit local-first kararıyla uyumlu — Brain'in temel verisi yerel kalır, AI opsiyonel/bulut bir katman olarak kullanılır. |
-| Collector Sandbox | Belirlenecek (Faz 3) | Q22 kararı yön verdi (sandbox + allowlist + içerik-veri ayrımı) ama somut mekanizma (ayrı process/container/network policy) henüz doğrulanmadı — bkz. Riskler. |
+| Collector Sandbox | Network-policy izolasyonu (allowlist + SSRF koruması), process/container izolasyonu yok | Q22 kararı — Faz 5'te doğrulandı (bkz. Riskler). requests + feedparser + BeautifulSoup, hepsi `app/collector.py`'deki güvenlik katmanının arkasında. |
 | Source Independence Tespiti | Belirlenecek (ilk roadmap fazı) | Q6 kararı (v1'den tam lineage graph) yön verdi ama teknik yaklaşım henüz doğrulanmadı — bkz. Riskler. |
 
 ## Mimari
@@ -126,12 +126,55 @@ benzerliği/near-duplicate detection mi, yayın metadata'sı mı, syndication AP
 hibrit mi) henüz bir spike ile doğrulanmadı. Roadmap'in ilgili fazında (Intelligence Core /
 Collection) küçük bir prototiple (gerçek haber makaleleriyle) test edilmesi gerekiyor.
 
-### Collector sandbox mekanizması (Q22, kritik güvenlik) — Doğrulanmadı
+### Collector sandbox mekanizması (Q22, kritik güvenlik) — Doğrulandı (Faz 5, 2026-09-02)
 
-Yön (sandbox + allowlist + içerik-veri ayrımı) belirlendi ama somut mekanizma (ayrı process mı,
-container izolasyonu mu, network policy mi, hangi prompt-injection işaretleme şeması) henüz
-seçilmedi. Roadmap'in Collection fazında, ilk collector inşa edilmeden önce netleştirilmesi
-gereken kritik bir ön koşul.
+Üç seçenek değerlendirildi: (a) ayrı process, (b) fetch başına Docker container, (c) sadece
+network-policy düzeyinde izolasyon (allowlist + SSRF koruması + içerik-veri ayrımı, ayrı
+process/container yok).
+
+**Karar: (c) — network-policy izolasyonu.** Gerekçe: bu kişisel/tek kullanıcılı bir araç,
+fetch başına container overhead'i (graph DB spike'ında Neo4j container'ı için ölçülen ~saniyeler
+mertebesindeki başlatma maliyeti) sık aralıklı RSS taramaları için orantısız; asıl tehdit sınıfı
+(SSRF, dahili servislere erişim) network katmanında tam olarak engellenebiliyor; toplanan içerik
+zaten hiçbir zaman çalıştırılmıyor/yorumlanmıyor (sadece düz metne çevrilip saklanıyor), bu da
+process-level izolasyonun kazandıracağı ek korumayı v1 için düşük öncelikli kılıyor. Ayrı
+process/container izolasyonu ölçek gerçekten büyürse (çok sayıda üçüncü-taraf içerik ayrıştırıcı
+kütüphanesi devreye girerse) yeniden değerlendirilebilir.
+
+**Uygulanan üç katman** (`backend/app/collector.py`):
+1. **Allowlist** — sadece açıkça izin verilen tam hostname'lere istek atılır (subdomain/wildcard
+   yok, en katı varsayılan).
+2. **SSRF koruması** — hedef hostname her hop'ta (ilk istek + her redirect, en fazla 3 redirect)
+   `socket.getaddrinfo` ile çözülür, dönen TÜM IP'ler `ipaddress` modülüyle private/loopback/
+   link-local/multicast/reserved/unspecified aralıklarına karşı kontrol edilir.
+3. **İçerik-veri ayrımı** — toplanan içerik hiçbir kod yolunda çalıştırılmaz/yorumlanmaz; HTML
+   `BeautifulSoup` ile sadece düz metne çevrilir (script/style tag'leri atılır), RSS
+   `feedparser` ile sadece yapılandırılmış alanlara (title/summary/link) ayrıştırılır. Sonuç
+   `Observation.raw_content`'e opak string olarak yazılır. Bu içeriğin bir LLM'e ne zaman/nasıl
+   "güvenilmeyen veri" olarak sunulacağı `.claude/skills/osint-brain/` içinde tarif edilir.
+
+**Uçtan uca doğrulama testleri:**
+- Allowlist'te olmayan bir hostname'e (127.0.0.1) istek → reddedildi (403).
+- **Defense-in-depth testi:** `localhost` bilinçli olarak allowlist'e eklendi, yine de fetch
+  denendi → SSRF katmanı bunu bağımsız olarak yakalayıp reddetti (hem IPv4 127.0.0.1 hem IPv6
+  ::1 çözünürlüğünde) — allowlist'e girmiş olmak tek başına yeterli değil, IP kontrolü ayrı bir
+  güvenlik katmanı olarak çalışıyor.
+- **Gerçek happy-path:** `www.python.org` (web mode) ve BBC World RSS akışı (rss mode)
+  allowlist'e eklenip gerçekten çekildi — web modu HTML'i temiz düz metne çevirdi (script/style
+  içeriği hiç görünmüyor, `>>> 1/2` gibi kod örnekleri bile salt metin olarak saklandı, hiç
+  çalıştırılmadı), RSS modu 43 haberi ayrı ayrı Observation'a çevirdi, her biri kaynağın gerçek
+  makale linkiyle (`source_url`) etiketlendi.
+
+**Bilinen sınırlama (bilinçli kabul edildi):** DNS rebinding'e karşı tam koruma yok — hostname
+her hop'ta yeniden çözülüp doğrulanıyor ama doğrulama ile bağlantı kurulması arasındaki çok kısa
+pencerede teorik olarak DNS yanıtı değişebilir. Tam çözüm (IP'ye pinleyip Host header'ı elle
+ayarlamak) v1'de over-engineering sayıldı, ölçek/tehdit modeli gerektirirse eklenebilir.
+
+**Ayrı bulgu — KùzuDB şema migrasyonu yok:** `CREATE NODE TABLE IF NOT EXISTS` var olan bir
+tabloya yeni alan eklemiyor; şema değiştiğinde geliştirme ortamındaki DB dosyasının silinip
+yeniden oluşturulması gerekiyor. v1/geliştirme aşamasında sorun değil (gerçek kullanıcı verisi
+henüz yok), ama gerçek veri birikmeye başladığında (roadmap ileri fazları) bir migrasyon
+stratejisi gerekecek — şimdilik not olarak bırakıldı.
 
 ## Kapsam Dışı
 

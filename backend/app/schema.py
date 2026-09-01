@@ -81,6 +81,7 @@ NODE_TABLES = [
         raw_content STRING,
         observed_at TIMESTAMP,
         promoted BOOLEAN,
+        source_url STRING,
         created_at TIMESTAMP,
         PRIMARY KEY(id)
     )

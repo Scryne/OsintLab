@@ -83,6 +83,9 @@ class Claim(BaseModel):
 class ObservationCreate(BaseModel):
     raw_content: str
     observed_at: datetime | None = None
+    source_url: str | None = Field(
+        None, description="Bu observation bir collector tarafından toplandıysa kaynak URL — provenance (Q22/Data Provenance)"
+    )
 
 
 class Observation(ObservationCreate):
@@ -140,3 +143,12 @@ class ObservationPromote(BaseModel):
     about_event_id: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
     corroborates: list[str] = Field(default_factory=list)
+
+
+class AllowlistAdd(BaseModel):
+    hostname: str = Field(..., examples=["feeds.bbci.co.uk"], description="Tam eşleşme ile kontrol edilir (subdomain dahil edilmez)")
+
+
+class CollectorFetchRequest(BaseModel):
+    url: str
+    mode: str = Field(..., examples=["rss", "web"])

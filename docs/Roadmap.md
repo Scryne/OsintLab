@@ -21,7 +21,7 @@ roadmap'in dışında bırakıldı.
 | 2 | Core Knowledge Model + Confidence Motoru | ✅ Tamamlandı | Bir claim eklenip deterministik formülle confidence hesaplanabiliyor; çelişen ikinci claim eklendiğinde Contradiction objesi otomatik oluşuyor; eski bilgi silinmeden temporal (Valid: X→Y) supersede ediliyor. |
 | 3 | Investigation & Hypothesis System | ✅ Tamamlandı | Investigation açılıp durumları (OPEN→...→CLOSED/ARCHIVED) arasında geçebiliyor; kapanan investigation'ın sadece verified findings'i Knowledge Graph'a yükseliyor, geçici notlar yükselmiyor. |
 | 4 | OSINT Brain (Claude Code Agent Katmanı) | ✅ Tamamlandı | Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity otomatik hatırlatılıyor (Memory Recall); bir intelligence çıktısı için kural+graph tabanlı "Why This Matters" gerekçesi üretilebiliyor. |
-| 5 | Collection (temel WEBINT) + Collector Güvenliği | ⏳ Bekliyor | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
+| 5 | Collection (temel WEBINT) + Collector Güvenliği | ✅ Tamamlandı | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
 | 6 | Source Independence Lineage Graph | ⏳ Bekliyor | Teknik tespit yaklaşımı doğrulandı (Q6 spike); en az 3 türetilmiş kaynak örneğinde (agency → site A → site B) sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor. |
 | 7 | Monitoring, Change Detection, Intelligence Inbox | ⏳ Bekliyor | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
 | 8 | Frontend (Next.js Dashboard) | ⏳ Bekliyor | `docs/Design.md` dolduruldu; kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını görebiliyor; Inbox'ı görüntüleyip Confirm/Reject/Investigate aksiyonu alabiliyor (davranış loglanıyor); SOURCE FACT/AI ANALYSIS/SYSTEM INFERENCE/USER INTERPRETATION 4 etiketi UI'da ayrışıyor. |
@@ -146,7 +146,21 @@ roadmap'in dışında bırakıldı.
 - **Bitti Kriteri:** Collector sandbox mekanizması seçilip doğrulandı; bir RSS/web
   kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel
   prompt-injection/SSRF testleri geçiyor.
-- **Notlar:**
+- **Notlar:** 2026-09-02 tamamlandı. Q22 kararı: process/container izolasyonu yerine
+  network-policy izolasyonu (allowlist + SSRF koruması + içerik-veri ayrımı) — gerekçesi ve
+  tam analiz `docs/Final-Dokuman.md`'nin Riskler bölümünde. `app/collector.py`: allowlist tam
+  hostname eşleşmesiyle zorunlu, SSRF koruması her redirect hop'unda (max 3) hem IPv4 hem
+  IPv6 için private/loopback/link-local/reserved aralıkları reddediyor, boyut sınırı (5MB) ve
+  timeout (10s) var. `app/routers/collectors.py`: `GET/POST/DELETE /collectors/allowlist`,
+  `POST /collectors/fetch` (mode=rss|web). Uçtan uca test: allowlist'te olmayan host reddedildi;
+  **defense-in-depth testi** — `localhost` bilinçli olarak allowlist'e eklenip yine de SSRF
+  katmanı tarafından reddedildi (hem 127.0.0.1 hem ::1 için); gerçek happy-path — www.python.org
+  (web) temiz düz metne çevrildi (kod örnekleri dahil hiçbir şey çalıştırılmadı), BBC World RSS
+  akışından 43 haber ayrı Observation olarak toplandı, hepsi `source_url` ile etiketli.
+  Observation şemasına `source_url` alanı eklendi (provenance). Test sırasında KùzuDB'nin şema
+  migrasyonu desteklemediği (yeni alan eklenince eski DB dosyasının silinip yeniden
+  oluşturulması gerektiği) fark edildi — Final-Dokuman.md'ye not olarak işlendi, v1/geliştirme
+  aşamasında sorun değil. Test verisi (graph + config + daily log) temizlendi.
 
 ### Faz 6: Source Independence Lineage Graph
 - **İşler:**

@@ -15,7 +15,7 @@ router = APIRouter(prefix="/observations", tags=["observations"])
 
 _FIELDS = (
     "o.id AS id, o.raw_content AS raw_content, o.observed_at AS observed_at, "
-    "o.promoted AS promoted, o.created_at AS created_at"
+    "o.promoted AS promoted, o.source_url AS source_url, o.created_at AS created_at"
 )
 
 DAILY_LOG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "daily"
@@ -26,7 +26,9 @@ DAILY_LOG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / 
 PROMOTION_THRESHOLD = 0.45
 
 
-def _append_daily_log(observation_id: str, raw_content: str, observed_at: datetime, created_at: datetime) -> None:
+def _append_daily_log(
+    observation_id: str, raw_content: str, observed_at: datetime, created_at: datetime, source_url: str | None
+) -> None:
     """AvenoxBeyin'in daily/ katmanına paralel: her observation, değiştirilemez (append-only)
     bir JSONL günlük dosyasına da düşer — Knowledge Graph'tan bağımsız, kalıcı bir ham kayıt."""
     DAILY_LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -35,33 +37,40 @@ def _append_daily_log(observation_id: str, raw_content: str, observed_at: dateti
         "id": observation_id,
         "raw_content": raw_content,
         "observed_at": observed_at.isoformat(),
+        "source_url": source_url,
         "created_at": created_at.isoformat(),
     }
     with log_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-@router.post("", response_model=Observation, status_code=201)
-def create_observation(payload: ObservationCreate) -> Observation:
+def create_observation_record(raw_content: str, observed_at: datetime | None = None, source_url: str | None = None) -> Observation:
+    """create_observation'ın altındaki paylaşılan mantık — collector router'ı da bunu kullanır."""
     conn = get_connection()
     observation_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc)
-    observed_at = payload.observed_at or created_at
+    observed_at = observed_at or created_at
     conn.execute(
         "CREATE (:Observation {id: $id, raw_content: $raw_content, observed_at: $observed_at, "
-        "promoted: false, created_at: $created_at})",
+        "promoted: false, source_url: $source_url, created_at: $created_at})",
         {
             "id": observation_id,
-            "raw_content": payload.raw_content,
+            "raw_content": raw_content,
             "observed_at": observed_at,
+            "source_url": source_url,
             "created_at": created_at,
         },
     )
-    _append_daily_log(observation_id, payload.raw_content, observed_at, created_at)
+    _append_daily_log(observation_id, raw_content, observed_at, created_at, source_url)
     return Observation(
         id=observation_id, promoted=False, created_at=created_at,
-        raw_content=payload.raw_content, observed_at=observed_at,
+        raw_content=raw_content, observed_at=observed_at, source_url=source_url,
     )
+
+
+@router.post("", response_model=Observation, status_code=201)
+def create_observation(payload: ObservationCreate) -> Observation:
+    return create_observation_record(payload.raw_content, payload.observed_at, payload.source_url)
 
 
 @router.get("", response_model=list[Observation])
