@@ -150,8 +150,14 @@ kütüphanesi devreye girerse) yeniden değerlendirilebilir.
 3. **İçerik-veri ayrımı** — toplanan içerik hiçbir kod yolunda çalıştırılmaz/yorumlanmaz; HTML
    `BeautifulSoup` ile sadece düz metne çevrilir (script/style tag'leri atılır), RSS
    `feedparser` ile sadece yapılandırılmış alanlara (title/summary/link) ayrıştırılır. Sonuç
-   `Observation.raw_content`'e opak string olarak yazılır. Bu içeriğin bir LLM'e ne zaman/nasıl
-   "güvenilmeyen veri" olarak sunulacağı `.claude/skills/osint-brain/` içinde tarif edilir.
+   `Observation.raw_content`'e opak string olarak yazılır. **Bu katmanın LLM tarafı** (backend
+   hiçbir içeriği otomatik olarak bir LLM'e göndermez; bunu yapan, bu projede araştırma
+   yaparken `raw_content`/`Claim.text` okuyan agent'tır) ilk uygulamada eksikti — sadece bu
+   docstring'de bir niyet olarak vardı, `.claude/CLAUDE.md` veya `SKILL.md`'de hiçbir
+   operasyonel karşılığı yoktu. Güvenlik incelemesinde yakalanıp aynı gün düzeltildi: bkz.
+   Roadmap.md Faz 5 notlarındaki "Düzeltme" bölümü — artık `CLAUDE.md`'de koşulsuz bir kural
+   (güvenilmeyen-veri sınırı, talimat-görünümlü içeriği asla uygulamama, şüpheliyi kullanıcıya
+   bildirme) var ve gerçek bir prompt-injection denemesiyle manuel test edildi.
 
 **Uçtan uca doğrulama testleri:**
 - Allowlist'te olmayan bir hostname'e (127.0.0.1) istek → reddedildi (403).
