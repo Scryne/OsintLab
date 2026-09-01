@@ -20,7 +20,7 @@ roadmap'in dışında bırakıldı.
 | 1 | Temel Altyapı | ✅ Tamamlandı | FastAPI health-check endpoint ve KùzuDB şeması (Entity/Event/Source/Claim/Evidence/Relationship/Investigation/Observation) çalışıyor; API üzerinden temel entity CRUD test edilebiliyor. |
 | 2 | Core Knowledge Model + Confidence Motoru | ✅ Tamamlandı | Bir claim eklenip deterministik formülle confidence hesaplanabiliyor; çelişen ikinci claim eklendiğinde Contradiction objesi otomatik oluşuyor; eski bilgi silinmeden temporal (Valid: X→Y) supersede ediliyor. |
 | 3 | Investigation & Hypothesis System | ✅ Tamamlandı | Investigation açılıp durumları (OPEN→...→CLOSED/ARCHIVED) arasında geçebiliyor; kapanan investigation'ın sadece verified findings'i Knowledge Graph'a yükseliyor, geçici notlar yükselmiyor. |
-| 4 | OSINT Brain (Claude Code Agent Katmanı) | ⏳ Bekliyor | Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity otomatik hatırlatılıyor (Memory Recall); bir intelligence çıktısı için kural+graph tabanlı "Why This Matters" gerekçesi üretilebiliyor. |
+| 4 | OSINT Brain (Claude Code Agent Katmanı) | ✅ Tamamlandı | Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity otomatik hatırlatılıyor (Memory Recall); bir intelligence çıktısı için kural+graph tabanlı "Why This Matters" gerekçesi üretilebiliyor. |
 | 5 | Collection (temel WEBINT) + Collector Güvenliği | ⏳ Bekliyor | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
 | 6 | Source Independence Lineage Graph | ⏳ Bekliyor | Teknik tespit yaklaşımı doğrulandı (Q6 spike); en az 3 türetilmiş kaynak örneğinde (agency → site A → site B) sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor. |
 | 7 | Monitoring, Change Detection, Intelligence Inbox | ⏳ Bekliyor | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
@@ -114,7 +114,26 @@ roadmap'in dışında bırakıldı.
 - **Bitti Kriteri:** Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity
   otomatik hatırlatılıyor; bir intelligence çıktısı için kural+graph tabanlı "Why This
   Matters" gerekçesi üretilip kaynağı gösterilebiliyor.
-- **Notlar:**
+- **Notlar:** 2026-09-02 tamamlandı. `app/recall.py`'de LLM çağırmayan, tamamen kural+graph
+  tabanlı bir modül: `entity_recall`/`event_recall` (ilişkili investigation/claim/event'leri
+  toplar — investigation status'u ne olursa olsun, bu Research Relevance Recall'ı da
+  kapsıyor) ve `why_matters` (yapılandırılmış gerekçe listesi: INDEPENDENT_SOURCES,
+  CORROBORATED, CONTRADICTED, ACTIVE_INVESTIGATION, PAST_INVESTIGATION_RELEVANCE,
+  NEWLY_DISCOVERED, PRIOR_KNOWLEDGE_EXISTS, LOW_SIGNAL). `POST /observations/{id}/promote`
+  artık claim'in yanında otomatik `recall` (yeni bilgi eklenmeden ÖNCEKİ durum) ve
+  `why_matters` döndürüyor — ayrı çağrı gerekmiyor. `GET /entities|events/{id}/recall` ve
+  `GET /claims/{id}/why-matters` de bağımsız uçlar olarak eklendi. Uçtan uca test: bir entity
+  hakkında önceden bir claim + ACTIVE bir investigation varken yeni bir observation
+  promote edildi → yanıt otomatik olarak "ACTIVE_INVESTIGATION" ve "PRIOR_KNOWLEDGE_EXISTS"
+  gerekçelerini içerdi; investigation CLOSED'a geçince aynı senaryo "PAST_INVESTIGATION_
+  RELEVANCE"e döndü (eski araştırmanın yeniden alakalı hale gelmesi senaryosu, bkz.
+  Proje-Fikri.md madde 63). Ayrıca proje-özel bir Claude Code skill'i kuruldu:
+  `.claude/skills/osint-brain/SKILL.md` — bu projede araştırma yaparken hangi durumda hangi
+  recall/why-matters/explain ucunun çağrılacağını ve Scryne'ın analitik tonunu (Proje-
+  Fikri.md madde 76) tarif ediyor; ScryneOS'taki kişisel Brain'den tamamen izole. Not: test
+  sırasında terminal çıktısında Türkçe karakterlerde mojibake görüldü ama ham API yanıtı byte
+  seviyesinde doğru UTF-8 olduğu doğrulandı (`\xc5\x9f`=ş, `\xc3\xb6`=ö) — bu Windows/git-bash
+  terminalinin görüntüleme sorunu, backend'de düzeltilecek bir hata yok.
 
 ### Faz 5: Collection (temel WEBINT) + Collector Güvenliği
 - **İşler:**

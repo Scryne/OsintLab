@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.db import fetch_all, fetch_one, get_connection
 from app.models import Entity, EntityCreate
+from app.recall import entity_recall
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
@@ -51,6 +52,15 @@ def get_entity(entity_id: str) -> Entity:
     if row is None:
         raise HTTPException(status_code=404, detail="Entity not found")
     return Entity(**row)
+
+
+@router.get("/{entity_id}/recall")
+def recall_entity(entity_id: str) -> dict:
+    """OSINT Brain — Memory Recall: bu entity hakkında sistemin şu an ne bildiği."""
+    conn = get_connection()
+    if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return {"entity_id": entity_id, **entity_recall(conn, entity_id)}
 
 
 @router.patch("/{entity_id}", response_model=Entity)

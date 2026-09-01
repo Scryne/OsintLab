@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.models import Claim, ClaimCreate
+from app.recall import why_matters
 
 router = APIRouter(prefix="/claims", tags=["claims"])
 
@@ -28,6 +29,20 @@ def _claim_source_id(conn, claim_id: str) -> str | None:
     )
     row = fetch_one(result)
     return row
+
+
+def _claim_about(conn, claim_id: str) -> tuple[str | None, str | None]:
+    entity_row = fetch_one(
+        conn.execute(
+            "MATCH (c:Claim {id: $id})-[:ABOUT_ENTITY]->(e:Entity) RETURN e.id AS id", {"id": claim_id}
+        )
+    )
+    event_row = fetch_one(
+        conn.execute(
+            "MATCH (c:Claim {id: $id})-[:ABOUT_EVENT]->(e:Event) RETURN e.id AS id", {"id": claim_id}
+        )
+    )
+    return (entity_row["id"] if entity_row else None, event_row["id"] if event_row else None)
 
 
 def _gather_confidence_inputs(conn, claim_id: str) -> ConfidenceResult:
@@ -224,3 +239,17 @@ def explain_claim(claim_id: str) -> dict:
             "corroboration": 0.15,
         },
     }
+
+
+@router.get("/{claim_id}/why-matters")
+def claim_why_matters(claim_id: str) -> dict:
+    """Q12: kural + graph tabanlı 'neden önemli' gerekçesi. AI bu listeyi akıcı cümleye
+    çevirebilir (bkz. .claude/skills/osint-brain/) ama karar mantığı burada, deterministik."""
+    conn = get_connection()
+    row = fetch_one(conn.execute(f"MATCH (c:Claim {{id: $id}}) RETURN {_FIELDS}", {"id": claim_id}))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    confidence_result = _gather_confidence_inputs(conn, claim_id)
+    about_entity_id, about_event_id = _claim_about(conn, claim_id)
+    reasons = why_matters(conn, claim_id, row, confidence_result, about_entity_id, about_event_id)
+    return {"claim_id": claim_id, "reasons": reasons}

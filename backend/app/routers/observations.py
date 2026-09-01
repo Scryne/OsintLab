@@ -7,7 +7,9 @@ from fastapi import APIRouter, HTTPException
 
 from app.db import fetch_all, fetch_one, get_connection
 from app.models import Claim, ClaimCreate, Observation, ObservationCreate, ObservationPromote
-from app.routers.claims import create_claim, get_claim
+from app.recall import entity_recall, event_recall
+from app.recall import why_matters as compute_why_matters
+from app.routers.claims import _claim_about, _gather_confidence_inputs, create_claim, get_claim
 
 router = APIRouter(prefix="/observations", tags=["observations"])
 
@@ -85,15 +87,27 @@ def get_observation(observation_id: str) -> Observation:
     return Observation(**row)
 
 
-@router.post("/{observation_id}/promote", response_model=Claim)
-def promote_observation(observation_id: str, payload: ObservationPromote) -> Claim:
+@router.post("/{observation_id}/promote")
+def promote_observation(observation_id: str, payload: ObservationPromote) -> dict:
     """Q1/Q8: ham observation değerlendirilir; deterministik confidence formülü eşiği
     (PROMOTION_THRESHOLD) geçerse Knowledge Graph'a (Claim olarak) yükselir ve
-    observation.promoted=true işaretlenir. Geçmezse Observation ham haliyle kalır — silinmez."""
+    observation.promoted=true işaretlenir. Geçmezse Observation ham haliyle kalır — silinmez.
+
+    Faz 4 — OSINT Brain Memory Recall: about_entity_id/about_event_id verildiyse, YENİ claim
+    oluşturulmadan ÖNCEKİ bilgi durumu ('daha önce ne biliyorduk') otomatik olarak dönülür,
+    böylece kullanıcı/agent ayrı bir çağrı yapmak zorunda kalmadan geçmiş investigation/claim
+    bağlamını görür (Research Relevance Recall dahil — investigation status'u ne olursa olsun
+    listelenir)."""
     conn = get_connection()
     observation = get_observation(observation_id)
     if observation.promoted:
         raise HTTPException(status_code=409, detail="Observation already promoted")
+
+    recall_before: dict | None = None
+    if payload.about_entity_id:
+        recall_before = {"about": "entity", "id": payload.about_entity_id, **entity_recall(conn, payload.about_entity_id)}
+    elif payload.about_event_id:
+        recall_before = {"about": "event", "id": payload.about_event_id, **event_recall(conn, payload.about_event_id)}
 
     claim = create_claim(
         ClaimCreate(
@@ -121,4 +135,13 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> Cla
             {"oid": observation_id, "cid": claim.id},
         )
 
-    return get_claim(claim.id)
+    final_claim = get_claim(claim.id)
+    confidence_result = _gather_confidence_inputs(conn, claim.id)
+    about_entity_id, about_event_id = _claim_about(conn, claim.id)
+    reasons = compute_why_matters(conn, claim.id, {}, confidence_result, about_entity_id, about_event_id)
+
+    return {
+        "claim": final_claim.model_dump(mode="json"),
+        "recall": recall_before,
+        "why_matters": reasons,
+    }

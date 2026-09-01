@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.db import fetch_all, fetch_one, get_connection
 from app.models import Event, EventCreate
+from app.recall import event_recall
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -53,6 +54,15 @@ def get_event(event_id: str) -> Event:
     if row is None:
         raise HTTPException(status_code=404, detail="Event not found")
     return Event(**row)
+
+
+@router.get("/{event_id}/recall")
+def recall_event(event_id: str) -> dict:
+    """OSINT Brain — Memory Recall: bu event hakkında sistemin şu an ne bildiği."""
+    conn = get_connection()
+    if fetch_one(conn.execute("MATCH (e:Event {id: $id}) RETURN e.id AS id", {"id": event_id})) is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"event_id": event_id, **event_recall(conn, event_id)}
 
 
 @router.delete("/{event_id}", status_code=204)
