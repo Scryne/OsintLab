@@ -85,6 +85,15 @@ NODE_TABLES = [
         PRIMARY KEY(id)
     )
     """,
+    """
+    CREATE NODE TABLE IF NOT EXISTS Hypothesis(
+        id STRING,
+        text STRING,
+        status STRING,
+        created_at TIMESTAMP,
+        PRIMARY KEY(id)
+    )
+    """,
 ]
 
 REL_TABLES = [
@@ -104,6 +113,13 @@ REL_TABLES = [
     "CREATE REL TABLE IF NOT EXISTS CORROBORATES(FROM Claim TO Claim)",
     "CREATE REL TABLE IF NOT EXISTS CLAIM_CONTRADICTS(FROM Claim TO Claim, status STRING, detected_at TIMESTAMP)",
     "CREATE REL TABLE IF NOT EXISTS SUPERSEDES(FROM Claim TO Claim, at TIMESTAMP)",
+    # Faz 3 — Investigation & Hypothesis System (Q16/Q17)
+    "CREATE REL TABLE IF NOT EXISTS HAS_HYPOTHESIS(FROM Investigation TO Hypothesis)",
+    "CREATE REL TABLE IF NOT EXISTS HYPOTHESIS_EVIDENCE(FROM Evidence TO Hypothesis, stance STRING)",
+    "CREATE REL TABLE IF NOT EXISTS HAS_FINDING(FROM Investigation TO Claim)",
+    # Q17: sadece kapanışta doğrulanmış (SUPPORTED/CORROBORATED/HIGH_CONFIDENCE) findings
+    # bu ilişkiyi kazanır — "long-term memory'ye promote edildi" sinyali budur.
+    "CREATE REL TABLE IF NOT EXISTS VALIDATED_FINDING(FROM Investigation TO Claim, promoted_at TIMESTAMP)",
 ]
 
 

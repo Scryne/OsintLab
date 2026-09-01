@@ -91,6 +91,49 @@ class Observation(ObservationCreate):
     created_at: datetime
 
 
+INVESTIGATION_STATUSES = ("OPEN", "ACTIVE", "PAUSED", "RESOLVED", "CLOSED", "ARCHIVED")
+
+# Q16 durum makinesi. ARCHIVED terminaldir (v1'de yeniden açılmaz).
+INVESTIGATION_TRANSITIONS: dict[str, tuple[str, ...]] = {
+    "OPEN": ("ACTIVE", "ARCHIVED"),
+    "ACTIVE": ("PAUSED", "RESOLVED", "ARCHIVED"),
+    "PAUSED": ("ACTIVE", "ARCHIVED"),
+    "RESOLVED": ("ACTIVE", "CLOSED", "ARCHIVED"),
+    "CLOSED": ("ARCHIVED",),
+    "ARCHIVED": (),
+}
+
+
+class InvestigationCreate(BaseModel):
+    title: str
+    research_question: str
+
+
+class Investigation(InvestigationCreate):
+    id: str
+    status: str
+    created_at: datetime
+
+
+class InvestigationTransition(BaseModel):
+    to_status: str = Field(..., examples=list(INVESTIGATION_STATUSES))
+
+
+class HypothesisCreate(BaseModel):
+    text: str = Field(..., examples=["H1: Company X is directly controlled by Organization Y."])
+
+
+class Hypothesis(HypothesisCreate):
+    id: str
+    status: str
+    created_at: datetime
+
+
+class HypothesisEvidenceLink(BaseModel):
+    evidence_id: str
+    stance: str = Field(..., examples=["SUPPORTS", "WEAKENS", "REFUTES"])
+
+
 class ObservationPromote(BaseModel):
     source_id: str
     about_entity_id: str | None = None

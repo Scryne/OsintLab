@@ -19,7 +19,7 @@ roadmap'in dışında bırakıldı.
 | --- | --- | --- | --- |
 | 1 | Temel Altyapı | ✅ Tamamlandı | FastAPI health-check endpoint ve KùzuDB şeması (Entity/Event/Source/Claim/Evidence/Relationship/Investigation/Observation) çalışıyor; API üzerinden temel entity CRUD test edilebiliyor. |
 | 2 | Core Knowledge Model + Confidence Motoru | ✅ Tamamlandı | Bir claim eklenip deterministik formülle confidence hesaplanabiliyor; çelişen ikinci claim eklendiğinde Contradiction objesi otomatik oluşuyor; eski bilgi silinmeden temporal (Valid: X→Y) supersede ediliyor. |
-| 3 | Investigation & Hypothesis System | ⏳ Bekliyor | Investigation açılıp durumları (OPEN→...→CLOSED/ARCHIVED) arasında geçebiliyor; kapanan investigation'ın sadece verified findings'i Knowledge Graph'a yükseliyor, geçici notlar yükselmiyor. |
+| 3 | Investigation & Hypothesis System | ✅ Tamamlandı | Investigation açılıp durumları (OPEN→...→CLOSED/ARCHIVED) arasında geçebiliyor; kapanan investigation'ın sadece verified findings'i Knowledge Graph'a yükseliyor, geçici notlar yükselmiyor. |
 | 4 | OSINT Brain (Claude Code Agent Katmanı) | ⏳ Bekliyor | Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity otomatik hatırlatılıyor (Memory Recall); bir intelligence çıktısı için kural+graph tabanlı "Why This Matters" gerekçesi üretilebiliyor. |
 | 5 | Collection (temel WEBINT) + Collector Güvenliği | ⏳ Bekliyor | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
 | 6 | Source Independence Lineage Graph | ⏳ Bekliyor | Teknik tespit yaklaşımı doğrulandı (Q6 spike); en az 3 türetilmiş kaynak örneğinde (agency → site A → site B) sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor. |
@@ -87,7 +87,20 @@ roadmap'in dışında bırakıldı.
 - **Bitti Kriteri:** Investigation açılıp durumları arasında geçebiliyor; kapanan
   investigation'ın sadece verified findings'i Knowledge Graph'a yükseliyor, geçici notlar/
   çürütülmüş hipotezler yükselmiyor.
-- **Notlar:**
+- **Notlar:** 2026-09-02 tamamlandı. `INVESTIGATION_TRANSITIONS` (app/models.py) durum
+  makinesini zorluyor — geçersiz geçişler (OPEN→RESOLVED, CLOSED→RESOLVED, ARCHIVED'dan
+  herhangi bir yere) 409 ile reddediliyor, ARCHIVED terminal. Kapanış promosyonu
+  (`_promote_verified_findings`, investigations.py) CLOSED/ARCHIVED'a geçişte tetikleniyor ve
+  idempotent (aynı claim iki kez promote edilmiyor); sadece SUPPORTED/CORROBORATED/
+  HIGH_CONFIDENCE durumundaki finding'ler `VALIDATED_FINDING` ilişkisini kazanıyor. Uçtan uca
+  test: bir investigation'a hem corroboration ile SUPPORTED'a yükselmiş bir claim hem de tek
+  kaynaklı REPORTED (0.32) bir claim finding olarak eklendi — kapanmadan önce ikisi de
+  validated=false, RESOLVED→CLOSED geçişinden SONRA sadece SUPPORTED olan validated=true
+  oldu, REPORTED claim validated=false kaldı ama **silinmedi** (hâlâ `/claims/{id}` üzerinden
+  erişilebiliyor) — History Is Immutable korundu. Hypothesis sistemi de eklendi:
+  Evidence→Hypothesis SUPPORTS/WEAKENS/REFUTES bağlantısı otomatik olarak hypothesis
+  status'unu (PROPOSED/SUPPORTED/WEAKENED/REFUTED/UNRESOLVED) yeniden hesaplıyor — testte bir
+  SUPPORTS bağlantısı PROPOSED'u SUPPORTED'a çevirdi. Test verisi temizlendi.
 
 ### Faz 4: OSINT Brain (Claude Code Agent Katmanı)
 - **İşler:**
