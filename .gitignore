@@ -1,0 +1,24 @@
+# Bağımlılıklar / derleme çıktıları
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# OSINT Brain'in kişisel/canlı verisi — koda ait değil, commit edilmez
+/data/
+
+# Ortam / sır dosyaları
+.env
+.env.local
+.env.*.local
+
+# Log / OS / editör
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
