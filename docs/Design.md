@@ -12,13 +12,21 @@ tekrar edilmez.
 ## Proje Kimliği
 (Bu projeyi diğerlerinden ayıran katman)
 
-- **Mood:** Gece masası / dosya odası — flaşlı bir "SaaS dashboard" değil, tek bir analistin
-  geç saatte önündeki dava dosyasını çalıştığı bir masa. Sakin, yoğun, dekorasyonsuz;
-  "teşhir" değil "çalışma yüzeyi".
+> **2026-09-02 güncellemesi:** Scryne kendi hazırladığı "Frontend-taslak" reposunu (generic
+> dark-glass SaaS şablonu) canlıda görünce OsintLab'ın "chrome"unun (zemin/glass/tipografi/
+> buton/nav stili) o repoya çevrilmesini istedi. Confidence Spectrum + Priority Scale renk
+> sistemi ve bunların taşıdığı epistemik anlam KORUNDU — reskin sadece dekoratif katmanı
+> etkiledi. Aşağıdaki Mood/Zemin/Tipografi/UI Accent alt-maddeleri bu kararla güncellendi,
+> Confidence Spectrum/Priority Scale maddeleri değişmedi.
+
+- **Mood:** Taslağın modern, indigo/violet ağırlıklı SaaS-workstation hissi — önceki "gece
+  masası/dosya odası" bespoke kimliğinin yerini aldı. Yine de her elemente cam sürülmüyor
+  (performans/okunabilirlik prensibi korunuyor, aşağıya bkz.).
 
 - **Accent Palet:** İki AYRI, birbirine karışmaması gereken renk sistemi var — bu projenin
-  en önemli tasarım kararı. Genel "koyu tema + tek parlak accent" klişesinin bilinçli
-  reddi: burada renk zaten bir bilgi taşıyor (confidence + priority), dekorasyon değil.
+  en önemli tasarım kararı, taslağa geçişte de dokunulmadı. Genel "koyu tema + tek parlak
+  accent" klişesinin bilinçli reddi: burada renk zaten bir bilgi taşıyor (confidence +
+  priority), dekorasyon değil.
 
   1. **Confidence Spectrum** (soğuk→sıcak, `knowledge_state`'in birebir karşılığı —
      imza öğe, aşağıda detay):
@@ -29,23 +37,26 @@ tekrar edilmez.
      altın ailesiyle KARIŞTIRILMAMALI):
      `INFO #6B7690 → LOW #7C74C4 → MEDIUM #C4703E → HIGH #DD5A46 → CRITICAL #E23A6B`
   3. **UI Accent** (buton/link/aktif nav/focus ring — chrome rengi, epistemik anlamı yok):
-     `#9B8AFB` (sinyal moru) — confidence/priority rampalarının hiçbirine yakın değil,
-     kullanıcı "bu bir buton" ile "bu bir güven seviyesi" göstergesini asla karıştırmasın.
-  4. **Zemin:** düz siyah değil — `#05070A` taban üstünde sol-üstte çok düşük alpha çivit
-     mavisi (`#1B2340`), sağ-altta çok düşük alpha pas/kahve (`#2A1B12`) mesh gradient
-     (global kural: ışık kaynağı sol-üst). Opak paneller (tablo, timeline satırı, graph
-     canvas — okunabilirlik/performans için CAM DEĞİL): `#0E121A` (`--surface`), hover
-     `#141924`. Cam sadece: üst nav, Inbox paneli, modal'lar, birincil CTA butonları.
+     `#8B5CF6` (taslağın violet/ring rengi) — confidence/priority rampalarının hiçbirine
+     yakın değil, kullanıcı "bu bir buton" ile "bu bir güven seviyesi" göstergesini asla
+     karıştırmasın. Birincil CTA butonları taslağın imza gradyanını kullanır:
+     `linear-gradient(135deg, #4F46E5, #6366F1)`.
+  4. **Zemin:** taslağın mesh'i — `#090A0C` taban üstünde sol-üstte düşük alpha violet
+     (`rgba(139,92,246,.14)`), sağ-altta düşük alpha mavi (`rgba(59,130,246,.10)`) radial
+     gradient + 48px'lik çok düşük alpha grid çizgileri (global kural: ışık kaynağı
+     sol-üst). Opak paneller (tablo, timeline satırı, graph canvas — okunabilirlik/
+     performans için hâlâ blur'lu CAM DEĞİL, ama artık taslağın translucent beyaz-üstü-
+     koyu tonuyla): `rgba(255,255,255,.045)` (`--surface`), hover `rgba(255,255,255,.065)`.
+     Cam (gerçek `backdrop-filter`) hâlâ sadece: üst nav, Inbox paneli, modal'lar —
+     taslağın `.glass-strong` tarifine göre (16px blur + inset highlight + shadow).
 
-- **Tipografi Eşleşmesi:** 3 rollü, "dava dosyası" mantığıyla:
-  - **Display** (kısıtlı kullanım — Entity/Investigation başlıkları, "OSINT LAB" wordmark'ı):
-    **IBM Plex Serif**, 600, dar letter-spacing — dosya gömleği/antet hissi.
-  - **Body/UI** (nav, buton, tablo başlığı, paragraf): **IBM Plex Sans**, 400/500/600 —
-    teknik ama insani, kurumsal soğukluğa kaçmıyor.
-  - **Data/mono** (timestamp, id, hash, confidence sayısı, source URL, kod-benzeri değer):
-    **JetBrains Mono**, 400/500 — teleks/terminal hissi, verinin "ham" olduğunu işaretler.
-  - Google Fonts: `IBM+Plex+Serif:wght@500;600`, `IBM+Plex+Sans:wght@400;500;600`,
-    `JetBrains+Mono:wght@400;500`.
+- **Tipografi Eşleşmesi:** Taslağa göre tek aileye indirildi (önceki 3-rollü IBM Plex/
+  JetBrains Serif ayrımı terk edildi):
+  - **Display + Body/UI** (başlıklar, nav, buton, paragraf — hepsi): **Inter**, 400–700.
+  - **Data/mono** (timestamp, id, hash, confidence sayısı, source URL): **JetBrains Mono**
+    korunuyor — taslakta bir mono kullanım örneği yok ama bu proje için hâlâ işlevsel
+    (verinin "ham/makine-okunur" olduğunu işaretliyor), o yüzden bilerek elenmedi.
+  - Google Fonts: `Inter:wght@400;500;600;700`, `JetBrains+Mono:wght@400;500`.
 
 - **Farklılaştırıcı Detay (imza öğe):** **Confidence Spectrum'un kendisi arayüzün omurgası
   olması** — süsleme değil, mekanizmanın görselleşmesi. Her Claim/Entity/Event kartının sol

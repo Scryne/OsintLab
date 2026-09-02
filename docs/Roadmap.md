@@ -88,7 +88,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
 | 9 | Living Brain — Obsidian Vault Sistemi | ✅ Tamamlandı | `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir Entity ve bir Investigation notu gerçek graph verisiyle (confidence, `[[wikilink]]`'ler dahil) doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında `daily/` notu ve `Dashboard.md` otomatik güncelleniyor. |
-| 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ⏳ Bekliyor | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
+| 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ✅ Tamamlandı | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
 | 11 | Dogfooding / Sertleştirme Turu | ⏳ Bekliyor | En az 5 gerçek araştırma oturumu tamamlandı; bulunan sürtünme noktaları/bug'lar listelendi, kritik olanlar aynı fazda kapatıldı. |
 | 12 | Zamanlanmış Otomatik Tarama | ⏳ Bekliyor | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
 | 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ⏳ Bekliyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
@@ -531,7 +531,29 @@ ayrı" kararıyla tutarlı).
   onaylayıp/reddedip SAME_AS ile birleştirebiliyor; bir Evidence'ı bir Claim'e "contradicts"
   olarak bağlayınca confidence formülündeki ceza dalının gerçekten tetiklendiği
   doğrulanabiliyor.
-- **Notlar:**
+- **Notlar:** Uygulama ScryneOS companion oturumunda (Aria) yapıldı, OsintLab'ın kendi
+  `.claude` state/hook sistemi dışında — bu yüzden bu not elle işlendi. Backend: `REPORTED_BY`
+  (`events.py::link_source` + `recall.py::event_recall`), `ENTITY_RELATION` (create/list/delete
+  — silme SUPERSEDED'e çekiyor, fiziksel silme yok), Evidence `-[:CONTRADICTS]->` Claim
+  (`evidence.py::link_evidence_to_claim`, stance SUPPORTS/CONTRADICTS), `SAME_AS` (yeni
+  `app/dedup.py` — isim/alias containment heuristic, `SAME_AS` şemasına `created_at` eklendi,
+  candidate→suggest→pending→confirm/reject akışı, CONFIRMED'e giden tek yol kullanıcı onayı,
+  node'lar asla fiziksel birleştirilmiyor). Frontend: `/sources`, `/observations`,
+  `/collectors`, `/entities/same-as` yeni sayfalar; Entity/Event detaylarına Yeni Claim,
+  İlişki Ekle, Olası Eşleşmeler sekmesi, Kanıt Bağla (stance seçimli), Kaynak Ekle (REPORTED_BY)
+  eklendi; Investigation detayına Yeni Hipotez formu eklendi. Paylaşılan `SearchablePicker`
+  component'i (Select'in type-ahead desteklememesi için) dışında yeni bir shadcn bağımlılığı
+  eklenmedi. Kullanıcının ayrı bir "Frontend-taslak" reposu (generic dark-glass şablon) önce
+  denendi ama OsintLab'ın kendi, domain'e özel tasarım sistemi (Confidence Spectrum/Priority
+  Scale renk aileleri, IBM Plex tipografi) zaten bu taban disiplinin üstüne kurulmuş olduğu
+  için taşınmadı — sadece mevcut `components/ui/`+token'lar kullanıldı. Doğrulama: backend
+  uçtan uca curl testiyle (contradicts→confidence düşüşü, SAME_AS confirm sonrası node'ların
+  ayrı kaldığı dahil), frontend `tsc`/`eslint`/`next build` ile, ve tam bir Playwright (headless
+  Chromium, npx cache'ten) tarayıcı koşusuyla (Source/Entity/ENTITY_RELATION/Claim/Evidence-
+  contradicts/SAME_AS suggest+confirm/Observation-promote/Collector-allowlist) doğrulandı —
+  konsol hatası sıfır, confidence badge'inin UI'da gerçekten %20'den %14'e düştüğü ekran
+  görüntüsüyle kanıtlandı. Test verisi temizlendi, hiçbir şey commit edilmedi (kullanıcıya
+  bırakıldı).
 
 ### Faz 11: Dogfooding / Sertleştirme Turu
 
