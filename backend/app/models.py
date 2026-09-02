@@ -145,6 +145,11 @@ class ObservationPromote(BaseModel):
     corroborates: list[str] = Field(default_factory=list)
 
 
+class LineageDetectRequest(BaseModel):
+    claim_id_a: str = Field(..., description="Daha erken (upstream/orijinal) olduğu varsayılan claim — created_at otomatik karşılaştırılır")
+    claim_id_b: str = Field(..., description="İkinci claim — hangisinin daha erken olduğu created_at'e göre otomatik belirlenir")
+
+
 class AllowlistAdd(BaseModel):
     hostname: str = Field(..., examples=["feeds.bbci.co.uk"], description="Tam eşleşme ile kontrol edilir (subdomain dahil edilmez)")
 

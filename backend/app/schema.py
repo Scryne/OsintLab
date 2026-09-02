@@ -121,6 +121,10 @@ REL_TABLES = [
     # Q17: sadece kapanışta doğrulanmış (SUPPORTED/CORROBORATED/HIGH_CONFIDENCE) findings
     # bu ilişkiyi kazanır — "long-term memory'ye promote edildi" sinyali budur.
     "CREATE REL TABLE IF NOT EXISTS VALIDATED_FINDING(FROM Investigation TO Claim, promoted_at TIMESTAMP)",
+    # Faz 6 — Q6 Source Independence Lineage Graph. FROM = türetilmiş (daha sonraki/downstream)
+    # Source, TO = türetildiği (daha önceki/upstream) Source. Zincir: Site B -[:DERIVED_FROM]->
+    # Site A -[:DERIVED_FROM]-> Agency.
+    "CREATE REL TABLE IF NOT EXISTS DERIVED_FROM(FROM Source TO Source, method STRING, similarity DOUBLE, shared_agencies STRING, detected_at TIMESTAMP)",
 ]
 
 

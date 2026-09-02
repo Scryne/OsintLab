@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
+from app.lineage import resolve_independent_root
 from app.models import Claim, ClaimCreate
 from app.recall import why_matters
 
@@ -56,7 +57,16 @@ def _gather_confidence_inputs(conn, claim_id: str) -> ConfidenceResult:
             {"id": claim_id},
         )
     )
-    corroborating_source_ids = {row["source_id"] for row in corroborators}
+    # Q6 (Faz 6): iki farklı Source aynı DERIVED_FROM zincirinin kökündeyse (ör. Site B
+    # -> Site A -> Agency), bunlar bağımsız kaynaklar SAYILMAZ — sadece tek bir kökene
+    # (independent root) indirgenmiş id kümesi independence hesabına girer. Ajansın kendisi
+    # ile o ajanstan türeyen bir site arasındaki corroboration da bu yüzden bağımsızlık
+    # katkısı yapmaz.
+    corroborating_source_ids = {
+        resolve_independent_root(conn, row["source_id"]) for row in corroborators
+    }
+    if source_row is not None:
+        corroborating_source_ids.discard(resolve_independent_root(conn, source_row["id"]))
     corroborating_claims_count = len({row["claim_id"] for row in corroborators})
 
     evidence_count = len(

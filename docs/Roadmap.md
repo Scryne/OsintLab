@@ -22,7 +22,7 @@ roadmap'in dışında bırakıldı.
 | 3 | Investigation & Hypothesis System | ✅ Tamamlandı | Investigation açılıp durumları (OPEN→...→CLOSED/ARCHIVED) arasında geçebiliyor; kapanan investigation'ın sadece verified findings'i Knowledge Graph'a yükseliyor, geçici notlar yükselmiyor. |
 | 4 | OSINT Brain (Claude Code Agent Katmanı) | ✅ Tamamlandı | Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity otomatik hatırlatılıyor (Memory Recall); bir intelligence çıktısı için kural+graph tabanlı "Why This Matters" gerekçesi üretilebiliyor. |
 | 5 | Collection (temel WEBINT) + Collector Güvenliği | ✅ Tamamlandı | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
-| 6 | Source Independence Lineage Graph | ⏳ Bekliyor | Teknik tespit yaklaşımı doğrulandı (Q6 spike); en az 3 türetilmiş kaynak örneğinde (agency → site A → site B) sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor. |
+| 6 | Source Independence Lineage Graph | ✅ Tamamlandı | Teknik tespit yaklaşımı doğrulandı (Q6 spike); en az 3 türetilmiş kaynak örneğinde (agency → site A → site B) sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor. |
 | 7 | Monitoring, Change Detection, Intelligence Inbox | ⏳ Bekliyor | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
 | 8 | Frontend (Next.js Dashboard) | ⏳ Bekliyor | `docs/Design.md` dolduruldu; kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını görebiliyor; Inbox'ı görüntüleyip Confirm/Reject/Investigate aksiyonu alabiliyor (davranış loglanıyor); SOURCE FACT/AI ANALYSIS/SYSTEM INFERENCE/USER INTERPRETATION 4 etiketi UI'da ayrışıyor. |
 
@@ -190,7 +190,43 @@ roadmap'in dışında bırakıldı.
     Site B zinciri).
 - **Bitti Kriteri:** Teknik tespit yaklaşımı doğrulandı; en az 3 türetilmiş kaynak örneğinde
   sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor.
-- **Notlar:**
+- **Notlar:** 2026-09-02 tamamlandı. Q6 spike gerçek haber makaleleriyle (collector'ın
+  network-policy sınırlı çektiği ham metin üzerinde, `app/lineage.py`) yapıldı — üç yaklaşım
+  değerlendirildi (metin benzerliği / yayın metadata'sı / syndication API'leri), (c)
+  syndication API'leri kişisel araç için elendi (ticari erişim gerektiriyor). **Karar:**
+  kelime n-gram (5-gram) **containment (Szymkiewicz–Simpson) katsayısı** birincil sinyal,
+  ajans-atıf metin taraması (yalnızca tam/uzun isimler — "aa"/"iha" gibi kısa kısaltmalar
+  gerçek veride yanlış pozitif ürettiği için dışarıda bırakıldı) destekleyici ikincil sinyal.
+  Jaccard yerine containment'a geçildi çünkü collector'ın çıkardığı ham sayfa metnindeki
+  nav/footer boilerplate'in site başına farklı miktarda olması Jaccard'ı yapay olarak
+  düşürüyordu (gerçek bir türetilmiş çift Jaccard'da ~0.20 çıkarken containment'ta 0.54-0.62
+  çıktı) — tam gerekçe ve rakamlar `app/lineage.py` docstring'inde.
+
+  **Gerçek veriyle doğrulama** (WebSearch ile bulunan, collector ile toplanan canlı haberler):
+  aa.com.tr → ensondakika.com.tr (2 ayrı haberde containment 0.59/0.61), turkiyeajanspress.com
+  → egelobisi.com (0.54), ve **agency → site A → site B** deseninin birebir karşılığı olan
+  3'lü zincir: karsmanset.com → yildirimgazetesi.com → marmarisyenisayfa.com (TEKNOFEST İHA
+  yarışması haberi, ikili containment'lar 0.60/0.57) — hepsi doğru şekilde türetilmiş
+  işaretlendi. Doğru negatif de test edildi: aynı konudaki (balıkçılık) ama farklı kökenden
+  iki site (egelobisi vs denizhaber) 0.19'da kaldı, eşiğin (0.35) altında, yanlış pozitif
+  üretmedi.
+
+  Şema: `DERIVED_FROM(FROM Source TO Source, method, similarity, shared_agencies,
+  detected_at)` — yön downstream→upstream (Site B -[:DERIVED_FROM]-> Site A). Yeni uçlar:
+  `POST /sources/lineage/detect` (iki claim'in kaynaklarını karşılaştırıp gerekirse edge
+  kurar, created_at'e göre yön otomatik belirlenir, idempotent), `GET /sources/{id}/lineage`
+  (ancestors/descendants + independent_root_id, `DERIVED_FROM*1..10` değişken-uzunluk path
+  traversal'ı). **Faz 2 confidence motoruna entegrasyon** (asıl bitti kriteri burada
+  kanıtlandı): `claims.py::_gather_confidence_inputs` artık corroborating source id'lerini ham
+  haliyle değil, `resolve_independent_root` ile indirgenmiş köklerine göre sayıyor — uçtan uca
+  test: Karsmanset kaynaklı bir claim'e önce lineage zincirindeki Marmaris (aynı kök, Karsmanset
+  → Yıldırım → Marmaris) corroboration eklendi → independence skoru **0.0'da kaldı**,
+  confidence sadece corroboration-count katkısıyla hafif arttı (0.24→0.29); ardından gerçekten
+  bağımsız bir kökten (egelobisi) corroboration eklendi → independence **0.5'e** sıçradı,
+  confidence 0.465'e çıkıp REPORTED'dan SUPPORTED'a geçti. Yani sistem, aynı ajanstan/zincirden
+  türeyen "görünüşte 2. kaynak"ı bağımsız doğrulama olarak SAYMIYOR — Proje-Fikri.md madde
+  18'in tam istediği davranış. Test verisi (Source/Claim/Entity/DERIVED_FROM + collector
+  allowlist + KùzuDB) temizlendi, Brain temiz başlıyor.
 
 ### Faz 7: Monitoring, Change Detection, Intelligence Inbox
 - **İşler:**

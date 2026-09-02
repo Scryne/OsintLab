@@ -11,8 +11,11 @@ konsolide edildi) tek başına belirleyici değil, ağırlıklardan sadece biri.
 
 Ağırlıklar (toplamı 1.0):
     source_quality  0.40  — asserting Source'un reliability'si
-    independence    0.25  — corroborating claim'lerin FARKLI kaynaklardan gelme oranı
-                             (v1 yaklaşımı: distinct source sayısı — tam lineage graph Faz 6'da)
+    independence    0.25  — corroborating claim'lerin FARKLI, birbirinden BAĞIMSIZ kaynaklardan
+                             gelme oranı. "Farklı kaynak" ham Source id sayısı değil, Q6 (Faz 6)
+                             DERIVED_FROM lineage graph'ında her Source'un indirgendiği
+                             independent root sayısıdır (bkz. app/lineage.py) — aynı ajanstan
+                             türeyen iki site tek bir bağımsız kaynak olarak sayılır.
     evidence        0.20  — bağlı Evidence sayısı (normalize)
     corroboration   0.15  — bağımsız olarak doğrulayan claim sayısı (normalize)
 

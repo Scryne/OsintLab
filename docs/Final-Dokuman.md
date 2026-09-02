@@ -29,7 +29,7 @@ temporal versiyonlama, entity merge/conclude/verify'da zorunlu kullanıcı onay�
 | Evidence Storage | Yerel dosya sistemi + SHA-256 hash + metadata | Q18 kararı — kanıt dosyaları yerelde saklanır, bütünlük hash'i ve tam provenance metadata'sı (source, collected, first seen) tutulur. |
 | AI Sağlayıcı | Anthropic Claude (Claude Code agent + gerektiğinde API) | Q21 hibrit local-first kararıyla uyumlu — Brain'in temel verisi yerel kalır, AI opsiyonel/bulut bir katman olarak kullanılır. |
 | Collector Sandbox | Network-policy izolasyonu (allowlist + SSRF koruması), process/container izolasyonu yok | Q22 kararı — Faz 5'te doğrulandı (bkz. Riskler). requests + feedparser + BeautifulSoup, hepsi `app/collector.py`'deki güvenlik katmanının arkasında. |
-| Source Independence Tespiti | Belirlenecek (ilk roadmap fazı) | Q6 kararı (v1'den tam lineage graph) yön verdi ama teknik yaklaşım henüz doğrulanmadı — bkz. Riskler. |
+| Source Independence Tespiti | Kelime n-gram containment (Szymkiewicz–Simpson) benzerliği + ajans-atıf metni, hibrit | Q6 — Faz 6'da (2026-09-02) gerçek haber makaleleriyle doğrulandı, `app/lineage.py`. Syndication API'leri (ticari erişim gerektiriyor) elendi — bkz. Riskler. |
 
 ## Mimari
 
@@ -119,12 +119,31 @@ başarısız oluyor. **Karar:** backend için proje-özel bir Python 3.12 virtua
 (kuzu + FastAPI ekosisteminin tamamı 3.12'de sorunsuz çalıştığı doğrulandı) — sistem genelindeki
 Python 3.14 kurulumuna dokunulmadı.
 
-### Source independence lineage graph (Q6) — Doğrulanmadı
+### Source independence lineage graph (Q6) — Doğrulandı (Faz 6, 2026-09-02)
 
-Karar (v1'den tam lineage graph kurulması) verildi ama teknik tespit yaklaşımı (metin
-benzerliği/near-duplicate detection mi, yayın metadata'sı mı, syndication API'leri mi, yoksa
-hibrit mi) henüz bir spike ile doğrulanmadı. Roadmap'in ilgili fazında (Intelligence Core /
-Collection) küçük bir prototiple (gerçek haber makaleleriyle) test edilmesi gerekiyor.
+Üç yaklaşım değerlendirildi: (a) salt metin benzerliği/near-duplicate detection, (b) yayın
+metadata'sı, (c) syndication API'leri.
+
+**Karar: (a)+(b) hibrit — kelime n-gram containment katsayısı birincil, ajans-atıf metin
+taraması destekleyici.** Gerekçe: (c) kişisel/tek kullanıcılı bir araç için elendi — gerçek
+haber siteleri syndication API erişimi ticari/kurumsal anlaşma gerektiriyor. (a) için önce
+simetrik Jaccard benzerliği denendi ama collector'ın çıkardığı ham sayfa metnindeki nav/footer
+boilerplate'in sitelere göre farklı miktarda olması (sayfa uzunluğu asimetrisi) Jaccard'ı
+yapay olarak düşürdü; **containment (Szymkiewicz–Simpson, kesişim/min(|A|,|B|))** katsayısına
+geçildi ve bu asimetriye karşı sağlam çıktı. Ajans-atıf regex'i (metinde "(AA)", "Kaynak:
+Reuters" gibi kalıplar) sadece uzun/tek-anlamlı ajans isimleriyle sınırlı tutuldu — kısa
+kısaltmalar ("aa", "iha" gibi) gerçek veride konuyla ilgili başka bir kısaltmayla çakışıp
+yanlış pozitif üretebiliyor (bkz. `app/lineage.py` docstring'i, İHA örneği).
+
+**Gerçek veriyle doğrulama:** collector'ın (Faz 5, network-policy sınırlı) canlı çektiği
+haber metinleri üzerinde test edildi — aa.com.tr→ensondakika.com.tr, turkiyeajanspress.com→
+egelobisi.com ve roadmap'in istediği "agency → site A → site B" deseninin birebir karşılığı
+olan 3'lü zincir karsmanset.com→yildirimgazetesi.com→marmarisyenisayfa.com, hepsi doğru
+containment skorlarıyla (0.54-0.62) türetilmiş işaretlendi; farklı kökenden ama aynı konudaki
+bir çift (doğru negatif) 0.19'da kalıp yanlış pozitif üretmedi. Confidence motoruna (Q4/Faz 2)
+entegre edildi: `resolve_independent_root` ile aynı lineage zincirindeki kaynaklar tek bir
+bağımsız kök olarak sayılıyor, "türetilmiş 2. kaynak" artık independence skorunu YÜKSELTMİYOR
+— bkz. Roadmap.md Faz 6 notları tam test detayları için.
 
 ### Collector sandbox mekanizması (Q22, kritik güvenlik) — Doğrulandı (Faz 5, 2026-09-02)
 
