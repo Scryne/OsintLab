@@ -13,6 +13,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(entities.same_as_router)
 app.include_router(entities.router)
 app.include_router(events.router)
 app.include_router(sources.router)

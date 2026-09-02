@@ -14,6 +14,19 @@ class Entity(EntityCreate):
     created_at: datetime
 
 
+class EntityRelationCreate(BaseModel):
+    to_entity_id: str
+    relation_type: str = Field(..., examples=["çalışıyor", "sahibi", "ortak", "aile"])
+    confidence: float = Field(0.5, ge=0.0, le=1.0)
+
+
+SAME_AS_STATUSES = ("PENDING", "CONFIRMED", "REJECTED")
+
+
+class SameAsSuggestRequest(BaseModel):
+    to_entity_id: str
+
+
 class EventCreate(BaseModel):
     title: str
     event_type: str = Field(..., examples=["saldırı", "seçim", "açıklama", "satın alma"])
@@ -52,12 +65,20 @@ class Evidence(EvidenceCreate):
     created_at: datetime
 
 
+class EvidenceClaimLink(BaseModel):
+    stance: str = Field(..., examples=["SUPPORTS", "CONTRADICTS"])
+
+
 class ClaimCreate(BaseModel):
     text: str
     source_id: str
     about_entity_id: str | None = None
     about_event_id: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
+    contradicting_evidence_ids: list[str] = Field(
+        default_factory=list,
+        description="Bu claim'i CONTRADICTS eden Evidence id'leri (stance parametresi, confidence.py ceza dalı)",
+    )
     corroborates: list[str] = Field(
         default_factory=list, description="Bu claim'in bağımsız olarak doğruladığı diğer claim id'leri (Q4 corroboration girdisi)"
     )
@@ -144,6 +165,7 @@ class ObservationPromote(BaseModel):
     about_entity_id: str | None = None
     about_event_id: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list)
     corroborates: list[str] = Field(default_factory=list)
 
 

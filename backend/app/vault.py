@@ -141,12 +141,12 @@ def _entity_investigations(conn, entity_id: str) -> list[dict]:
 
 
 def _entity_relations(conn, entity_id: str) -> list[dict]:
-    # Faz 10'a kadar bu ilişkiyi yazan hiçbir endpoint yok (bkz. Roadmap.md "v1
-    # Sertleştirme") — sorgu şimdiden hazır, Faz 10'da veri akmaya başlayınca otomatik
-    # görünür olacak.
+    # Faz 10: ENTITY_RELATION artık yazılıyor (bkz. routers/entities.py). SUPERSEDED
+    # kenarlar (silinmiş/eskimiş ilişkiler) vault notunda görünmemeli.
     return fetch_all(
         conn.execute(
             "MATCH (:Entity {id: $id})-[r:ENTITY_RELATION]->(other:Entity) "
+            "WHERE r.status <> 'SUPERSEDED' "
             "RETURN other.id AS id, other.name AS name, r.relation_type AS relation_type "
             "ORDER BY r.valid_from",
             {"id": entity_id},

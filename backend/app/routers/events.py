@@ -11,6 +11,10 @@ from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/events", tags=["events"])
 
+
+def _source_exists(conn, source_id: str) -> bool:
+    return fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": source_id})) is not None
+
 _FIELDS = (
     "e.id AS id, e.title AS title, e.event_type AS event_type, e.occurred_at AS occurred_at, "
     "e.location AS location, e.knowledge_state AS knowledge_state, e.confidence AS confidence, "
@@ -83,6 +87,23 @@ def link_entity(event_id: str, entity_id: str, payload: InvolvedInLink) -> None:
         detail={"event_id": event_id, "role": payload.role},
         confidence=event.confidence,
         is_novel=True,
+    )
+    safe_render_vault(conn)
+
+
+@router.put("/{event_id}/sources/{source_id}", status_code=204)
+def link_source(event_id: str, source_id: str) -> None:
+    """Event <-REPORTED_BY- Source: bu event'i hangi kaynaklar bildirdi (provenance,
+    ASSERTS'ten bağımsız — bir Source bir Claim'e hiç ASSERTS yapmadan da bir Event'i
+    'raporlamış' olabilir, ör. sadece haberi geçen ama iddia üretmeyen bir kaynak)."""
+    conn = get_connection()
+    if fetch_one(conn.execute("MATCH (e:Event {id: $id}) RETURN e.id AS id", {"id": event_id})) is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if not _source_exists(conn, source_id):
+        raise HTTPException(status_code=404, detail="Source not found")
+    conn.execute(
+        "MATCH (ev:Event {id: $evid}), (s:Source {id: $sid}) CREATE (ev)-[:REPORTED_BY]->(s)",
+        {"evid": event_id, "sid": source_id},
     )
     safe_render_vault(conn)
 

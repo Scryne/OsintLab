@@ -199,7 +199,7 @@ def create_claim(payload: ClaimCreate) -> Claim:
         raise HTTPException(status_code=404, detail=f"Entity not found: {payload.about_entity_id}")
     if payload.about_event_id and not _node_exists(conn, "Event", payload.about_event_id):
         raise HTTPException(status_code=404, detail=f"Event not found: {payload.about_event_id}")
-    for eid in payload.evidence_ids:
+    for eid in payload.evidence_ids + payload.contradicting_evidence_ids:
         if not _node_exists(conn, "Evidence", eid):
             raise HTTPException(status_code=404, detail=f"Evidence not found: {eid}")
     for cid in payload.corroborates + payload.contradicts:
@@ -233,6 +233,11 @@ def create_claim(payload: ClaimCreate) -> Claim:
     for eid in payload.evidence_ids:
         conn.execute(
             "MATCH (ev:Evidence {id: $eid}), (c:Claim {id: $cid}) CREATE (ev)-[:SUPPORTS]->(c)",
+            {"eid": eid, "cid": claim_id},
+        )
+    for eid in payload.contradicting_evidence_ids:
+        conn.execute(
+            "MATCH (ev:Evidence {id: $eid}), (c:Claim {id: $cid}) CREATE (ev)-[:CONTRADICTS]->(c)",
             {"eid": eid, "cid": claim_id},
         )
 

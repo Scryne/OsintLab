@@ -61,7 +61,20 @@ def event_recall(conn, event_id: str) -> dict:
             {"id": event_id},
         )
     )
-    return {"related_investigations": investigations, "related_claims": claims, "related_entities": entities}
+    reported_by = fetch_all(
+        conn.execute(
+            "MATCH (ev:Event {id: $id})-[:REPORTED_BY]->(s:Source) "
+            "RETURN s.id AS id, s.name AS name, s.source_type AS source_type "
+            "ORDER BY s.name",
+            {"id": event_id},
+        )
+    )
+    return {
+        "related_investigations": investigations,
+        "related_claims": claims,
+        "related_entities": entities,
+        "reported_by": reported_by,
+    }
 
 
 def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_entity_id: str | None, about_event_id: str | None) -> list[dict]:

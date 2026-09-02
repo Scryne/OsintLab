@@ -135,6 +135,7 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
             about_entity_id=payload.about_entity_id,
             about_event_id=payload.about_event_id,
             evidence_ids=payload.evidence_ids,
+            contradicting_evidence_ids=payload.contradicting_evidence_ids,
             corroborates=payload.corroborates,
         )
     )
