@@ -55,9 +55,36 @@ def get_source(source_id: str) -> Source:
 
 @router.delete("/{source_id}", status_code=204)
 def delete_source(source_id: str) -> None:
+    """DETACH DELETE ilişkileri de sessizce siler — bir Source'un ASSERTS ettiği Claim'ler
+    varsa bu, Claim.source_id'nin (aslında ASSERTS kenarından read-time türetiliyor, bkz.
+    _claim_source_id) boş string'e düşmesi demek: provenance sessizce kayboluyordu. Aynı
+    şekilde DERIVED_FROM lineage zincirinin (Faz 6) ortasındaki bir Source silinirse zincir
+    kopardı. History Is Immutable ilkesiyle tutarlı olarak, bu iki ilişkiden biri varsa
+    silme reddedilir — kullanıcı önce claim'leri başka bir source'a taşımalı ya da bilerek
+    kabul etmeli (v1'de "force" seçeneği yok, YAGNI)."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": source_id})) is None:
         raise HTTPException(status_code=404, detail="Source not found")
+    asserted_claims = fetch_all(
+        conn.execute(
+            "MATCH (s:Source {id: $id})-[:ASSERTS]->(c:Claim) RETURN c.id AS id", {"id": source_id}
+        )
+    )
+    if asserted_claims:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Source silinemedi: {len(asserted_claims)} claim bu source'a atıflı (provenance kaybı riski)",
+        )
+    lineage_links = fetch_all(
+        conn.execute(
+            "MATCH (s:Source {id: $id})-[:DERIVED_FROM]-(:Source) RETURN s.id AS id", {"id": source_id}
+        )
+    )
+    if lineage_links:
+        raise HTTPException(
+            status_code=409,
+            detail="Source silinemedi: bir DERIVED_FROM lineage zincirinde yer alıyor",
+        )
     conn.execute("MATCH (s:Source {id: $id}) DETACH DELETE s", {"id": source_id})
 
 

@@ -26,6 +26,45 @@ roadmap'in dışında bırakıldı.
 | 7 | Monitoring, Change Detection, Intelligence Inbox | ✅ Tamamlandı | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
 | 8 | Frontend (Next.js Dashboard) | ✅ Tamamlandı | `docs/Design.md` dolduruldu; kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını görebiliyor; Inbox'ı görüntüleyip Confirm/Reject/Investigate aksiyonu alabiliyor (davranış loglanıyor); SOURCE FACT/AI ANALYSIS/SYSTEM INFERENCE/USER INTERPRETATION 4 etiketi UI'da ayrışıyor. |
 
+## v1 Sertleştirme (2026-09-02, ayrı bir denetimde bulunan sorunlar)
+
+v2 planlamasına başlamadan önce, kullanıcının başka bir kaynaktan aldığı bağımsız bir
+denetimin bulguları tek tek koddan doğrulandı (OpenAPI + kaynak taraması). 3 gerçek düzeltme
+yapıldı:
+
+1. **SSRF — CGNAT boşluğu + denetimin kendi düzeltmesindeki regresyon** (`c9b2de9`).
+   `collector.py::is_safe_ip()`'in 6'lı negatif-liste taraması (`is_private`/`is_loopback`/
+   `is_link_local`/`is_multicast`/`is_reserved`/`is_unspecified`) `100.64.0.0/10`'u (RFC 6598
+   CGNAT — bazı bulut sağlayıcıları iç metadata servisleri için kullanıyor, ör. Alibaba Cloud
+   `100.100.100.200`) hiçbirine sokmuyordu — doğru bulgu. Ama önerilen düzeltme
+   (`ip.is_global and not ip.is_multicast`, negatif listenin YERİNE) doğrulanırken daha
+   büyük bir regresyon bulundu: NAT64 well-known prefix'i (`64:ff9b::/96`, RFC 6052) ile
+   yazılmış IPv6 adresleri (ör. `64:ff9b::10.0.0.1`, RFC1918 gömülü) artık "genel" sayılıyordu
+   — `is_reserved`'ın verdiği korumayı kaybetmişti. DNS64/NAT64 olan ağlarda bu yeni bir SSRF
+   bypass'ı olurdu. Doğru çözüm: negatif listeyi SİLMEK değil, üstüne `is_global` EKLEMEK —
+   25 durumluk bir matrisle (CGNAT, NAT64, 6to4, Teredo, IPv4-mapped/compatible IPv6, standart
+   private/reserved aralıkları, gerçek public IPv4/IPv6) doğrulandı, `localhost` allowlist
+   defense-in-depth testi ve gerçek bir `www.python.org` fetch'i regresyonsuz tekrar geçti.
+2. **Observation promote idempotency değildi** (`app/routers/observations.py`). `observation.
+   promoted` sadece confidence eşiği GEÇİLİNCE true oluyordu; eşiği geçmeyen bir observation
+   tekrar promote edilmeye çalışılınca bu kontrolü atlayıp ikinci bir Claim daha üretiyordu.
+   Düzeltme: kontrol artık observation'ın zaten bir `PRODUCED` ilişkisi olup olmadığına
+   bakıyor (eşiği geçse de geçmese de) — test: aynı observation iki kez promote edilmeye
+   çalışıldı, 2. çağrı 409 döndü, sadece 1 claim oluştu.
+3. **Source silme provenance'ı sessizce kaybediyordu** (`app/routers/sources.py`). `DETACH
+   DELETE`, Source'un `ASSERTS` ettiği Claim'lerin `source_id`'sini (read-time `_claim_
+   source_id` sorgusundan geldiği için) sessizce boş string'e düşürüyordu. Düzeltme: Source'un
+   atıflı Claim'i veya bir `DERIVED_FROM` lineage bağlantısı varsa silme artık 409 ile
+   reddediliyor (History Is Immutable ilkesiyle tutarlı) — test: claim'li bir source silinmeye
+   çalışıldı (409), claim'siz bir source başarıyla silindi (204).
+
+Aynı denetimde bulunan, **bug olmayan ama gerçek şema/kapsam boşlukları** v2'ye işlendi (bkz.
+Faz 10/13 detayları): `ENTITY_RELATION`/`REPORTED_BY`'nin hiç yazılmaması, `SAME_AS` (entity
+merge, Q7) endpoint'inin hiç var olmaması, Evidence `-[:CONTRADICTS]->` Claim'in hiç
+yaratılamaması (confidence formülündeki ceza dalı v1'de fiilen tetiklenemiyordu). Ayrıca Faz
+8'in "Entity Graph paneli duruyor" notunun yanlış olduğu bulundu, yukarıda (Faz 8 notları)
+düzeltildi.
+
 ## v2 Roadmap (planlama: 2026-09-02)
 
 v1'in 8 fazı tamamlandıktan sonra, kullanıcıyla yapılan bir sohbette (2026-09-02) planlandı.
@@ -336,8 +375,14 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
   Scale: sadece Inbox'a özel, mor-kırmızı ailesi, confidence'ın mavi-yeşil-altın ailesiyle
   KARIŞTIRILMIYOR. Tipografi: IBM Plex Serif (display, kısıtlı) + IBM Plex Sans (UI/body) +
   JetBrains Mono (data/timestamp/id) — "dava dosyası" mantığı. "World Map" paneli bilinçli
-  olarak v1 kapsamı dışı bırakıldı (GEOINT, Proje-Fikri.md'de zaten sonraki fazlara ait);
-  Main Workspace'te Entity Graph + Timeline paneli olarak duruyor.
+  olarak v1 kapsamı dışı bırakıldı (GEOINT, Proje-Fikri.md'de zaten sonraki fazlara ait).
+
+  **Düzeltme (2026-09-02, ayrı bir denetimde bulundu):** bu notta "Main Workspace'te Entity
+  Graph + Timeline paneli olarak duruyor" yazıyordu — bu yanlıştı. Gerçekte kurulan hiçbir
+  graph görselleştirme kütüphanesi yok (`frontend/package.json`'da d3/cytoscape/react-flow
+  vb. hiçbiri kurulu değil); Entity sayfasındaki "ilişkiler" görünümü düz bir liste/tab
+  yapısı (Claim'ler/Event'ler/Investigation'lar), gerçek bir graph canvas değil. Bu, v2 Faz
+  13'ün kapsamına not edildi.
 
   Next.js 16 (App Router, Turbopack) + React 19 + Tailwind v4 + shadcn (`base-nova`/
   `@base-ui/react` — Radix değil, yeni nesil) `frontend/`'de kuruldu. Next.js 16 kendi
@@ -422,9 +467,28 @@ ayrı" kararıyla tutarlı).
   - Frontend: Hypothesis oluşturma formu (Investigation sayfasında, şu an sadece görüntüleme
     var).
   - Frontend: Collector allowlist yönetimi + "bu URL'i tara" (RSS/web) tetikleyicisi.
+  - **Backend — şemada tanımlı ama hiç yazılmayan ilişkiler (2026-09-02 denetiminde
+    bulundu):**
+    - `ENTITY_RELATION` (Entity↔Entity, ör. "çalışıyor"/"sahibi") — `/intelligence/diff`
+      sadece okuyor, yazan hiçbir uç yok. Temel bir create/delete endpoint'i eklenir.
+    - `REPORTED_BY` (Event→Source, "bu event'i hangi kaynaklar bildirdi") — aynı şekilde
+      hiç yazılmıyor, endpoint eklenir.
+    - `Evidence -[:CONTRADICTS]-> Claim` — `confidence.py`'nin ceza girdisini besliyor ama
+      hiçbir uç bu kenarı yaratmıyor, yani v1'de bu ceza dalı fiilen hiç tetiklenemiyordu.
+      Evidence-Claim bağlama akışına bir "stance" (SUPPORTS/CONTRADICTS) parametresi
+      eklenir.
+    - `SAME_AS` (entity merge/dedup) — **sadece CRUD eksiği değil**, Final-Dokuman'ın
+      "Human Remains In Control" örneği (Q7) olarak andığı, şu an backend'de hiç var
+      olmayan bir özellik. Ayrı bir alt-madde: aday eşleşme tespiti (isim/alias benzerliği
+      — basit bir heuristic, embedding gerekmiyor) + `POST .../same-as` önerisi + kullanıcı
+      onayına bağlı `Confirm`/`Reject` endpoint'i (asla otomatik merge yok).
 - **Bitti Kriteri:** Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni
   bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/
-  web kaynağını UI'dan tarayıp Observation'a çevirebiliyor.
+  web kaynağını UI'dan tarayıp Observation'a çevirebiliyor; iki entity arasında bir
+  ENTITY_RELATION kurabiliyor; bir "possible match" önerisini Confirm/Reject ile
+  onaylayıp/reddedip SAME_AS ile birleştirebiliyor; bir Evidence'ı bir Claim'e "contradicts"
+  olarak bağlayınca confidence formülündeki ceza dalının gerçekten tetiklendiği
+  doğrulanabiliyor.
 - **Notlar:**
 
 ### Faz 11: Dogfooding / Sertleştirme Turu
@@ -457,7 +521,10 @@ ayrı" kararıyla tutarlı).
 - **İşler:**
   - Frontend: Sources listesi + detay sayfası (reliability, DERIVED_FROM lineage zinciri
     görsel olarak — Faz 6'nın UI karşılığı, şu an hiç yok).
-  - Frontend: Evidence Vault sayfası (Type/Source/Collected/Hash/Related Claims).
+  - Frontend: Evidence Vault sayfası (Type/Source/Collected/Hash/Related Claims) — Faz 10'da
+    eklenen CONTRADICTS/SUPPORTS stance'ı burada görünür olmalı.
+  - Frontend: ENTITY_RELATION'ların (Faz 10'da yazılabilir hale geldi) bir Entity sayfasında
+    "Known Relationships" olarak listelenmesi (madde 28).
   - Investigation Workspace'in tam akışı (Proje-Fikri.md madde 30): Research Question →
     Scope → Entities → Sources → Observations → Claims → Evidence → Hypotheses → Analysis →
     Findings → Conclusion — şu an sadece Findings+Hypotheses var, ara adımlar yok.

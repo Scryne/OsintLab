@@ -109,8 +109,18 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
     listelenir)."""
     conn = get_connection()
     observation = get_observation(observation_id)
-    if observation.promoted:
-        raise HTTPException(status_code=409, detail="Observation already promoted")
+    # observation.promoted sadece eşiği GEÇEN durumu işaretliyor — eşiği geçmeyen bir
+    # observation'ı tekrar promote etmeye çalışmak (promoted hâlâ false) bu kontrolü
+    # atlayıp ikinci bir Claim daha üretebilirdi (idempotent değildi). Asıl garanti bu
+    # observation'ın zaten bir PRODUCED ilişkisi olup olmadığı — eşiği geçse de geçmese de.
+    already_produced = fetch_one(
+        conn.execute(
+            "MATCH (:Observation {id: $oid})-[:PRODUCED]->(c:Claim) RETURN c.id AS id",
+            {"oid": observation_id},
+        )
+    )
+    if already_produced:
+        raise HTTPException(status_code=409, detail="Observation already processed (claim already produced)")
 
     recall_before: dict | None = None
     if payload.about_entity_id:
