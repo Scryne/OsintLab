@@ -32,6 +32,18 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.ps1"
             ],
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "pwsh.exe",
+            "args": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/vault-session-end.ps1"
+            ],
+            "timeout": 30
           }
         ]
       }

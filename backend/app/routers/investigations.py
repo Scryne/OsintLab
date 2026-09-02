@@ -14,6 +14,7 @@ from app.models import (
     InvestigationTransition,
 )
 from app.monitoring import notify_if_monitored
+from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
 hypotheses_router = APIRouter(prefix="/hypotheses", tags=["hypotheses"])
@@ -46,6 +47,7 @@ def create_investigation(payload: InvestigationCreate) -> Investigation:
         "status: 'OPEN', created_at: $created_at, updated_at: $created_at})",
         {"id": inv_id, "title": payload.title, "rq": payload.research_question, "created_at": created_at},
     )
+    safe_render_vault(conn)
     return Investigation(id=inv_id, status="OPEN", created_at=created_at, updated_at=created_at, **payload.model_dump())
 
 
@@ -84,6 +86,7 @@ def transition_investigation(investigation_id: str, payload: InvestigationTransi
     if payload.to_status in CLOSING_STATUSES:
         _promote_verified_findings(conn, investigation_id)
     _notify_investigation_update(conn, investigation_id, current.status, payload.to_status)
+    safe_render_vault(conn)
     return get_investigation(investigation_id)
 
 
@@ -159,6 +162,7 @@ def include_entity(investigation_id: str, entity_id: str) -> None:
         "MATCH (i:Investigation {id: $iid}), (e:Entity {id: $eid}) CREATE (i)-[:INCLUDES]->(e)",
         {"iid": investigation_id, "eid": entity_id},
     )
+    safe_render_vault(conn)
 
 
 @router.put("/{investigation_id}/events/{event_id}", status_code=204)
@@ -172,6 +176,7 @@ def investigate_event(investigation_id: str, event_id: str) -> None:
         "MATCH (i:Investigation {id: $iid}), (e:Event {id: $eid}) CREATE (i)-[:INVESTIGATES]->(e)",
         {"iid": investigation_id, "eid": event_id},
     )
+    safe_render_vault(conn)
 
 
 @router.put("/{investigation_id}/findings/{claim_id}", status_code=204)
@@ -185,6 +190,7 @@ def add_finding(investigation_id: str, claim_id: str) -> None:
         "MATCH (i:Investigation {id: $iid}), (c:Claim {id: $cid}) CREATE (i)-[:HAS_FINDING]->(c)",
         {"iid": investigation_id, "cid": claim_id},
     )
+    safe_render_vault(conn)
 
 
 @router.get("/{investigation_id}/findings")
@@ -231,6 +237,7 @@ def create_hypothesis(investigation_id: str, payload: HypothesisCreate) -> Hypot
         "MATCH (i:Investigation {id: $iid}), (h:Hypothesis {id: $hid}) CREATE (i)-[:HAS_HYPOTHESIS]->(h)",
         {"iid": investigation_id, "hid": hyp_id},
     )
+    safe_render_vault(conn)
     return Hypothesis(id=hyp_id, status="PROPOSED", created_at=created_at, **payload.model_dump())
 
 
@@ -298,4 +305,5 @@ def link_hypothesis_evidence(hypothesis_id: str, payload: HypothesisEvidenceLink
         {"eid": payload.evidence_id, "hid": hypothesis_id, "stance": payload.stance},
     )
     _recompute_hypothesis_status(conn, hypothesis_id)
+    safe_render_vault(conn)
     return get_hypothesis(hypothesis_id)

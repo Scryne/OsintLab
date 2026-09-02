@@ -7,6 +7,7 @@ from app.db import fetch_all, fetch_one, get_connection
 from app.models import Event, EventCreate, InvolvedInLink
 from app.monitoring import notify_if_monitored
 from app.recall import event_recall
+from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -37,6 +38,7 @@ def create_event(payload: EventCreate) -> Event:
             "created_at": created_at,
         },
     )
+    safe_render_vault(conn)
     return Event(id=event_id, knowledge_state="OBSERVED", confidence=0.0, created_at=created_at, **payload.model_dump())
 
 
@@ -82,6 +84,7 @@ def link_entity(event_id: str, entity_id: str, payload: InvolvedInLink) -> None:
         confidence=event.confidence,
         is_novel=True,
     )
+    safe_render_vault(conn)
 
 
 @router.get("/{event_id}/recall")
@@ -99,3 +102,4 @@ def delete_event(event_id: str) -> None:
     if fetch_one(conn.execute("MATCH (e:Event {id: $id}) RETURN e.id AS id", {"id": event_id})) is None:
         raise HTTPException(status_code=404, detail="Event not found")
     conn.execute("MATCH (e:Event {id: $id}) DETACH DELETE e", {"id": event_id})
+    safe_render_vault(conn)

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import get_connection
-from app.routers import claims, collectors, entities, evidence, events, investigations, monitors, observations, sources
+from app.routers import claims, collectors, entities, evidence, events, investigations, monitors, observations, sources, vault
 
 app = FastAPI(title="OsintLab API", version="0.1.0")
 # Faz 8: Next.js frontend'i (localhost:3000) yerel geliştirmede API'ye tarayıcıdan erişiyor.
@@ -23,6 +23,7 @@ app.include_router(investigations.router)
 app.include_router(investigations.hypotheses_router)
 app.include_router(collectors.router)
 app.include_router(monitors.router)
+app.include_router(vault.router)
 
 
 @app.on_event("startup")

@@ -87,7 +87,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
-| 9 | Living Brain — Obsidian Vault Sistemi | ⏳ Bekliyor | `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir Entity ve bir Investigation notu gerçek graph verisiyle (confidence, `[[wikilink]]`'ler dahil) doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında `daily/` notu ve `Dashboard.md` otomatik güncelleniyor. |
+| 9 | Living Brain — Obsidian Vault Sistemi | ✅ Tamamlandı | `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir Entity ve bir Investigation notu gerçek graph verisiyle (confidence, `[[wikilink]]`'ler dahil) doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında `daily/` notu ve `Dashboard.md` otomatik güncelleniyor. |
 | 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ⏳ Bekliyor | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
 | 11 | Dogfooding / Sertleştirme Turu | ⏳ Bekliyor | En az 5 gerçek araştırma oturumu tamamlandı; bulunan sürtünme noktaları/bug'lar listelendi, kritik olanlar aynı fazda kapatıldı. |
 | 12 | Zamanlanmış Otomatik Tarama | ⏳ Bekliyor | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
@@ -453,7 +453,49 @@ ayrı" kararıyla tutarlı).
   Entity ve bir Investigation notu gerçek graph verisiyle (confidence, wikilink'ler dahil)
   doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında
   `daily/` notu ve `Dashboard.md` otomatik güncelleniyor.
-- **Notlar:**
+- **Notlar:** 2026-09-02 tamamlandı. `backend/app/vault.py` — Entity/Event/Investigation/
+  Source için ayrı render fonksiyonları, hepsi doğrudan graph sorgusundan (LLM'den geçmeden)
+  markdown + YAML frontmatter üretiyor. Claim'ler ayrı not olmuyor — ait olduğu Entity/Event/
+  Investigation notunun içinde satır olarak, confidence etiketiyle (`**[DESTEKLENİYOR ·
+  %46]**` — emoji değil düz metin, proje ikonografi kuralıyla tutarlı) gömülü. Dosya adı
+  `slug--id[:8].md` (Türkçe karakterler translit ediliyor) — çakışma riski yok, isim
+  değişse bile (Entity PATCH edilebiliyor) klasörler her render'da sıfırdan yazıldığı için
+  öksüz dosya kalmıyor. Wikilink'ler `[[subdir/dosya|Görünen İsim]]` biçiminde, hepsi
+  program tarafından üretildiği için Obsidian'ın alias çözümlemesine güvenmeye gerek yok.
+
+  **Yazma-anında senkron** (`safe_render_vault`/`safe_render_inbox_only`, hataya karşı
+  sarmalı — render hatası API isteğini asla kırmaz) create_entity/event/investigation/
+  source/claim, investigation transition/hypothesis/finding/entity-event linkleme, monitor
+  create/delete ve inbox status güncellemesi gibi ana mutasyon uçlarının sonuna eklendi.
+  Gerçek zamanlama testi: `create_entity` ~53ms, `create_claim` ~77ms (tam vault re-render
+  dahil) — bu ölçekte performans sorun değil.
+
+  Yeni uç: `POST /vault/render` (manuel tetikleme + hook'un kullandığı uç).
+
+  **Session-end hook'u** (`.claude/hooks/vault-session-end.ps1`, genel proje-takip hook'una
+  EK — `settings.json`'ın `SessionEnd` dizisine ikinci hook olarak eklendi) `GET
+  /intelligence/diff`'i çağırıp `daily/<tarih>.md`'ye "### Oturum <saat>" bloğu ekliyor,
+  sonra `/vault/render`'ı tetikliyor. **Gerçek bir bug bulunup düzeltildi:** ilk halinde
+  `?days=1` sabit pencere kullanıyordu — bu, aynı SessionEnd'in birden fazla kez tetiklenmesi
+  durumunda (Faz 9'un genel hook'unda zaten görülen bir senaryo) AYNI değişiklikleri tekrar
+  tekrar `daily/`'ye ekliyordu (idempotent değildi). Düzeltme: son başarılı çalışmanın
+  zaman damgası `data/vault/.state/last-render.json`'a kaydediliyor, bir sonraki çalıştırma
+  `?since=<o zaman>` kullanıyor. **İkinci bir bug bulundu düzeltmenin kendisinde:**
+  PowerShell 7'nin `ConvertFrom-Json`'ı ISO-8601 görünen string alanları otomatik
+  `[datetime]`'a çeviriyor; bunu tekrar string'e (`"$($x)"`) çevirince ISO formatı kaybolup
+  yerel kültür formatına (`09/02/2026 11:10:28`) dönüşüyordu, bu da FastAPI'nin datetime
+  parse'ını 422 ile kırıyordu (try/catch tarafından sessizce yutuluyordu — daily/ hiç
+  güncellenmiyordu ama hata da görünmüyordu). Düzeltme: tip `[datetime]` ise açıkça
+  `.ToString('o')`. Üç senaryoyla test edildi: (1) state yokken ilk çalıştırma → doğru
+  append; (2) hemen ardından değişiklik olmadan ikinci çalıştırma → tekrar EKLEMEDİ (fix
+  öncesi burada duplicate oluşuyordu, doğrulandı); (3) araya yeni bir entity eklenip üçüncü
+  çalıştırma → sadece YENİ bir "### Oturum" bloğu eklendi, öncekiler değişmedi.
+
+  Haftalık derleme script'i v1'de eklenmedi — roadmap'te "opsiyonel" olarak işaretliydi,
+  `?days=7` parametresi zaten `/intelligence/diff`'te var, istenirse aynı script'in bir
+  varyasyonu olarak sonradan eklenebilir (YAGNI).
+
+  Test verisi (backend KùzuDB + `data/vault/`) temizlendi.
 
 ### Faz 10: Tam Veri Girişi + Collector Tetikleme Arayüzü
 

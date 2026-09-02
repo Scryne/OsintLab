@@ -16,6 +16,7 @@ from app.models import (
     MonitorCreate,
 )
 from app.monitoring import load_inbox_settings, priority_at_least, save_inbox_settings
+from app.vault import safe_render_inbox_only, safe_render_vault
 
 router = APIRouter(tags=["monitoring"])
 
@@ -65,6 +66,7 @@ def create_monitor(payload: MonitorCreate) -> Monitor:
         "active: true, created_at: $now})",
         {"id": monitor_id, "tt": payload.target_type, "tid": payload.target_id, "label": payload.label, "now": created_at},
     )
+    safe_render_vault(conn)
     return Monitor(id=monitor_id, active=True, created_at=created_at, **payload.model_dump())
 
 
@@ -89,6 +91,7 @@ def delete_monitor(monitor_id: str) -> None:
     if fetch_one(conn.execute("MATCH (m:Monitor {id: $id}) RETURN m.id AS id", {"id": monitor_id})) is None:
         raise HTTPException(status_code=404, detail="Monitor not found")
     conn.execute("MATCH (m:Monitor {id: $id}) SET m.active = false", {"id": monitor_id})
+    safe_render_vault(conn)
 
 
 # ---- Intelligence Inbox (madde 27, Q13, Q14) -----------------------------
@@ -144,6 +147,7 @@ def update_inbox_item(item_id: str, payload: InboxStatusUpdate) -> InboxItem:
         {"id": item_id, "status": payload.status, "now": now},
     )
     row = fetch_one(conn.execute(f"MATCH (n:InboxItem {{id: $id}}) RETURN {_INBOX_FIELDS}", {"id": item_id}))
+    safe_render_inbox_only(conn)
     return _row_to_inbox_item(row)
 
 

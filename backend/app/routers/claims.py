@@ -9,6 +9,7 @@ from app.lineage import resolve_independent_root
 from app.models import Claim, ClaimCreate
 from app.monitoring import notify_if_monitored
 from app.recall import why_matters
+from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/claims", tags=["claims"])
 
@@ -295,6 +296,7 @@ def create_claim(payload: ClaimCreate) -> Claim:
         result=final_result,
         title=f"Yeni claim: {payload.text[:80]}",
     )
+    safe_render_vault(conn)
     return get_claim(claim_id)
 
 

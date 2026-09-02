@@ -7,6 +7,7 @@ from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import detect_derivation, resolve_independent_root
 from app.models import LineageDetectRequest, Source, SourceCreate
 from app.routers.claims import _recompute_and_store
+from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -33,6 +34,7 @@ def create_source(payload: SourceCreate) -> Source:
             "created_at": created_at,
         },
     )
+    safe_render_vault(conn)
     return Source(id=source_id, created_at=created_at, **payload.model_dump())
 
 
@@ -86,6 +88,7 @@ def delete_source(source_id: str) -> None:
             detail="Source silinemedi: bir DERIVED_FROM lineage zincirinde yer alıyor",
         )
     conn.execute("MATCH (s:Source {id: $id}) DETACH DELETE s", {"id": source_id})
+    safe_render_vault(conn)
 
 
 def _claim_text_source_created(conn, claim_id: str) -> dict:
@@ -178,6 +181,7 @@ def detect_lineage(payload: LineageDetectRequest) -> dict:
     result["downstream_source_id"] = downstream_id
     result["upstream_source_id"] = upstream_id
     result["recomputed_claim_ids"] = sorted(affected_ids)
+    safe_render_vault(conn)
     return result
 
 

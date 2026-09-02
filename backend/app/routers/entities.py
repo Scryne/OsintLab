@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from app.db import fetch_all, fetch_one, get_connection
 from app.models import Entity, EntityCreate
 from app.recall import entity_recall
+from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
@@ -28,6 +29,7 @@ def create_entity(payload: EntityCreate) -> Entity:
             "created_at": created_at,
         },
     )
+    safe_render_vault(conn)
     return Entity(id=entity_id, created_at=created_at, **payload.model_dump())
 
 
@@ -78,6 +80,7 @@ def update_entity(entity_id: str, payload: EntityCreate) -> Entity:
             "aliases": payload.aliases,
         },
     )
+    safe_render_vault(conn)
     return get_entity(entity_id)
 
 
@@ -87,3 +90,4 @@ def delete_entity(entity_id: str) -> None:
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
         raise HTTPException(status_code=404, detail="Entity not found")
     conn.execute("MATCH (e:Entity {id: $id}) DETACH DELETE e", {"id": entity_id})
+    safe_render_vault(conn)
