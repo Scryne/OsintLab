@@ -26,6 +26,36 @@ roadmap'in dışında bırakıldı.
 | 7 | Monitoring, Change Detection, Intelligence Inbox | ✅ Tamamlandı | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
 | 8 | Frontend (Next.js Dashboard) | ✅ Tamamlandı | `docs/Design.md` dolduruldu; kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını görebiliyor; Inbox'ı görüntüleyip Confirm/Reject/Investigate aksiyonu alabiliyor (davranış loglanıyor); SOURCE FACT/AI ANALYSIS/SYSTEM INFERENCE/USER INTERPRETATION 4 etiketi UI'da ayrışıyor. |
 
+## v2 Roadmap (planlama: 2026-09-02)
+
+v1'in 8 fazı tamamlandıktan sonra, kullanıcıyla yapılan bir sohbette (2026-09-02) planlandı.
+Kapsam iki kaynaktan geliyor: (a) v1'de bilinçli olarak dışarıda bırakılan alanlar (GEOINT/
+SOCMINT/DOCINT/MEDIAINT, otomatik zamanlanmış tarama), (b) v1'i uçtan uca test ederken ortaya
+çıkan gerçek eksikler (Sources/Evidence/Hypothesis için frontend CRUD'u yok, Obsidian'dan
+görülebilir bir Brain kurulmamıştı). Faz 9'un teknik kararı ve gerekçesi için bkz. Faz 9
+detayı — özet: AvenoxBeyin'in `flush.py`/`compile.py`'ı (LLM ile ham konuşmadan kavram
+çıkarma) birebir taşınmadı, çünkü OsintLab'in zaten KùzuDB'de yapılandırılmış/provenance'lı
+bir ground truth'u var; vault bunun **deterministik bir render'ı**.
+
+Sıralama mantığı: dogfooding (Faz 11) en başa değil, veri girişi UI'ı (Faz 10) bittikten
+sonra konuldu — çünkü şu an sistemi gerçekten kullanmak hâlâ curl/python script'i
+gerektiriyor. Otomatik tarama (Faz 12) dogfooding'den SONRA — hangi kaynak ne sıklıkta
+taransın kararı gerçek kullanım verisiyle alınsın diye.
+
+**Kalıcı sınır (v2'de de değişmiyor):** Tam otonom araştırma / AI'ın kritik kararları (entity
+merge, claim verification, investigation conclusion) kendi başına alması — Design Principle
+#7 (Human Remains In Control), versiyon meselesi değil, roadmap'e alınmadı.
+
+| Faz | Adı | Durum | Bitti Kriteri |
+| --- | --- | --- | --- |
+| 9 | Living Brain — Obsidian Vault Sistemi | ⏳ Bekliyor | `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir Entity ve bir Investigation notu gerçek graph verisiyle (confidence, `[[wikilink]]`'ler dahil) doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında `daily/` notu ve `Dashboard.md` otomatik güncelleniyor. |
+| 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ⏳ Bekliyor | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
+| 11 | Dogfooding / Sertleştirme Turu | ⏳ Bekliyor | En az 5 gerçek araştırma oturumu tamamlandı; bulunan sürtünme noktaları/bug'lar listelendi, kritik olanlar aynı fazda kapatıldı. |
+| 12 | Zamanlanmış Otomatik Tarama | ⏳ Bekliyor | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
+| 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ⏳ Bekliyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
+| 14 | Deploy/Erişim Kolaylığı | ⏳ Bekliyor | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
+| 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ⏳ Bekliyor | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi; seçilen domain için ayrı bir spike (teknoloji/veri kaynağı doğrulaması) yapılıp kendi alt-roadmap'i (Faz 15.1, 15.2...) yazıldı. |
+
 ## Faz Detayları
 
 ### Faz 1: Temel Altyapı
@@ -343,3 +373,117 @@ roadmap'in dışında bırakıldı.
   hazır. Sonraki adımlar (GEOINT/SOCMINT gibi deneysel domain'ler, otomatik zamanlanmış
   monitoring taraması gibi) Proje-Fikri.md'de bilinçli olarak v1 dışı bırakılmıştı; ayrı bir
   v2 roadmap'i gerektirir.
+
+## v2 Faz Detayları
+
+### Faz 9: Living Brain — Obsidian Vault Sistemi
+
+**Karar (2026-09-02, kullanıcıyla sohbette netleşti):** AvenoxBeyin'in `flush.py`/
+`compile.py` çifti (ham konuşmadan LLM ile kavram çıkarıp `knowledge/concepts/`'e yazma)
+birebir taşınmıyor. Gerekçe: o mekanizma, kaynak verinin (serbest konuşma) başka hiçbir
+yerde yapılandırılmış olmamasını çözüyor — OsintLab'de bu sorun yok, KùzuDB'de confidence/
+provenance/lineage'li bir ground truth zaten var (Q4/Q6/Q12). Vault bu graph'ın
+**deterministik bir render'ı** olacak, LLM'den geçmeyecek (istisna: Dashboard'daki özet
+cümlesi — kullanıcı şimdilik bunu da şablonla tutmayı tercih etti, ileride bir akıcılaştırma
+katmanı eklenebilir). Konum: proje içinde `data/vault/` (mevcut `data/` deseniyle aynı,
+gitignore'lu, regenerable — kaybedilirse graph'tan yeniden üretilebilir). İzolasyon: bu kendi
+ayrı Obsidian vault'u, ScryneOS'un içine karışmıyor (Faz 4'teki "kişisel Brain'den tamamen
+ayrı" kararıyla tutarlı).
+
+- **İşler:**
+  - `data/vault/` dizin iskeleti: `entities/`, `events/`, `investigations/`, `sources/`,
+    `inbox/`, `daily/`, `Dashboard.md`.
+  - Deterministik render modülü (backend'de, ör. `app/vault.py`): graph node'larını YAML
+    frontmatter (id, tür, confidence, knowledge_state, created_at) + prose + Obsidian
+    `[[wikilink]]`'leri (ABOUT_ENTITY/INVOLVED_IN/INCLUDES/DERIVED_FROM ilişkilerinden
+    türetilir) içeren markdown notlarına çevirir.
+  - Yazma-anında/tetiklemeli senkron: graph mutasyonu olduğunda ilgili not(lar) güncellenir
+    (idempotent tam re-render kabul edilebilir — bu ölçekte performans sorun değil).
+  - OsintLab'e özel bir SessionEnd hook'u (mevcut genel proje-takip hook'una EK, onun
+    yerine değil): `GET /intelligence/diff` (Faz 7'de zaten var) ile o oturumda değişeni
+    alıp `daily/<tarih>.md` ve `Dashboard.md`'yi günceller.
+  - Haftalık derleme script'i (elle çalıştırılabilir, ileride zamanlanabilir): `?days=7`
+    diff'iyle daha geniş bir özet notu.
+- **Bitti Kriteri:** `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir
+  Entity ve bir Investigation notu gerçek graph verisiyle (confidence, wikilink'ler dahil)
+  doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında
+  `daily/` notu ve `Dashboard.md` otomatik güncelleniyor.
+- **Notlar:**
+
+### Faz 10: Tam Veri Girişi + Collector Tetikleme Arayüzü
+
+- **İşler:**
+  - Frontend: Source create/edit formu (şu an sadece backend'de).
+  - Frontend: Claim create formu — entity/event sayfasından "yeni claim ekle", source seçimi,
+    corroborates/contradicts/supersedes ilişkilendirmesi dahil.
+  - Frontend: Evidence create formu + bir Claim'e bağlama akışı.
+  - Frontend: Observation oluşturma + promote akışı (şu an sadece backend'de; kullanıcı bir
+    haberi/metni elle yapıştırıp sisteme sokabilmeli, recall/why-matters sonucu görebilmeli).
+  - Frontend: Hypothesis oluşturma formu (Investigation sayfasında, şu an sadece görüntüleme
+    var).
+  - Frontend: Collector allowlist yönetimi + "bu URL'i tara" (RSS/web) tetikleyicisi.
+- **Bitti Kriteri:** Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni
+  bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/
+  web kaynağını UI'dan tarayıp Observation'a çevirebiliyor.
+- **Notlar:**
+
+### Faz 11: Dogfooding / Sertleştirme Turu
+
+- **İşler:**
+  - Kullanıcının gerçekten ilgilendiği entity'ler/kaynaklarla en az 5 gerçek araştırma
+    oturumu (curl/seed script değil, Faz 10'un UI'ından).
+  - Vault'un (Faz 9) gerçek kullanımda okunabilirliği/kullanışlılığı değerlendirilir.
+  - Bulunan sürtünme noktaları/bug'lar bir liste halinde tutulur.
+  - Kritik bulunanlar aynı fazda kapatılır, kozmetik/nice-to-have olanlar Faz 13'e not edilir.
+- **Bitti Kriteri:** En az 5 gerçek araştırma oturumu tamamlandı; bulunan sorunlar
+  listelendi, kritik olanlar kapatıldı.
+- **Notlar:**
+
+### Faz 12: Zamanlanmış Otomatik Tarama
+
+- **İşler:**
+  - Allowlist'teki kaynaklar için periyodik tarama mekanizması (Windows Task Scheduler ile
+    tetiklenen bir script, ya da basit bir döngü + bekleme içeren arka plan process).
+  - Tarama sıklığı kaynak bazında ayarlanabilir olmalı (config) — Faz 11'de öğrenilen gerçek
+    kullanım desenine göre varsayılan belirlenir.
+  - Yeni Observation'lar mevcut promote/notify pipeline'ından (Faz 4/7) otomatik geçer, ek
+    bir entegrasyon gerekmiyor.
+- **Bitti Kriteri:** İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme
+  olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor.
+- **Notlar:**
+
+### Faz 13: Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme
+
+- **İşler:**
+  - Frontend: Sources listesi + detay sayfası (reliability, DERIVED_FROM lineage zinciri
+    görsel olarak — Faz 6'nın UI karşılığı, şu an hiç yok).
+  - Frontend: Evidence Vault sayfası (Type/Source/Collected/Hash/Related Claims).
+  - Investigation Workspace'in tam akışı (Proje-Fikri.md madde 30): Research Question →
+    Scope → Entities → Sources → Observations → Claims → Evidence → Hypotheses → Analysis →
+    Findings → Conclusion — şu an sadece Findings+Hypotheses var, ara adımlar yok.
+  - Faz 11'de bulunup kozmetik/nice-to-have olarak ertelenen düzeltmeler.
+- **Bitti Kriteri:** Bir Source'un tam lineage zinciri UI'da görülebiliyor; bir Evidence
+  dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü
+  UI'da adım adım takip edilebiliyor.
+- **Notlar:**
+
+### Faz 14: Deploy/Erişim Kolaylığı
+
+- **İşler:**
+  - Tek komutla backend+frontend'i başlatan bir script (ör. `start.ps1` veya bir
+    concurrently/npm workspace script'i).
+  - (Opsiyonel) Masaüstü kısayolu.
+- **Bitti Kriteri:** Kullanıcı tek bir komut/kısayolla hem API'yi hem dashboard'u ayağa
+  kaldırabiliyor.
+- **Notlar:**
+
+### Faz 15: Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT)
+
+- **İşler:**
+  - Proje-Fikri.md madde 73'teki Phase 4+ vizyonunun hangi alt-domain'inin öncelikli
+    olduğuna karar verilir.
+  - Seçilen domain için ayrı bir spike (teknoloji/veri kaynağı doğrulaması, ör. GEOINT için
+    harita kütüphanesi, SOCMINT için veri erişim yaklaşımı).
+- **Bitti Kriteri:** Bir sonraki domain netleşti, kendi alt-roadmap'i (Faz 15.1, 15.2, ...)
+  yazıldı.
+- **Notlar:**
