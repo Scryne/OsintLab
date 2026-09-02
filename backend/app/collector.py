@@ -51,14 +51,30 @@ def save_allowlist(hosts: set[str]) -> None:
 
 
 def is_safe_ip(ip_str: str) -> bool:
+    # Negatif kategori taramasının (is_private/is_loopback/is_link_local/is_multicast/
+    # is_reserved/is_unspecified) TEK BAŞINA yetersiz olduğu bulundu: 100.64.0.0/10'u
+    # (RFC 6598 Shared Address Space / CGNAT — ör. Alibaba Cloud metadata servisi
+    # 100.100.100.200 bu aralıkta) hiçbiri yakalamıyor, güvenli sayıyordu.
+    #
+    # Buna karşı önce is_global'ın TEK BAŞINA yeterli olduğu denendi ama bu daha büyük bir
+    # boşluk açtı: is_global, NAT64 well-known prefix'iyle (64:ff9b::/96, RFC 6052) yazılmış
+    # IPv6 adreslerini (ör. 64:ff9b::10.0.0.1, 64:ff9b::127.0.0.1) "genel" sayıyor — oysa
+    # bunlar RFC1918/loopback/link-local adresler gömülü, is_reserved bunları doğru
+    # yakalıyordu. DNS64/NAT64 kurulu ağlarda (bazı IPv6-only kurumsal/mobil ağlar) bu,
+    # allowlist'teki bir hostname böyle bir adrese çözümlenirse SSRF korumasını atlatabilirdi.
+    #
+    # Doğru çözüm: ikisi birden. Negatif liste NAT64/6to4/Teredo gibi IANA-reserved sentetik
+    # IPv6 önekleri için gerekli (is_reserved), is_global ise CGNAT gibi negatif listenin
+    # kaçırdığı aralıklar için gerekli — biri diğerinin yerine geçmiyor.
     ip = ipaddress.ip_address(ip_str)
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
+    return (
+        not ip.is_private
+        and not ip.is_loopback
+        and not ip.is_link_local
+        and not ip.is_multicast
+        and not ip.is_reserved
+        and not ip.is_unspecified
+        and ip.is_global
     )
 
 
