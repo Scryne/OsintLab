@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type { InvestigationStatus } from "@/lib/types";
@@ -8,6 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 const TRANSITIONS: Record<InvestigationStatus, InvestigationStatus[]> = {
   OPEN: ["ACTIVE", "ARCHIVED"],
@@ -19,6 +31,7 @@ const TRANSITIONS: Record<InvestigationStatus, InvestigationStatus[]> = {
 };
 
 export function InvestigationDetail({ investigationId }: { investigationId: string }) {
+  const toast = useToast();
   const { data: investigation, error, loading, reload } = useApi(
     () => api.investigations.get(investigationId),
     [investigationId]
@@ -27,13 +40,17 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
     () => api.investigations.findings(investigationId),
     [investigationId]
   );
-  const { data: hypotheses } = useApi(() => api.investigations.hypotheses(investigationId), [investigationId]);
+  const { data: hypotheses, reload: reloadHypotheses } = useApi(
+    () => api.investigations.hypotheses(investigationId),
+    [investigationId]
+  );
   const [transitioning, setTransitioning] = useState(false);
 
   async function transition(to: InvestigationStatus) {
     setTransitioning(true);
     try {
       await api.investigations.transition(investigationId, to);
+      toast(`Durum değişti: ${to}`, "success");
       reload();
       reloadFindings();
     } finally {
@@ -49,7 +66,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <header>
         <div className="flex items-center gap-2">
-          <h1 className="font-display text-2xl font-semibold text-foreground">{investigation.title}</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">{investigation.title}</h1>
           <Badge variant="outline">{investigation.status}</Badge>
         </div>
         <p className="mt-1 text-sm text-text-secondary">{investigation.research_question}</p>
@@ -82,7 +99,10 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Hipotezler</h2>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Hipotezler</h2>
+          <NewHypothesisDialog investigationId={investigationId} onCreated={reloadHypotheses} />
+        </div>
         {!hypotheses || hypotheses.length === 0 ? (
           <EmptyState title="Henüz hipotez yok" />
         ) : (
@@ -99,5 +119,66 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         )}
       </section>
     </div>
+  );
+}
+
+function NewHypothesisDialog({ investigationId, onCreated }: { investigationId: string; onCreated: () => void }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!text.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.investigations.createHypothesis(investigationId, text.trim());
+      toast("Hipotez eklendi", "success");
+      setText("");
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button size="sm" variant="outline">
+            <Plus aria-hidden className="h-4 w-4" />
+            Yeni Hipotez
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Yeni hipotez ekle</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="hypothesis-text">Metin</Label>
+            <Textarea
+              id="hypothesis-text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="ör. H1: Şirket X, Kurum Y tarafından doğrudan kontrol ediliyor."
+              rows={3}
+            />
+          </div>
+          {error && <p className="text-sm text-priority-critical">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button onClick={submit} disabled={submitting || !text.trim()}>
+            {submitting ? "Ekleniyor…" : "Ekle"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

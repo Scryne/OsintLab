@@ -1,0 +1,194 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Plus, Search } from "lucide-react";
+import { api } from "@/lib/api";
+import { useApi } from "@/lib/use-api";
+import type { Source } from "@/lib/types";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
+
+const SOURCE_TYPES = ["haber sitesi", "resmi açıklama", "sosyal medya"];
+
+export default function SourcesPage() {
+  const { data: sources, error, loading, reload } = useApi(() => api.sources.list(), []);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!sources) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return sources;
+    return sources.filter((s) => s.name.toLowerCase().includes(q) || s.source_type.toLowerCase().includes(q));
+  }, [sources, query]);
+
+  return (
+    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Kaynaklar</h1>
+          <p className="text-sm text-text-secondary">Claim ve event&apos;lerin atıflı olduğu bilgi kaynakları.</p>
+        </div>
+        <NewSourceDialog onCreated={reload} />
+      </div>
+
+      <div className="relative">
+        <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="İsim veya tür ara…"
+          className="pl-9"
+        />
+      </div>
+
+      {loading && <SkeletonList />}
+      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {!loading && !error && filtered.length === 0 && (
+        <EmptyState
+          title={query ? "Eşleşen kaynak bulunamadı" : "Henüz kaynak yok"}
+          description={query ? undefined : "Sağ üstteki butonla ilk kaynağı ekle."}
+        />
+      )}
+
+      {!loading && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {filtered.map((source) => (
+            <SourceCard key={source.id} source={source} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SourceCard({ source }: { source: Source }) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-4">
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-foreground">{source.name}</span>
+        <Badge variant="secondary">{source.source_type}</Badge>
+      </div>
+      <p className="font-mono text-xs text-text-tertiary">
+        <span className="tabular-nums">güvenilirlik %{Math.round(source.reliability * 100)}</span>
+        {source.url && (
+          <>
+            {" · "}
+            <a href={source.url} target="_blank" rel="noreferrer" className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
+              {source.url}
+            </a>
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
+export function NewSourceDialog({ onCreated }: { onCreated: () => void }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [sourceType, setSourceType] = useState(SOURCE_TYPES[0]);
+  const [url, setUrl] = useState("");
+  const [reliability, setReliability] = useState("0.5");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!name.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.sources.create({
+        name: name.trim(),
+        source_type: sourceType,
+        url: url.trim() || null,
+        reliability: Number(reliability),
+      });
+      toast(`"${name.trim()}" eklendi`, "success");
+      setName("");
+      setUrl("");
+      setReliability("0.5");
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button size="sm">
+            <Plus aria-hidden className="h-4 w-4" />
+            Yeni Kaynak
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Yeni kaynak ekle</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="source-name">İsim</Label>
+            <Input id="source-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. Anadolu Ajansı" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Tür</Label>
+            <Select value={sourceType} onValueChange={(value) => value && setSourceType(value)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SOURCE_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="source-url">URL (opsiyonel)</Label>
+            <Input id="source-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="source-reliability">Güvenilirlik (0–1)</Label>
+            <Input
+              id="source-reliability"
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={reliability}
+              onChange={(e) => setReliability(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-sm text-priority-critical">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button onClick={submit} disabled={submitting || !name.trim()}>
+            {submitting ? "Ekleniyor…" : "Ekle"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

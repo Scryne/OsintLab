@@ -8,11 +8,19 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        // Referans (2026-09-02, "dark" geri bildirimi): renkli/gradient CTA yerine tek bir
+        // ışık-koyu ters çevrimi — aktif nav ile aynı dil, ekstra renk eklemiyor.
+        // disabled:opacity-100 + kendi soluk beyaz/soluk metin çifti: paylaşılan
+        // disabled:opacity-50 kuralı beyaz butonu koyu zeminde donuk griye çeviriyordu,
+        // sanki ayrı bir buton gibi duruyordu (2026-09-02 bulgusu) — artık hep "aynı beyaz
+        // buton, sadece soluk" okunuyor.
+        default: "bg-white/95 text-neutral-900 hover:bg-white disabled:opacity-100 disabled:bg-white/25 disabled:text-white/50",
+        // glass-ring: referans glassmorphism chip görselleri (2026-09-02) — düz border yerine
+        // üstten parlayan gradient rim (bkz. globals.css .glass-ring).
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "glass-ring bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "glass-ring bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:

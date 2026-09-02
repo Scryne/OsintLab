@@ -6,9 +6,12 @@ import { Search, Users, Calendar, FolderSearch, Radio } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Input } from "@/components/ui/input";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { PriorityBadge } from "@/components/provenance/priority";
+import { IconChip } from "@/components/ui/icon-chip";
+import { WireframeGlobe } from "@/components/ui/wireframe-globe";
 
 export default function MainWorkspace() {
   const { data: entities } = useApi(() => api.entities.list(), []);
@@ -45,19 +48,20 @@ export default function MainWorkspace() {
   );
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8">
+    <div className="relative isolate mx-auto flex max-w-5xl flex-col gap-8 overflow-hidden">
+      <WireframeGlobe spin className="pointer-events-none absolute -right-16 -top-20 -z-10 h-64 w-64 text-white/5" />
       <section>
-        <h1 className="font-display text-2xl font-semibold text-foreground">Ana Çalışma Alanı</h1>
+        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Ana Çalışma Alanı</h1>
         <p className="mt-1 text-sm text-text-secondary">
           Bilinen entity ve event&apos;lerde ara — sonuçlar Knowledge Graph&apos;a dayanır.
         </p>
-        <div className="relative mt-4">
-          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+        <div className="glass-panel relative mt-5 rounded-2xl p-1">
+          <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Bir kişi, kurum, lokasyon ya da event ara…"
-            className="h-11 pl-9 text-base"
+            className="h-12 border-0 bg-transparent pl-11 text-base shadow-none focus-visible:ring-0"
           />
         </div>
         {query.trim() && (
@@ -92,19 +96,19 @@ export default function MainWorkspace() {
         <section>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Priority Intelligence</h2>
-            <Link href="/inbox" className="text-xs text-brand-accent hover:underline">
+            <Link href="/inbox" className="text-xs text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
               Inbox&apos;a git →
             </Link>
           </div>
           <div className="glass-panel rounded-lg p-3">
-            {inboxLoading && <LoadingState label="Inbox yükleniyor…" />}
+            {inboxLoading && <SkeletonRows count={3} />}
             {inboxError && <ErrorState message={inboxError.message} />}
             {!inboxLoading && !inboxError && topInbox.length === 0 && (
               <EmptyState title="MEDIUM+ öncelikli bekleyen bir şey yok" />
             )}
             <div className="flex flex-col gap-2">
               {topInbox.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-2 rounded-md bg-surface/60 px-2.5 py-2">
+                <div key={item.id} className="flex items-center justify-between gap-2 rounded-md bg-surface-raised px-2.5 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm text-foreground">{item.title}</p>
                     <p className="text-[11px] text-text-tertiary">{item.item_type}</p>
@@ -117,17 +121,21 @@ export default function MainWorkspace() {
         </section>
 
         <section>
-          <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Son Değişiklikler</h2>
-          {claimsLoading && <LoadingState label="Timeline yükleniyor…" />}
-          {claimsError && <ErrorState message={claimsError.message} />}
-          {!claimsLoading && !claimsError && recentClaims.length === 0 && <EmptyState title="Henüz claim yok" />}
-          <div className="flex flex-col gap-2">
-            {recentClaims.map((claim) => (
-              <div key={claim.id} className="flex items-start justify-between gap-2 rounded-lg border border-border bg-surface p-2.5">
-                <p className="truncate text-sm text-foreground">{claim.text}</p>
-                <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} className="shrink-0" />
-              </div>
-            ))}
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Son Değişiklikler</h2>
+          </div>
+          <div className="glass-panel rounded-lg p-3">
+            {claimsLoading && <SkeletonRows count={3} />}
+            {claimsError && <ErrorState message={claimsError.message} />}
+            {!claimsLoading && !claimsError && recentClaims.length === 0 && <EmptyState title="Henüz claim yok" />}
+            <div className="flex flex-col gap-2">
+              {recentClaims.map((claim) => (
+                <div key={claim.id} className="flex items-start justify-between gap-2 rounded-md bg-surface-raised px-2.5 py-2">
+                  <p className="truncate text-sm text-foreground">{claim.text}</p>
+                  <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} className="shrink-0" />
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       </div>
@@ -147,16 +155,20 @@ function StatCard({
   href?: string;
 }) {
   const content = (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3">
-      <Icon aria-hidden className="h-5 w-5 text-brand-accent" />
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 transition-transform">
+      <IconChip icon={Icon} size="lg" />
       <div>
-        <p className="font-mono text-lg font-semibold text-foreground">{value ?? "–"}</p>
-        <p className="text-xs text-text-tertiary">{label}</p>
+        {value === undefined ? (
+          <Skeleton className="h-8 w-10" />
+        ) : (
+          <p className="font-mono text-3xl leading-none font-semibold tracking-tight tabular-nums text-foreground">{value}</p>
+        )}
+        <p className="mt-1 text-xs text-text-tertiary">{label}</p>
       </div>
     </div>
   );
   return href ? (
-    <Link href={href} className="transition-opacity hover:opacity-80">
+    <Link href={href} className="block transition-transform hover:-translate-y-0.5">
       {content}
     </Link>
   ) : (

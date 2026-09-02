@@ -1,7 +1,10 @@
 import type {
   Claim,
+  CollectorFetchResult,
   Entity,
   EntityRecall,
+  EntityRelation,
+  Evidence,
   EventItem,
   EventRecall,
   Hypothesis,
@@ -9,6 +12,9 @@ import type {
   Investigation,
   Monitor,
   Observation,
+  ObservationPromoteResult,
+  SameAsCandidate,
+  SameAsPending,
   Source,
   WhyMattersReason,
 } from "./types";
@@ -55,6 +61,22 @@ export const api = {
     recall: (id: string) => get<{ entity_id: string } & EntityRecall>(`/entities/${id}/recall`),
     create: (payload: { entity_type: string; name: string; aliases?: string[] }) =>
       post<Entity>("/entities", payload),
+    createRelation: (entityId: string, payload: { to_entity_id: string; relation_type: string; confidence?: number }) =>
+      post<EntityRelation & { from_entity_id: string }>(`/entities/${entityId}/relations`, payload),
+    listRelations: (entityId: string) => get<EntityRelation[]>(`/entities/${entityId}/relations`),
+    deleteRelation: (entityId: string, toEntityId: string, relationType: string) =>
+      del(`/entities/${entityId}/relations/${toEntityId}?relation_type=${encodeURIComponent(relationType)}`),
+    sameAsCandidates: (entityId: string) => get<SameAsCandidate[]>(`/entities/${entityId}/same-as/candidates`),
+    suggestSameAs: (entityId: string, toEntityId: string) =>
+      post<{ from_entity_id: string; to_entity_id: string; confidence: number; status: string }>(
+        `/entities/${entityId}/same-as`,
+        { to_entity_id: toEntityId }
+      ),
+    pendingSameAs: () => get<SameAsPending[]>("/entities/same-as/pending"),
+    confirmSameAs: (fromId: string, toId: string) =>
+      post<{ status: string }>(`/entities/same-as/${fromId}/${toId}/confirm`),
+    rejectSameAs: (fromId: string, toId: string) =>
+      post<{ status: string }>(`/entities/same-as/${fromId}/${toId}/reject`),
   },
 
   events: {
@@ -63,11 +85,14 @@ export const api = {
     recall: (id: string) => get<{ event_id: string } & EventRecall>(`/events/${id}/recall`),
     linkEntity: (eventId: string, entityId: string, role: string) =>
       put<void>(`/events/${eventId}/entities/${entityId}`, { role }),
+    linkSource: (eventId: string, sourceId: string) => put<void>(`/events/${eventId}/sources/${sourceId}`),
   },
 
   sources: {
     list: () => get<Source[]>("/sources"),
     get: (id: string) => get<Source>(`/sources/${id}`),
+    create: (payload: { name: string; source_type: string; url?: string | null; reliability?: number }) =>
+      post<Source>("/sources", payload),
     lineage: (id: string) =>
       get<{ ancestors: Source[]; descendants: Source[]; independent_root_id: string }>(
         `/sources/${id}/lineage`
@@ -77,6 +102,17 @@ export const api = {
   claims: {
     list: () => get<Claim[]>("/claims"),
     get: (id: string) => get<Claim>(`/claims/${id}`),
+    create: (payload: {
+      text: string;
+      source_id: string;
+      about_entity_id?: string | null;
+      about_event_id?: string | null;
+      evidence_ids?: string[];
+      contradicting_evidence_ids?: string[];
+      corroborates?: string[];
+      contradicts?: string[];
+      supersedes?: string | null;
+    }) => post<Claim>("/claims", payload),
     explain: (id: string) =>
       get<{
         source_quality: number;
@@ -89,10 +125,20 @@ export const api = {
     whyMatters: (id: string) => get<{ claim_id: string; reasons: WhyMattersReason[] }>(`/claims/${id}/why-matters`),
   },
 
+  evidence: {
+    list: () => get<Evidence[]>("/evidence"),
+    get: (id: string) => get<Evidence>(`/evidence/${id}`),
+    create: (payload: { evidence_type: string; file_path?: string | null; content_hash?: string | null; collected_at?: string | null }) =>
+      post<Evidence>("/evidence", payload),
+    linkToClaim: (evidenceId: string, claimId: string, stance: "SUPPORTS" | "CONTRADICTS") =>
+      put<{ claim: Claim; evidence_id: string; stance: string }>(`/evidence/${evidenceId}/claims/${claimId}`, { stance }),
+  },
+
   investigations: {
     list: () => get<Investigation[]>("/investigations"),
     get: (id: string) => get<Investigation>(`/investigations/${id}`),
     hypotheses: (id: string) => get<Hypothesis[]>(`/investigations/${id}/hypotheses`),
+    createHypothesis: (id: string, text: string) => post<Hypothesis>(`/investigations/${id}/hypotheses`, { text }),
     findings: (id: string) =>
       get<(Pick<Claim, "id" | "text" | "knowledge_state" | "confidence"> & { validated: boolean })[]>(
         `/investigations/${id}/findings`
@@ -104,6 +150,26 @@ export const api = {
   observations: {
     list: (promoted?: boolean) =>
       get<Observation[]>(`/observations${promoted === undefined ? "" : `?promoted=${promoted}`}`),
+    create: (payload: { raw_content: string; observed_at?: string | null; source_url?: string | null }) =>
+      post<Observation>("/observations", payload),
+    promote: (
+      id: string,
+      payload: {
+        source_id: string;
+        about_entity_id?: string | null;
+        about_event_id?: string | null;
+        evidence_ids?: string[];
+        contradicting_evidence_ids?: string[];
+        corroborates?: string[];
+      }
+    ) => post<ObservationPromoteResult>(`/observations/${id}/promote`, payload),
+  },
+
+  collectors: {
+    allowlist: () => get<{ hostnames: string[] }>("/collectors/allowlist"),
+    addAllowlist: (hostname: string) => post<{ hostnames: string[] }>("/collectors/allowlist", { hostname }),
+    removeAllowlist: (hostname: string) => del(`/collectors/allowlist/${encodeURIComponent(hostname)}`),
+    fetch: (url: string, mode: "rss" | "web") => post<CollectorFetchResult>("/collectors/fetch", { url, mode }),
   },
 
   monitors: {

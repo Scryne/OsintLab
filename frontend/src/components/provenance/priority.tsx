@@ -29,7 +29,11 @@ export function PriorityBadge({ priority, className }: { priority: Priority; cla
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide",
         className
       )}
-      style={{ backgroundColor: `color-mix(in oklch, ${color} 22%, transparent)`, color }}
+      style={{
+        backgroundColor: `color-mix(in oklch, ${color} 22%, transparent)`,
+        color,
+        boxShadow: `0 0 10px color-mix(in oklch, ${color} 35%, transparent)`,
+      }}
     >
       {PRIORITY_LABEL_TR[priority]}
     </span>

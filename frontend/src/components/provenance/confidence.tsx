@@ -50,10 +50,14 @@ export function ConfidenceBadge({
       )}
       style={{ borderColor: color, color }}
     >
-      <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+      <span
+        aria-hidden
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+      />
       {CONFIDENCE_LABEL_TR[state]}
       {typeof confidence === "number" && (
-        <span className="font-mono text-[10px] opacity-80">{Math.round(confidence * 100)}%</span>
+        <span className="font-mono text-[10px] tabular-nums opacity-80">{Math.round(confidence * 100)}%</span>
       )}
     </span>
   );

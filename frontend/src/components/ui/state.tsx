@@ -29,7 +29,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 export function EmptyState({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="flex flex-col items-start gap-1.5 rounded-lg border border-dashed border-border p-6 text-sm">
+    <div className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-surface p-6 text-sm">
       <div className="flex items-center gap-2 text-text-secondary">
         <SearchX aria-hidden className="h-4 w-4" />
         <span className="font-medium text-foreground">{title}</span>

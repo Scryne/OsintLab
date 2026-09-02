@@ -7,27 +7,28 @@
 /*
  * OsintLab design tokens — bkz. docs/Design.md.
  *
- * İKİ AYRI renk sistemi var, bilerek birbirinden ayrı tutuluyor:
+ * İKİ AYRI renk sistemi var, bilerek birbirinden ayrı tutuluyor (bunlar "chrome" değil,
+ * DEĞİŞMEDİ — sadece zemin/glass/tipografi/buton "Frontend-taslak" reposuna göre reskin edildi):
  *   1. Confidence Spectrum (--confidence-*) — knowledge_state'in birebir karşılığı,
  *      soğuktan (belirsiz) sıcağa (yüksek güven) bir "epistemik sıcaklık" rampası.
  *      CONTRADICTED bu rampanın dışında, bilinçli bir kırılma rengi.
  *   2. Priority/Alarm Scale (--priority-*) — sadece Intelligence Inbox'ta, mor-kırmızı
  *      ailesi. Confidence'ın mavi-yeşil-altın ailesiyle KARIŞTIRILMAMALI — ikisi farklı
  *      soruları cevaplıyor ("ne kadar eminiz" vs "ne kadar acil").
- * Marka accent'i (--brand-accent, buton/link/focus) bu iki sistemin de dışında; sinyal
- * moru — epistemik bir anlamı yok, sadece "bu etkileşimli" demek.
+ * Marka accent'i (--brand-accent, buton/link/focus) bu iki sistemin de dışında; taslağın
+ * indigo/violet ailesine hizalandı — epistemik bir anlamı yok, sadece "bu etkileşimli" demek.
  */
 :root {
-  --bg-base: #05070a;
-  --surface: #0e121a;
-  --surface-raised: #141924;
-  --surface-border: rgba(255, 255, 255, 0.08);
+  --bg-base: #090a0c;
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-raised: rgba(255, 255, 255, 0.065);
+  --surface-border: rgba(255, 255, 255, 0.09);
 
-  --text-primary: #edeff3;
-  --text-secondary: #9aa3b2;
-  --text-tertiary: #626b7a;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #86868f;
 
-  --brand-accent: #9b8afb;
+  --brand-accent: #8b5cf6;
   --brand-accent-foreground: #14101f;
 
   --confidence-unknown: #4b5768;
@@ -44,19 +45,27 @@
   --priority-high: #dd5a46;
   --priority-critical: #e23a6b;
 
-  --glass-bg: rgba(255, 255, 255, 0.06);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-bg-fallback: rgba(14, 18, 26, 0.92);
+  --glass-bg: rgba(255, 255, 255, 0.075);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-bg-fallback: rgba(14, 14, 18, 0.94);
+  /* Dialog/Select popup'ları — Scryne referansı (2026-09-02): tam saydam/cam görünüm.
+     Daha önce burası TAM OPAK yapılmıştı çünkü Select'in alignItemWithTrigger'ı seçili
+     öğeyi tetikleyicinin BİREBİR üstüne oturtuyordu ve saydam popup'ta tetikleyicinin
+     metni arkadan sızıp seçenek metniyle karışıyordu. O ayar artık kapalı (select.tsx,
+     alignItemWithTrigger=false) — popup tetikleyicinin ALTINDA açılıyor, birebir çakışma
+     yok, o yüzden saydamlığa güvenle dönülebildi. Okunabilirlik backdrop-blur ile korunuyor.
+  */
+  --popover-glass: rgba(20, 20, 24, 0.6);
 
   /* shadcn semantik eşleştirmesi */
   --background: var(--bg-base);
   --foreground: var(--text-primary);
   --card: var(--surface);
   --card-foreground: var(--text-primary);
-  --popover: var(--surface-raised);
+  --popover: var(--popover-glass);
   --popover-foreground: var(--text-primary);
-  --primary: var(--brand-accent);
-  --primary-foreground: var(--brand-accent-foreground);
+  --primary: var(--text-primary);
+  --primary-foreground: var(--bg-base);
   --secondary: var(--surface-raised);
   --secondary-foreground: var(--text-primary);
   --muted: var(--surface-raised);
@@ -66,15 +75,15 @@
   --destructive: var(--priority-critical);
   --border: var(--surface-border);
   --input: rgba(255, 255, 255, 0.1);
-  --ring: var(--brand-accent);
-  --radius: 0.5rem;
+  --ring: rgba(255, 255, 255, 0.35);
+  --radius: 0.75rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-display: var(--font-display);
+  --font-display: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-heading: var(--font-display);
 
@@ -98,6 +107,7 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.75);
 
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
@@ -128,18 +138,39 @@
   html {
     @apply font-sans;
   }
+  /* İnce özel scrollbar — varsayılan sistem scrollbar'ı koyu temada göze batıyordu. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+    background-clip: padding-box;
+  }
   body {
     @apply bg-background text-foreground;
-    background-image: radial-gradient(
-        ellipse 80% 60% at 0% 0%,
-        rgba(27, 35, 64, 0.5),
-        transparent 60%
-      ),
-      radial-gradient(
-        ellipse 70% 60% at 100% 100%,
-        rgba(42, 27, 18, 0.45),
-        transparent 60%
-      );
+    /* Frontend-taslak'ın zemin imzası: sol-üst mor, sağ-alt mavi radial mesh + ince grid
+       (global kural: ışık kaynağı sol-üst). */
+    /* Scryne geri bildirimi (2026-09-02): renkler fazla canlıydı — referans (sade, neredeyse
+       monokrom koyu panel + tek beyaz vurgu) doğrultusunda glow'lar ciddi kısıldı. */
+    background-image: radial-gradient(circle at 12% 0%, rgba(139, 92, 246, 0.07), transparent 30%),
+      radial-gradient(circle at 92% 80%, rgba(59, 130, 246, 0.05), transparent 32%),
+      linear-gradient(rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px);
+    background-size: auto, auto, 48px 48px, 48px 48px;
     background-attachment: fixed;
     background-color: var(--bg-base);
   }
@@ -147,20 +178,96 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+  /* Wireframe motiflerin (globe/burst) çok yavaş dönüşü — video yerine (2026-09-02,
+     "eşsizlik" geri bildirimi): göz yormayacak kadar yavaş, saf CSS transform (GPU'da
+     ucuz), prefers-reduced-motion ile birlikte otomatik durur. */
+  @keyframes wireframe-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .animate-wireframe-spin {
+    animation: wireframe-spin 140s linear infinite;
+    transform-origin: center;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
+  /* "Light-catcher" kenarlık — Scryne'ın referans glassmorphism chip görselleri (2026-09-02):
+     düz tek-renk border yerine üstten parlayıp alta doğru sönümlenen bir gradient rim. Bu,
+     `border`/`border-color` property'sini KULLANMIYOR (Tailwind'in `border-border` utility'siyle
+     cascade çakışması olmasın diye) — bunun yerine mask-composite ile üstte yüzen 1px'lik
+     bağımsız bir halka. Element'in kendi `border` utility'si altta aynen kalır, bu halka
+     tam üstüne oturup görsel olarak onu domine eder.
+  */
+  .glass-panel,
+  .bg-surface,
+  .bg-surface-raised,
+  .glass-ring {
+    position: relative;
+  }
+  .glass-panel::after,
+  .bg-surface::after,
+  .bg-surface-raised::after,
+  .glass-ring::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.5),
+      rgba(255, 255, 255, 0.04) 45%,
+      rgba(255, 255, 255, 0.18)
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
   /* Cam yüzey — SADECE anahtar elementlerde (nav, Inbox paneli, modal, birincil CTA).
-     Diğer her yerde @apply bg-surface kullan. */
+     Diğer her yerde @apply bg-surface kullan. Taslağın .glass-strong tarifine göre: inset
+     highlight + shadow + hover'da hafif border/bg değişimi (blur ASLA anime edilmiyor). */
   .glass-panel {
     background: var(--glass-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.38), inset 1px 1px rgba(255, 255, 255, 0.06);
+    transition: background 180ms ease;
+  }
+  .glass-panel:hover::after {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.28));
   }
   @supports not (backdrop-filter: blur(1px)) {
     .glass-panel {
       background: var(--glass-bg-fallback);
     }
+  }
+
+  /* Opak yüzeyler (kart, satır — bkz. Design.md "CAM DEĞİL") blur almıyor ama artık
+     taslağın kart derinliğine yakın bir gölge+üst highlight taşıyor, düz durmasın diye. */
+  .bg-surface,
+  .bg-surface-raised {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 1px 1px rgba(255, 255, 255, 0.05);
+    transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  }
+  a.bg-surface:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.36), inset 1px 1px rgba(255, 255, 255, 0.06);
   }
 }

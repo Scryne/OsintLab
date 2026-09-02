@@ -9,7 +9,8 @@ import type { Entity } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
+import { WireframeBurst } from "@/components/ui/wireframe-burst";
 
 const ENTITY_TYPES = ["Person", "Organization", "Company", "Location"];
 
@@ -43,10 +46,11 @@ export default function EntitiesPage() {
   }, [entities, query]);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="relative isolate mx-auto flex max-w-4xl flex-col gap-6 overflow-hidden">
+      <WireframeBurst spin className="pointer-events-none absolute -right-10 top-12 -z-10 h-48 w-48 text-white/5" />
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-foreground">Entity&apos;ler</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Entity&apos;ler</h1>
           <p className="text-sm text-text-secondary">Bilinen kişi, kurum ve lokasyonlar.</p>
         </div>
         <NewEntityDialog onCreated={reload} />
@@ -62,7 +66,7 @@ export default function EntitiesPage() {
         />
       </div>
 
-      {loading && <LoadingState />}
+      {loading && <SkeletonList />}
       {error && <ErrorState message={error.message} onRetry={reload} />}
       {!loading && !error && filtered.length === 0 && (
         <EmptyState
@@ -71,11 +75,13 @@ export default function EntitiesPage() {
         />
       )}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {filtered.map((entity) => (
-          <EntityCard key={entity.id} entity={entity} />
-        ))}
-      </div>
+      {!loading && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {filtered.map((entity) => (
+            <EntityCard key={entity.id} entity={entity} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -98,6 +104,7 @@ function EntityCard({ entity }: { entity: Entity }) {
 }
 
 function NewEntityDialog({ onCreated }: { onCreated: () => void }) {
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [entityType, setEntityType] = useState(ENTITY_TYPES[0]);
@@ -110,6 +117,7 @@ function NewEntityDialog({ onCreated }: { onCreated: () => void }) {
     setError(null);
     try {
       await api.entities.create({ entity_type: entityType, name: name.trim() });
+      toast(`"${name.trim()}" eklendi`, "success");
       setName("");
       setOpen(false);
       onCreated();

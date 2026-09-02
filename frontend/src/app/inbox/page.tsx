@@ -8,7 +8,8 @@ import { useApi } from "@/lib/use-api";
 import type { InboxItem, InboxStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonRows } from "@/components/ui/skeleton";
 import { PriorityBadge, PRIORITY_ORDER, PRIORITY_LABEL_TR } from "@/components/provenance/priority";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ export default function InboxPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-foreground">Intelligence Inbox</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Intelligence Inbox</h1>
           <p className="text-sm text-text-secondary">More signal, less noise.</p>
         </div>
         <Select value={minPriority} onValueChange={(value) => value && setMinPriority(value)}>
@@ -57,7 +58,7 @@ export default function InboxPage() {
         </Select>
       </div>
 
-      {loading && <LoadingState />}
+      {loading && <SkeletonRows count={4} />}
       {error && <ErrorState message={error.message} onRetry={reload} />}
       {!loading && !error && items?.length === 0 && (
         <EmptyState title="Inbox boş" description="Bu eşiğin üzerinde bekleyen bir şey yok." />
@@ -99,7 +100,7 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
           <div className="mt-1 flex items-center gap-2 text-[11px] text-text-tertiary">
             <span className="font-mono">{new Date(item.created_at).toLocaleString("tr-TR")}</span>
             {href && (
-              <Link href={href} className="text-brand-accent hover:underline">
+              <Link href={href} className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
                 hedefe git →
               </Link>
             )}

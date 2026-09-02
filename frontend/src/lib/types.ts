@@ -132,4 +132,46 @@ export interface EventRecall {
   related_investigations: Pick<Investigation, "id" | "title" | "status" | "created_at">[];
   related_claims: Pick<Claim, "id" | "text" | "knowledge_state" | "confidence" | "created_at">[];
   related_entities: Pick<Entity, "id" | "name" | "entity_type">[];
+  reported_by: Pick<Source, "id" | "name" | "source_type">[];
+}
+
+export interface EntityRelation {
+  entity_id: string;
+  name: string;
+  relation_type: string;
+  confidence: number;
+  status: string;
+  valid_from: string;
+  direction: "OUTGOING" | "INCOMING";
+}
+
+export interface SameAsCandidate {
+  entity_id: string;
+  name: string;
+  entity_type: string;
+  score: number;
+}
+
+export interface SameAsPending {
+  entity_a_id: string;
+  entity_a_name: string;
+  entity_a_type: string;
+  entity_b_id: string;
+  entity_b_name: string;
+  entity_b_type: string;
+  confidence: number;
+  created_at: string;
+}
+
+export interface ObservationPromoteResult {
+  claim: Claim;
+  recall: (Partial<EntityRecall & EventRecall> & { about: "entity" | "event"; id: string }) | null;
+  why_matters: WhyMattersReason[];
+}
+
+export interface CollectorFetchResult {
+  final_url: string;
+  content_type: string;
+  observations_created: number;
+  observation_ids: string[];
 }

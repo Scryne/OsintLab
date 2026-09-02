@@ -4,24 +4,27 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonRows } from "@/components/ui/skeleton";
+import { WireframeRipple } from "@/components/ui/wireframe-ripple";
 
 export default function InvestigationsPage() {
   const { data: investigations, error, loading, reload } = useApi(() => api.investigations.list(), []);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="relative isolate mx-auto flex max-w-3xl flex-col gap-6 overflow-hidden">
+      <WireframeRipple className="pointer-events-none absolute -right-10 -top-14 -z-10 h-52 w-52 text-white/5" />
       <div>
-        <h1 className="font-display text-2xl font-semibold text-foreground">Investigation&apos;lar</h1>
+        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Investigation&apos;lar</h1>
         <p className="text-sm text-text-secondary">Research Question → Findings → Conclusion.</p>
       </div>
 
-      {loading && <LoadingState />}
+      {loading && <SkeletonRows />}
       {error && <ErrorState message={error.message} onRetry={reload} />}
       {!loading && !error && investigations?.length === 0 && <EmptyState title="Henüz investigation yok" />}
 
       <div className="flex flex-col gap-2">
-        {investigations?.map((inv) => (
+        {!loading && investigations?.map((inv) => (
           <Link
             key={inv.id}
             href={`/investigations/${inv.id}`}

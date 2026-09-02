@@ -1,0 +1,332 @@
+"use client";
+
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { api } from "@/lib/api";
+import { useApi } from "@/lib/use-api";
+import type { Observation, ObservationPromoteResult } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonRows } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { SearchablePicker } from "@/components/forms/searchable-picker";
+import { ConfidenceBadge } from "@/components/provenance/confidence";
+import { ProvenanceBlock } from "@/components/provenance/provenance-label";
+import { useToast } from "@/components/ui/toast";
+
+type Filter = "all" | "promoted" | "pending";
+
+export default function ObservationsPage() {
+  const [filter, setFilter] = useState<Filter>("all");
+  const promoted = filter === "all" ? undefined : filter === "promoted";
+  const { data: observations, error, loading, reload } = useApi(() => api.observations.list(promoted), [promoted]);
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Gözlemler</h1>
+          <p className="text-sm text-text-secondary">
+            Ham metin/haber yapıştır, sisteme sok — eşiği geçerse Knowledge Graph&apos;a Claim olarak yükselir.
+          </p>
+        </div>
+        <NewObservationDialog onCreated={reload} />
+      </div>
+
+      <Tabs value={filter} onValueChange={(v) => v && setFilter(v as Filter)}>
+        <TabsList>
+          <TabsTrigger value="all">Tümü</TabsTrigger>
+          <TabsTrigger value="pending">Bekliyor</TabsTrigger>
+          <TabsTrigger value="promoted">Promote edildi</TabsTrigger>
+        </TabsList>
+        <TabsContent value={filter} className="mt-4">
+          {loading && <SkeletonRows />}
+          {error && <ErrorState message={error.message} onRetry={reload} />}
+          {!loading && !error && (!observations || observations.length === 0) && (
+            <EmptyState title="Bu filtrede gözlem yok" />
+          )}
+          {!loading && (
+            <div className="flex flex-col gap-2">
+              {observations?.map((o) => (
+                <ObservationRow key={o.id} observation={o} onPromoted={reload} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function ObservationRow({ observation, onPromoted }: { observation: Observation; onPromoted: () => void }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-foreground">{observation.raw_content}</p>
+        <Badge variant={observation.promoted ? "secondary" : "outline"} className="shrink-0">
+          {observation.promoted ? "promoted" : "bekliyor"}
+        </Badge>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-mono text-[11px] text-text-tertiary">
+          {new Date(observation.created_at).toLocaleString("tr-TR")}
+          {observation.source_url && <> · {observation.source_url}</>}
+        </p>
+        <PromoteDialog observation={observation} onPromoted={onPromoted} />
+      </div>
+    </div>
+  );
+}
+
+function NewObservationDialog({ onCreated }: { onCreated: () => void }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [rawContent, setRawContent] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!rawContent.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.observations.create({ raw_content: rawContent.trim(), source_url: sourceUrl.trim() || null });
+      toast("Gözlem eklendi", "success");
+      setRawContent("");
+      setSourceUrl("");
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button size="sm">
+            <Plus aria-hidden className="h-4 w-4" />
+            Yeni Gözlem
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Yeni gözlem ekle</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="observation-content">Ham metin</Label>
+            <Textarea
+              id="observation-content"
+              value={rawContent}
+              onChange={(e) => setRawContent(e.target.value)}
+              placeholder="Haber metni, sosyal medya paylaşımı vb…"
+              rows={5}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="observation-source-url">Kaynak URL (opsiyonel)</Label>
+            <Input
+              id="observation-source-url"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://…"
+            />
+          </div>
+          {error && <p className="text-sm text-priority-critical">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button onClick={submit} disabled={submitting || !rawContent.trim()}>
+            {submitting ? "Ekleniyor…" : "Ekle"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PromoteDialog({ observation, onPromoted }: { observation: Observation; onPromoted: () => void }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const { data: sources } = useApi(() => api.sources.list(), [open]);
+  const { data: entities } = useApi(() => api.entities.list(), [open]);
+  const { data: events } = useApi(() => api.events.list(), [open]);
+  const { data: evidenceList } = useApi(() => api.evidence.list(), [open]);
+  const { data: claims } = useApi(() => api.claims.list(), [open]);
+
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [aboutType, setAboutType] = useState<"none" | "entity" | "event">("none");
+  const [aboutId, setAboutId] = useState<string | null>(null);
+  const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
+  const [contradictingIds, setContradictingIds] = useState<string[]>([]);
+  const [corroborates, setCorroborates] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ObservationPromoteResult | null>(null);
+
+  const sourceItems = (sources ?? []).map((s) => ({ id: s.id, label: s.name, sublabel: s.source_type }));
+  const aboutItems =
+    aboutType === "entity"
+      ? (entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }))
+      : (events ?? []).map((e) => ({ id: e.id, label: e.title, sublabel: e.event_type }));
+  const evidenceItems = (evidenceList ?? []).map((e) => ({ id: e.id, label: e.evidence_type, sublabel: e.file_path ?? undefined }));
+  const claimItems = (claims ?? []).map((c) => ({ id: c.id, label: c.text.slice(0, 60) }));
+
+  async function submit() {
+    if (!sourceId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await api.observations.promote(observation.id, {
+        source_id: sourceId,
+        about_entity_id: aboutType === "entity" ? aboutId : null,
+        about_event_id: aboutType === "event" ? aboutId : null,
+        evidence_ids: evidenceIds,
+        contradicting_evidence_ids: contradictingIds,
+        corroborates,
+      });
+      setResult(res);
+      toast(
+        res.claim.confidence >= 0.45 ? "Claim'e yükseltildi" : "Eşik geçilmedi, ham gözlem olarak kaldı",
+        res.claim.confidence >= 0.45 ? "success" : "default"
+      );
+      onPromoted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function reset() {
+    setSourceId(null);
+    setAboutType("none");
+    setAboutId(null);
+    setEvidenceIds([]);
+    setContradictingIds([]);
+    setCorroborates([]);
+    setError(null);
+    setResult(null);
+  }
+
+  if (observation.promoted) return null;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger render={<Button size="sm">Promote</Button>} />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Observation&apos;ı Claim&apos;e yükselt</DialogTitle>
+        </DialogHeader>
+
+        {result ? (
+          <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
+            <div className="rounded-lg border border-border bg-surface p-3">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm text-foreground">{result.claim.text}</p>
+                <ConfidenceBadge state={result.claim.knowledge_state} confidence={result.claim.confidence} className="shrink-0" />
+              </div>
+            </div>
+            {result.claim.confidence < 0.45 && (
+              <p className="text-xs text-text-tertiary">
+                Eşik (%45) geçilmedi — claim oluşturuldu ama gözlem &quot;promoted&quot; işaretlenmedi, ham haliyle erişilebilir kalıyor.
+              </p>
+            )}
+            {result.why_matters.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {result.why_matters.map((reason, i) => (
+                  <ProvenanceBlock key={i} type="SYSTEM_INFERENCE">
+                    {reason.text}
+                  </ProvenanceBlock>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-1.5">
+              <Label>Kaynak</Label>
+              <SearchablePicker items={sourceItems} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>İlgili (opsiyonel)</Label>
+              <Select
+                value={aboutType}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  setAboutType(v as "none" | "entity" | "event");
+                  setAboutId(null);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Yok</SelectItem>
+                  <SelectItem value="entity">Entity</SelectItem>
+                  <SelectItem value="event">Event</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {aboutType !== "none" && (
+              <SearchablePicker items={aboutItems} value={aboutId} onChange={setAboutId} placeholder="Ara…" />
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Label>Destekleyici kanıt (opsiyonel)</Label>
+              <SearchablePicker items={evidenceItems} value={evidenceIds} onChange={setEvidenceIds} multiple placeholder="Kanıt ara…" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Çelişen kanıt (opsiyonel)</Label>
+              <SearchablePicker
+                items={evidenceItems}
+                value={contradictingIds}
+                onChange={setContradictingIds}
+                multiple
+                placeholder="Kanıt ara…"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Doğruladığı claim&apos;ler (opsiyonel)</Label>
+              <SearchablePicker items={claimItems} value={corroborates} onChange={setCorroborates} multiple placeholder="Claim ara…" />
+            </div>
+            {error && <p className="text-sm text-priority-critical">{error}</p>}
+          </div>
+        )}
+
+        <DialogFooter>
+          {result ? (
+            <Button onClick={() => setOpen(false)}>Kapat</Button>
+          ) : (
+            <Button onClick={submit} disabled={submitting || !sourceId}>
+              {submitting ? "Yükseltiliyor…" : "Promote et"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

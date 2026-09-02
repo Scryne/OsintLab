@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell, BellOff, Calendar } from "lucide-react";
+import { Bell, BellOff, Calendar, GitBranchPlus, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
-import type { Claim, Source } from "@/lib/types";
+import type { Claim, SameAsCandidate, Source } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,13 +14,29 @@ import { ConfidenceBadge, ConfidenceRail } from "@/components/provenance/confide
 import { ProvenanceBlock } from "@/components/provenance/provenance-label";
 import { WhyMattersDisclosure } from "@/components/provenance/why-matters-disclosure";
 import type { KnowledgeState } from "@/lib/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { SearchablePicker } from "@/components/forms/searchable-picker";
+import { NewClaimDialog } from "@/components/forms/claim-form";
+import { EvidenceLinkDialog } from "@/components/forms/evidence-link-dialog";
+import { useToast } from "@/components/ui/toast";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 
 export function EntityDetail({ entityId }: { entityId: string }) {
+  const toast = useToast();
   const { data: entity, error: entityError, loading: entityLoading } = useApi(
     () => api.entities.get(entityId),
     [entityId]
   );
-  const { data: recall, error: recallError, loading: recallLoading } = useApi(
+  const { data: recall, error: recallError, loading: recallLoading, reload: reloadRecall } = useApi(
     () => api.entities.recall(entityId),
     [entityId]
   );
@@ -68,6 +84,12 @@ export function EntityDetail({ entityId }: { entityId: string }) {
     }
   }
 
+  const { data: relations, reload: reloadRelations } = useApi(() => api.entities.listRelations(entityId), [entityId]);
+  const { data: sameAsCandidates, reload: reloadSameAs } = useApi(
+    () => api.entities.sameAsCandidates(entityId),
+    [entityId]
+  );
+
   const [confidenceFilter, setConfidenceFilter] = useState<KnowledgeState | null>(null);
 
   const timelineItems = useMemo(() => {
@@ -102,7 +124,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       <header className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold text-foreground">{entity.name}</h1>
+            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">{entity.name}</h1>
             <Badge variant="secondary">{entity.entity_type}</Badge>
           </div>
           {entity.aliases.length > 0 && (
@@ -112,10 +134,18 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             {new Date(entity.created_at).toLocaleString("tr-TR")} tarihinde eklendi
           </p>
         </div>
-        <Button variant={monitor ? "secondary" : "outline"} size="sm" onClick={toggleMonitor} disabled={monitor === undefined}>
-          {monitor ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-          {monitor ? "İzleniyor" : "İzlemeye al"}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <NewClaimDialog
+            aboutEntityId={entityId}
+            relatedClaims={recall.related_claims}
+            onCreated={reloadRecall}
+          />
+          <NewRelationDialog entityId={entityId} onCreated={reloadRelations} />
+          <Button variant={monitor ? "secondary" : "outline"} size="sm" onClick={toggleMonitor} disabled={monitor === undefined}>
+            {monitor ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+            {monitor ? "İzleniyor" : "İzlemeye al"}
+          </Button>
+        </div>
       </header>
 
       <Tabs defaultValue="timeline">
@@ -125,6 +155,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             <TabsTrigger value="claims">Claim&apos;ler ({recall.related_claims.length})</TabsTrigger>
             <TabsTrigger value="events">Event&apos;ler ({recall.related_events.length})</TabsTrigger>
             <TabsTrigger value="investigations">Investigation&apos;lar ({recall.related_investigations.length})</TabsTrigger>
+            <TabsTrigger value="relations">İlişkiler ({relations?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="same-as">Olası Eşleşmeler ({sameAsCandidates?.length ?? 0})</TabsTrigger>
           </TabsList>
         </div>
 
@@ -154,7 +186,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                             <ConfidenceBadge state={item.knowledge_state} confidence={item.confidence} />
                           )}
                           {item.kind === "event" && (
-                            <Link href={`/events/${item.id}`} className="text-[11px] text-brand-accent hover:underline">
+                            <Link href={`/events/${item.id}`} className="text-[11px] text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
                               event&apos;e git →
                             </Link>
                           )}
@@ -188,14 +220,17 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                         {source.url && (
                           <>
                             {" · "}
-                            <a href={source.url} target="_blank" rel="noreferrer" className="text-brand-accent hover:underline">
+                            <a href={source.url} target="_blank" rel="noreferrer" className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
                               {source.url}
                             </a>
                           </>
                         )}
                       </p>
                     )}
-                    <WhyMattersDisclosure claimId={claim.id} />
+                    <div className="flex flex-wrap items-start gap-3">
+                      <WhyMattersDisclosure claimId={claim.id} />
+                      <EvidenceLinkDialog claimId={claim.id} onLinked={reloadRecall} />
+                    </div>
                   </ProvenanceBlock>
                 );
               })}
@@ -240,7 +275,264 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="relations" className="mt-4">
+          {!relations || relations.length === 0 ? (
+            <EmptyState title="Henüz kayıtlı bir ilişki yok" description="Yukarıdaki 'İlişki Ekle' butonuyla ilk ilişkiyi kur." />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {relations.map((r) => (
+                <div
+                  key={`${r.direction}-${r.entity_id}-${r.relation_type}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3"
+                >
+                  <div className="flex min-w-0 items-center gap-2 text-sm">
+                    <span className="text-text-tertiary">{r.direction === "OUTGOING" ? "→" : "←"}</span>
+                    <Badge variant="secondary">{r.relation_type}</Badge>
+                    <Link href={`/entities/${r.entity_id}`} className="truncate text-foreground hover:underline">
+                      {r.name}
+                    </Link>
+                  </div>
+                  <ConfirmButton
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="İlişkiyi kaldır"
+                    confirmLabel="Kaldırılsın mı?"
+                    onConfirm={async () => {
+                      const [fromId, toId] =
+                        r.direction === "OUTGOING" ? [entityId, r.entity_id] : [r.entity_id, entityId];
+                      try {
+                        await api.entities.deleteRelation(fromId, toId, r.relation_type);
+                        toast("İlişki kaldırıldı", "success");
+                        reloadRelations();
+                      } catch (err) {
+                        toast(err instanceof Error ? err.message : "İlişki kaldırılamadı", "error");
+                      }
+                    }}
+                  >
+                    <X aria-hidden className="h-3.5 w-3.5" />
+                  </ConfirmButton>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="same-as" className="mt-4">
+          <SameAsTab entityId={entityId} candidates={sameAsCandidates ?? []} onChanged={reloadSameAs} />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreated: () => void }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const { data: entities } = useApi(() => api.entities.list(), [open]);
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [relationType, setRelationType] = useState("");
+  const [confidence, setConfidence] = useState("0.5");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const items = (entities ?? [])
+    .filter((e) => e.id !== entityId)
+    .map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }));
+
+  async function submit() {
+    if (!targetId || !relationType.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.entities.createRelation(entityId, {
+        to_entity_id: targetId,
+        relation_type: relationType.trim(),
+        confidence: Number(confidence),
+      });
+      toast("İlişki eklendi", "success");
+      setTargetId(null);
+      setRelationType("");
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="sm">
+            <GitBranchPlus aria-hidden className="h-4 w-4" />
+            İlişki Ekle
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Entity ilişkisi ekle</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label>Hedef entity</Label>
+            <SearchablePicker items={items} value={targetId} onChange={setTargetId} placeholder="Entity ara…" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="relation-type">İlişki türü</Label>
+            <Input
+              id="relation-type"
+              value={relationType}
+              onChange={(e) => setRelationType(e.target.value)}
+              placeholder="ör. çalışıyor, sahibi, ortak"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="relation-confidence">Confidence (0–1)</Label>
+            <Input
+              id="relation-confidence"
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={confidence}
+              onChange={(e) => setConfidence(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-sm text-priority-critical">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button onClick={submit} disabled={submitting || !targetId || !relationType.trim()}>
+            {submitting ? "Ekleniyor…" : "Ekle"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SameAsTab({
+  entityId,
+  candidates,
+  onChanged,
+}: {
+  entityId: string;
+  candidates: SameAsCandidate[];
+  onChanged: () => void;
+}) {
+  const toast = useToast();
+  const { data: pending, reload: reloadPending } = useApi(() => api.entities.pendingSameAs(), [entityId]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const pendingForThisEntity = (pending ?? []).filter(
+    (p) => p.entity_a_id === entityId || p.entity_b_id === entityId
+  );
+
+  async function suggest(candidateId: string) {
+    setBusyId(candidateId);
+    try {
+      await api.entities.suggestSameAs(entityId, candidateId);
+      toast("Öneri kuyruğa eklendi", "success");
+      onChanged();
+      reloadPending();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Öneri eklenemedi", "error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function resolve(fromId: string, toId: string, action: "confirm" | "reject") {
+    setBusyId(fromId + toId);
+    try {
+      if (action === "confirm") await api.entities.confirmSameAs(fromId, toId);
+      else await api.entities.rejectSameAs(fromId, toId);
+      toast(action === "confirm" ? "Eşleşme onaylandı" : "Eşleşme reddedildi", action === "confirm" ? "success" : "default");
+      reloadPending();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "İşlem başarısız", "error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const suggestedIds = new Set(
+    pendingForThisEntity.flatMap((p) => [p.entity_a_id, p.entity_b_id])
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      {pendingForThisEntity.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-tertiary">Onay bekleyen</h3>
+          <div className="flex flex-col gap-2">
+            {pendingForThisEntity.map((p) => {
+              const otherName = p.entity_a_id === entityId ? p.entity_b_name : p.entity_a_name;
+              return (
+                <div
+                  key={`${p.entity_a_id}-${p.entity_b_id}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3"
+                >
+                  <div className="text-sm">
+                    <span className="text-foreground">{otherName}</span>{" "}
+                    <span className="font-mono text-xs tabular-nums text-text-tertiary">%{Math.round(p.confidence * 100)}</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <ConfirmButton
+                      size="sm"
+                      variant="secondary"
+                      confirmLabel="Birleştir?"
+                      onConfirm={() => resolve(p.entity_a_id, p.entity_b_id, "confirm")}
+                    >
+                      Confirm
+                    </ConfirmButton>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busyId === p.entity_a_id + p.entity_b_id}
+                      onClick={() => resolve(p.entity_a_id, p.entity_b_id, "reject")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-tertiary">Olası eşleşme adayları</h3>
+        {candidates.length === 0 ? (
+          <EmptyState title="Aday bulunamadı" description="İsim/alias benzerliğine göre otomatik hesaplanır." />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {candidates.map((c) => (
+              <div key={c.entity_id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
+                <div className="text-sm">
+                  <Link href={`/entities/${c.entity_id}`} className="text-foreground hover:underline">
+                    {c.name}
+                  </Link>{" "}
+                  <span className="font-mono text-xs tabular-nums text-text-tertiary">%{Math.round(c.score * 100)} benzerlik</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busyId === c.entity_id || suggestedIds.has(c.entity_id)}
+                  onClick={() => suggest(c.entity_id)}
+                >
+                  <Plus aria-hidden className="h-3.5 w-3.5" />
+                  {suggestedIds.has(c.entity_id) ? "Önerildi" : "Öner"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
