@@ -1,0 +1,166 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * OsintLab design tokens — bkz. docs/Design.md.
+ *
+ * İKİ AYRI renk sistemi var, bilerek birbirinden ayrı tutuluyor:
+ *   1. Confidence Spectrum (--confidence-*) — knowledge_state'in birebir karşılığı,
+ *      soğuktan (belirsiz) sıcağa (yüksek güven) bir "epistemik sıcaklık" rampası.
+ *      CONTRADICTED bu rampanın dışında, bilinçli bir kırılma rengi.
+ *   2. Priority/Alarm Scale (--priority-*) — sadece Intelligence Inbox'ta, mor-kırmızı
+ *      ailesi. Confidence'ın mavi-yeşil-altın ailesiyle KARIŞTIRILMAMALI — ikisi farklı
+ *      soruları cevaplıyor ("ne kadar eminiz" vs "ne kadar acil").
+ * Marka accent'i (--brand-accent, buton/link/focus) bu iki sistemin de dışında; sinyal
+ * moru — epistemik bir anlamı yok, sadece "bu etkileşimli" demek.
+ */
+:root {
+  --bg-base: #05070a;
+  --surface: #0e121a;
+  --surface-raised: #141924;
+  --surface-border: rgba(255, 255, 255, 0.08);
+
+  --text-primary: #edeff3;
+  --text-secondary: #9aa3b2;
+  --text-tertiary: #626b7a;
+
+  --brand-accent: #9b8afb;
+  --brand-accent-foreground: #14101f;
+
+  --confidence-unknown: #4b5768;
+  --confidence-observed: #3e6e93;
+  --confidence-reported: #2f8fa6;
+  --confidence-supported: #34a183;
+  --confidence-corroborated: #c99a3e;
+  --confidence-high_confidence: #e8b84b;
+  --confidence-contradicted: #c4466e;
+
+  --priority-info: #6b7690;
+  --priority-low: #7c74c4;
+  --priority-medium: #c4703e;
+  --priority-high: #dd5a46;
+  --priority-critical: #e23a6b;
+
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-bg-fallback: rgba(14, 18, 26, 0.92);
+
+  /* shadcn semantik eşleştirmesi */
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--brand-accent-foreground);
+  --secondary: var(--surface-raised);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--surface-raised);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--priority-critical);
+  --border: var(--surface-border);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: var(--brand-accent);
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-display);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+
+  --color-confidence-unknown: var(--confidence-unknown);
+  --color-confidence-observed: var(--confidence-observed);
+  --color-confidence-reported: var(--confidence-reported);
+  --color-confidence-supported: var(--confidence-supported);
+  --color-confidence-corroborated: var(--confidence-corroborated);
+  --color-confidence-high_confidence: var(--confidence-high_confidence);
+  --color-confidence-contradicted: var(--confidence-contradicted);
+
+  --color-priority-info: var(--priority-info);
+  --color-priority-low: var(--priority-low);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-high: var(--priority-high);
+  --color-priority-critical: var(--priority-critical);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image: radial-gradient(
+        ellipse 80% 60% at 0% 0%,
+        rgba(27, 35, 64, 0.5),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 70% 60% at 100% 100%,
+        rgba(42, 27, 18, 0.45),
+        transparent 60%
+      );
+    background-attachment: fixed;
+    background-color: var(--bg-base);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  /* Cam yüzey — SADECE anahtar elementlerde (nav, Inbox paneli, modal, birincil CTA).
+     Diğer her yerde @apply bg-surface kullan. */
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--glass-border);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .glass-panel {
+      background: var(--glass-bg-fallback);
+    }
+  }
+}

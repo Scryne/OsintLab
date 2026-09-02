@@ -1,0 +1,167 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Plus, Search } from "lucide-react";
+import { api } from "@/lib/api";
+import { useApi } from "@/lib/use-api";
+import type { Entity } from "@/lib/types";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const ENTITY_TYPES = ["Person", "Organization", "Company", "Location"];
+
+export default function EntitiesPage() {
+  const { data: entities, error, loading, reload } = useApi(() => api.entities.list(), []);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!entities) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return entities;
+    return entities.filter(
+      (e) => e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q))
+    );
+  }, [entities, query]);
+
+  return (
+    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-foreground">Entity&apos;ler</h1>
+          <p className="text-sm text-text-secondary">Bilinen kişi, kurum ve lokasyonlar.</p>
+        </div>
+        <NewEntityDialog onCreated={reload} />
+      </div>
+
+      <div className="relative">
+        <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="İsim veya alias ara…"
+          className="pl-9"
+        />
+      </div>
+
+      {loading && <LoadingState />}
+      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {!loading && !error && filtered.length === 0 && (
+        <EmptyState
+          title={query ? "Eşleşen entity bulunamadı" : "Henüz entity yok"}
+          description={query ? undefined : "Sağ üstteki butonla ilk entity'ni ekle."}
+        />
+      )}
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {filtered.map((entity) => (
+          <EntityCard key={entity.id} entity={entity} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EntityCard({ entity }: { entity: Entity }) {
+  return (
+    <Link
+      href={`/entities/${entity.id}`}
+      className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-surface-raised"
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-foreground">{entity.name}</span>
+        <Badge variant="secondary">{entity.entity_type}</Badge>
+      </div>
+      {entity.aliases.length > 0 && (
+        <p className="text-xs text-text-tertiary">Alias: {entity.aliases.join(", ")}</p>
+      )}
+    </Link>
+  );
+}
+
+function NewEntityDialog({ onCreated }: { onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [entityType, setEntityType] = useState(ENTITY_TYPES[0]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!name.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.entities.create({ entity_type: entityType, name: name.trim() });
+      setName("");
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button size="sm">
+            <Plus aria-hidden className="h-4 w-4" />
+            Yeni Entity
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Yeni entity ekle</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="entity-name">İsim</Label>
+            <Input id="entity-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. Ahmet Yılmaz" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Tür</Label>
+            <Select value={entityType} onValueChange={(value) => value && setEntityType(value)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ENTITY_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {error && <p className="text-sm text-priority-critical">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button onClick={submit} disabled={submitting || !name.trim()}>
+            {submitting ? "Ekleniyor…" : "Ekle"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

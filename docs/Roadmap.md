@@ -24,7 +24,7 @@ roadmap'in dışında bırakıldı.
 | 5 | Collection (temel WEBINT) + Collector Güvenliği | ✅ Tamamlandı | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
 | 6 | Source Independence Lineage Graph | ✅ Tamamlandı | Teknik tespit yaklaşımı doğrulandı (Q6 spike); en az 3 türetilmiş kaynak örneğinde (agency → site A → site B) sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor. |
 | 7 | Monitoring, Change Detection, Intelligence Inbox | ✅ Tamamlandı | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
-| 8 | Frontend (Next.js Dashboard) | ⏳ Bekliyor | `docs/Design.md` dolduruldu; kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını görebiliyor; Inbox'ı görüntüleyip Confirm/Reject/Investigate aksiyonu alabiliyor (davranış loglanıyor); SOURCE FACT/AI ANALYSIS/SYSTEM INFERENCE/USER INTERPRETATION 4 etiketi UI'da ayrışıyor. |
+| 8 | Frontend (Next.js Dashboard) | ✅ Tamamlandı | `docs/Design.md` dolduruldu; kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını görebiliyor; Inbox'ı görüntüleyip Confirm/Reject/Investigate aksiyonu alabiliyor (davranış loglanıyor); SOURCE FACT/AI ANALYSIS/SYSTEM INFERENCE/USER INTERPRETATION 4 etiketi UI'da ayrışıyor. |
 
 ## Faz Detayları
 
@@ -297,4 +297,49 @@ roadmap'in dışında bırakıldı.
     etiketi.
 - **Bitti Kriteri:** Kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını
   görebiliyor; Inbox'ı görüntüleyip aksiyon alabiliyor; 4 etiket ayrımı UI'da görünüyor.
-- **Notlar:**
+- **Notlar:** 2026-09-02 tamamlandı. Önce `frontend-design` + `ui-ux-pro-max` skill'leriyle
+  `docs/Design.md` dolduruldu (daha önce boş/placeholder'dı, global CLAUDE.md kuralı gereği
+  frontend inşaatından önce zorunlu) — kararın özeti: **iki ayrı, birbirine karışmaması
+  gereken renk sistemi**. (1) Confidence Spectrum: `knowledge_state`'in soğuktan sıcağa
+  rampası, imza öğe — her Claim/Entity kartının sol kenar rengi buradan geliyor, Entity
+  sayfalarında gerçek bir tıklanabilir lejant/filtre olarak duruyor. (2) Priority/Alarm
+  Scale: sadece Inbox'a özel, mor-kırmızı ailesi, confidence'ın mavi-yeşil-altın ailesiyle
+  KARIŞTIRILMIYOR. Tipografi: IBM Plex Serif (display, kısıtlı) + IBM Plex Sans (UI/body) +
+  JetBrains Mono (data/timestamp/id) — "dava dosyası" mantığı. "World Map" paneli bilinçli
+  olarak v1 kapsamı dışı bırakıldı (GEOINT, Proje-Fikri.md'de zaten sonraki fazlara ait);
+  Main Workspace'te Entity Graph + Timeline paneli olarak duruyor.
+
+  Next.js 16 (App Router, Turbopack) + React 19 + Tailwind v4 + shadcn (`base-nova`/
+  `@base-ui/react` — Radix değil, yeni nesil) `frontend/`'de kuruldu. Next.js 16 kendi
+  `AGENTS.md`'sinde eğitim verisinden farklı API'ler olabileceğini uyardığı için ilgili
+  dokümanlar (`node_modules/next/dist/docs/`) okunarak `params: Promise<...>` (await
+  edilmesi gerekiyor), Base UI'ın `render` prop'u (Radix'in `asChild`'ı yerine) gibi
+  farklar önceden öğrenildi. Backend'e CORS middleware eklendi (sadece localhost:3000).
+
+  Q15 dört etiket RENKLE değil kenarlık-stili + ikonla ayrıştırıldı (üçüncü bir renk
+  sistemi confidence/priority'yi sulandırırdı) — `ProvenanceBlock` komponenti SOURCE FACT
+  (düz kenarlık) ve SYSTEM INFERENCE'i (kesikli kenarlık, `/claims/{id}/why-matters`
+  ucundan gerçek veriyle) canlı gösteriyor; AI ANALYSIS/USER INTERPRETATION komponent
+  düzeyinde hazır ama backend'de henüz bunları üreten bir kaynak yok (LLM entegrasyonu web
+  API'sine bağlı değil, kullanıcı notu özelliği yok) — **bilinçli v1 sınırlaması**, not
+  edildi.
+
+  **Uçtan uca tarayıcı testi** (Playwright ile headless Chromium — `chromium-cli` bu ortamda
+  yoktu, run skill'inin playwright fallback deseni kullanıldı): gerçek bir senaryo
+  (Vela Teknoloji A.Ş. + Deniz Aksoy entity'leri, çelişen claim zinciri, aktif bir
+  investigation) seed edilip her sayfa ekran görüntüsüyle doğrulandı — Ana Çalışma Alanı,
+  Entity listesi + arama, Entity detay (Timeline/Claim/Event/Investigation tab'leri,
+  Confidence Spectrum filtre olarak çalışıyor), Inbox (CRİTİK/HIGH/MEDIUM/LOW ayrımı doğru
+  renklerde, "Onayla" butonuna tıklanınca CONFIRMED durumu API'ye PATCH edilip UI'da anında
+  göründü — Q14 doğrulandı), Investigation detay (durum geçiş butonları). Konsol hatası
+  çıkmadı. **İki gerçek responsive hata bulunup düzeltildi:** (1) sidebar mobilde sabit
+  genişlikte kalıp ekranı sıkıştırıyordu → 768px altında gizlenip hamburger menüyle açılan
+  bir üst bara çevrildi; (2) Entity sayfasındaki Confidence Spectrum + Timeline yan yana
+  düzeni mobilde içeriği taşırıyordu → `sm:` breakpoint'inde yan yanadan alt alta geçecek
+  şekilde düzeltildi. Klavye focus ring'i görünürlüğü de doğrulandı. Test verisi (backend
+  KùzuDB) temizlendi.
+
+  Roadmap'in bu satırla birlikte 8/8 fazı tamamlandı — v1 kapsamındaki backend+frontend
+  hazır. Sonraki adımlar (GEOINT/SOCMINT gibi deneysel domain'ler, otomatik zamanlanmış
+  monitoring taraması gibi) Proje-Fikri.md'de bilinçli olarak v1 dışı bırakılmıştı; ayrı bir
+  v2 roadmap'i gerektirir.
