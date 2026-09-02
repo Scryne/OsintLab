@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from app.db import fetch_all, fetch_one, get_connection
-from app.models import Event, EventCreate
+from app.models import Event, EventCreate, InvolvedInLink
+from app.monitoring import notify_if_monitored
 from app.recall import event_recall
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -54,6 +55,33 @@ def get_event(event_id: str) -> Event:
     if row is None:
         raise HTTPException(status_code=404, detail="Event not found")
     return Event(**row)
+
+
+@router.put("/{event_id}/entities/{entity_id}", status_code=204)
+def link_entity(event_id: str, entity_id: str, payload: InvolvedInLink) -> None:
+    """Entity <-INVOLVED_IN- Event ilişkisini kurar (recall.py'nin entity_recall/event_recall'ı
+    zaten okuyordu ama yazan bir uç eksikti). Faz 7: hedef Entity izleniyorsa, yeni bir
+    event'e karışması Intelligence Inbox'a NEW_EVENT olarak düşer (madde 22-23)."""
+    conn = get_connection()
+    if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    if fetch_one(conn.execute("MATCH (e:Event {id: $id}) RETURN e.id AS id", {"id": event_id})) is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    conn.execute(
+        "MATCH (e:Entity {id: $eid}), (ev:Event {id: $evid}) CREATE (e)-[:INVOLVED_IN {role: $role}]->(ev)",
+        {"eid": entity_id, "evid": event_id, "role": payload.role},
+    )
+    event = get_event(event_id)
+    notify_if_monitored(
+        conn,
+        target_type="Entity",
+        target_id=entity_id,
+        item_type="NEW_EVENT",
+        title=f"Yeni bir event'e karıştı: {event.title}",
+        detail={"event_id": event_id, "role": payload.role},
+        confidence=event.confidence,
+        is_novel=True,
+    )
 
 
 @router.get("/{event_id}/recall")

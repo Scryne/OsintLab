@@ -7,6 +7,7 @@ from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
 from app.models import Claim, ClaimCreate
+from app.monitoring import notify_if_monitored
 from app.recall import why_matters
 
 router = APIRouter(prefix="/claims", tags=["claims"])
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/claims", tags=["claims"])
 _FIELDS = (
     "c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
     "c.confidence AS confidence, c.valid_from AS valid_from, c.valid_to AS valid_to, "
-    "c.created_at AS created_at"
+    "c.created_at AS created_at, c.updated_at AS updated_at"
 )
 
 
@@ -115,10 +116,71 @@ def _gather_confidence_inputs(conn, claim_id: str) -> ConfidenceResult:
 def _recompute_and_store(conn, claim_id: str) -> ConfidenceResult:
     result = _gather_confidence_inputs(conn, claim_id)
     conn.execute(
-        "MATCH (c:Claim {id: $id}) SET c.confidence = $confidence, c.knowledge_state = $state",
-        {"id": claim_id, "confidence": result.confidence, "state": result.knowledge_state},
+        "MATCH (c:Claim {id: $id}) SET c.confidence = $confidence, c.knowledge_state = $state, "
+        "c.updated_at = $now",
+        {"id": claim_id, "confidence": result.confidence, "state": result.knowledge_state, "now": datetime.now(timezone.utc)},
     )
     return result
+
+
+def _is_first_claim_about(conn, entity_id: str | None, event_id: str | None, exclude_claim_id: str) -> bool:
+    """Faz 7 (madde 24) novelty sinyali: bu entity/event hakkındaki İLK claim mi?"""
+    if entity_id:
+        rows = fetch_all(
+            conn.execute(
+                "MATCH (c:Claim)-[:ABOUT_ENTITY]->(:Entity {id: $id}) WHERE c.id <> $exclude RETURN c.id AS id",
+                {"id": entity_id, "exclude": exclude_claim_id},
+            )
+        )
+        return not rows
+    if event_id:
+        rows = fetch_all(
+            conn.execute(
+                "MATCH (c:Claim)-[:ABOUT_EVENT]->(:Event {id: $id}) WHERE c.id <> $exclude RETURN c.id AS id",
+                {"id": event_id, "exclude": exclude_claim_id},
+            )
+        )
+        return not rows
+    return False
+
+
+def _notify_change(
+    conn,
+    *,
+    claim_id: str,
+    about_entity_id: str | None,
+    about_event_id: str | None,
+    result: ConfidenceResult,
+    title: str,
+) -> None:
+    """Faz 7 — Change Detection'ın 'Notify' adımı: izlenen bir Entity/Event bu claim'le
+    ilgiliyse Intelligence Inbox'a bir öğe düşer (bkz. app/monitoring.py). item_type burada
+    kendi belirleniyor: çelişki > yenilik (ilk kez görülen entity/event) > mevcut bilginin
+    güncellenmesi (madde 23/24)."""
+    has_contradiction = result.knowledge_state == "CONTRADICTED"
+    is_novel = _is_first_claim_about(conn, about_entity_id, about_event_id, claim_id)
+    if has_contradiction:
+        item_type = "CONTRADICTION"
+    elif is_novel:
+        item_type = "NEW_RELATIONSHIP"
+    else:
+        item_type = "SIGNIFICANT_CHANGE"
+    detail = {"claim_id": claim_id, "knowledge_state": result.knowledge_state}
+    for target_type, target_id in (("Entity", about_entity_id), ("Event", about_event_id)):
+        if not target_id:
+            continue
+        notify_if_monitored(
+            conn,
+            target_type=target_type,
+            target_id=target_id,
+            item_type=item_type,
+            title=title,
+            detail=detail,
+            confidence=result.confidence,
+            has_contradiction=has_contradiction,
+            independence=result.independence,
+            is_novel=is_novel,
+        )
 
 
 def _row_to_claim(conn, row: dict) -> Claim:
@@ -150,7 +212,7 @@ def create_claim(payload: ClaimCreate) -> Claim:
 
     conn.execute(
         "CREATE (:Claim {id: $id, text: $text, knowledge_state: 'OBSERVED', confidence: 0.0, "
-        "valid_from: $now, valid_to: NULL, created_at: $now})",
+        "valid_from: $now, valid_to: NULL, created_at: $now, updated_at: $now})",
         {"id": claim_id, "text": payload.text, "now": now},
     )
     conn.execute(
@@ -182,7 +244,16 @@ def create_claim(payload: ClaimCreate) -> Claim:
             "CREATE (c)-[:CORROBORATES]->(other) CREATE (other)-[:CORROBORATES]->(c)",
             {"cid": claim_id, "oid": cid},
         )
-        _recompute_and_store(conn, cid)
+        other_result = _recompute_and_store(conn, cid)
+        other_about_entity, other_about_event = _claim_about(conn, cid)
+        _notify_change(
+            conn,
+            claim_id=cid,
+            about_entity_id=other_about_entity,
+            about_event_id=other_about_event,
+            result=other_result,
+            title="Var olan bir claim bağımsız olarak doğrulandı",
+        )
 
     # Q9 Contradiction: eski bilgi SİLİNMEZ, her iki claim de CONTRADICTED'a döner,
     # çelişki UNRESOLVED olarak kaydedilir.
@@ -192,7 +263,16 @@ def create_claim(payload: ClaimCreate) -> Claim:
             "CREATE (c)-[:CLAIM_CONTRADICTS {status: 'UNRESOLVED', detected_at: $now}]->(other)",
             {"cid": claim_id, "oid": cid, "now": now},
         )
-        _recompute_and_store(conn, cid)
+        other_result = _recompute_and_store(conn, cid)
+        other_about_entity, other_about_event = _claim_about(conn, cid)
+        _notify_change(
+            conn,
+            claim_id=cid,
+            about_entity_id=other_about_entity,
+            about_event_id=other_about_event,
+            result=other_result,
+            title="Var olan bir claim ile çelişki tespit edildi",
+        )
 
     # Q9 temporal versiyonlama: eski claim silinmez, valid_to = şimdi ile "supersede" edilir.
     if payload.supersedes:
@@ -206,7 +286,15 @@ def create_claim(payload: ClaimCreate) -> Claim:
             {"oid": payload.supersedes, "now": now},
         )
 
-    _recompute_and_store(conn, claim_id)
+    final_result = _recompute_and_store(conn, claim_id)
+    _notify_change(
+        conn,
+        claim_id=claim_id,
+        about_entity_id=payload.about_entity_id,
+        about_event_id=payload.about_event_id,
+        result=final_result,
+        title=f"Yeni claim: {payload.text[:80]}",
+    )
     return get_claim(claim_id)
 
 

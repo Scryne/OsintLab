@@ -78,6 +78,7 @@ class Claim(BaseModel):
     valid_from: datetime
     valid_to: datetime | None
     created_at: datetime
+    updated_at: datetime
 
 
 class ObservationCreate(BaseModel):
@@ -116,6 +117,7 @@ class Investigation(InvestigationCreate):
     id: str
     status: str
     created_at: datetime
+    updated_at: datetime
 
 
 class InvestigationTransition(BaseModel):
@@ -157,3 +159,56 @@ class AllowlistAdd(BaseModel):
 class CollectorFetchRequest(BaseModel):
     url: str
     mode: str = Field(..., examples=["rss", "web"])
+
+
+class InvolvedInLink(BaseModel):
+    role: str = Field(..., examples=["katılımcı", "fail", "mağdur", "tanık"])
+
+
+MONITOR_TARGET_TYPES = ("Entity", "Event", "Investigation")
+
+
+class MonitorCreate(BaseModel):
+    target_type: str = Field(..., examples=list(MONITOR_TARGET_TYPES))
+    target_id: str
+    label: str | None = None
+
+
+class Monitor(MonitorCreate):
+    id: str
+    active: bool
+    created_at: datetime
+
+
+INBOX_ITEM_TYPES = (
+    "NEW_EVENT", "NEW_RELATIONSHIP", "SIGNIFICANT_CHANGE",
+    "INVESTIGATION_UPDATE", "CONTRADICTION", "CONFIDENCE_CHANGED",
+)
+PRIORITY_LEVELS = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
+# Q13: sabit sıralama — "sadece HIGH+ göster" gibi bir eşik bu sıradaki index'e göre uygulanır.
+PRIORITY_ORDER = {p: i for i, p in enumerate(PRIORITY_LEVELS)}
+
+# Q14: davranış geri beslemesi loglanır ama v1'de prioritization'ı otomatik etkilemez.
+INBOX_ITEM_STATUSES = ("NEW", "IGNORED", "CONFIRMED", "REJECTED", "INVESTIGATING", "FOLLOWED")
+
+
+class InboxItem(BaseModel):
+    id: str
+    item_type: str
+    priority: str
+    title: str
+    detail: dict
+    target_type: str
+    target_id: str
+    monitor_id: str | None
+    status: str
+    created_at: datetime
+    actioned_at: datetime | None
+
+
+class InboxStatusUpdate(BaseModel):
+    status: str = Field(..., examples=list(INBOX_ITEM_STATUSES[1:]))
+
+
+class InboxSettings(BaseModel):
+    min_priority: str = Field("INFO", examples=list(PRIORITY_LEVELS))

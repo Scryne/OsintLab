@@ -23,7 +23,7 @@ roadmap'in dışında bırakıldı.
 | 4 | OSINT Brain (Claude Code Agent Katmanı) | ✅ Tamamlandı | Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity otomatik hatırlatılıyor (Memory Recall); bir intelligence çıktısı için kural+graph tabanlı "Why This Matters" gerekçesi üretilebiliyor. |
 | 5 | Collection (temel WEBINT) + Collector Güvenliği | ✅ Tamamlandı | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
 | 6 | Source Independence Lineage Graph | ✅ Tamamlandı | Teknik tespit yaklaşımı doğrulandı (Q6 spike); en az 3 türetilmiş kaynak örneğinde (agency → site A → site B) sistem bunları bağımsız değil türetilmiş olarak işaretleyebiliyor. |
-| 7 | Monitoring, Change Detection, Intelligence Inbox | ⏳ Bekliyor | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
+| 7 | Monitoring, Change Detection, Intelligence Inbox | ✅ Tamamlandı | İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle (CRITICAL/HIGH/.../INFO) Inbox'a düşüyor; "son 30 günde ne değişti" (Intelligence Diff, on-demand) sorgusu çalışıyor. |
 | 8 | Frontend (Next.js Dashboard) | ⏳ Bekliyor | `docs/Design.md` dolduruldu; kullanıcı tarayıcıdan bir entity arayıp ilişkilerini/timeline'ını görebiliyor; Inbox'ı görüntüleyip Confirm/Reject/Investigate aksiyonu alabiliyor (davranış loglanıyor); SOURCE FACT/AI ANALYSIS/SYSTEM INFERENCE/USER INTERPRETATION 4 etiketi UI'da ayrışıyor. |
 
 ## Faz Detayları
@@ -238,7 +238,52 @@ roadmap'in dışında bırakıldı.
   - Intelligence Inbox + Q13 sabit eşik + kullanıcı ayarlanabilir bildirim seviyesi.
 - **Bitti Kriteri:** İzlenen bir entity'de değişiklik olduğunda doğru öncelik seviyesiyle
   Inbox'a düşüyor; "son 30 günde ne değişti" sorgusu çalışıyor.
-- **Notlar:**
+- **Notlar:** 2026-09-02 tamamlandı. Ayrı bir arka plan zamanlayıcı KURULMADI — Observe ->
+  Detect -> Evaluate -> Compare With Memory -> Update -> Notify döngüsü (madde 22), mevcut
+  yazma noktalarına (claim oluşturma, çelişki, corroboration, investigation geçişi,
+  entity-event ilişkilendirme) kanca atılarak REAKTİF şekilde çalıştırılıyor —
+  `app/monitoring.py`. Bilinçli v1 sınırlaması: bu, dışarıdan (harici bir haber sitesinde
+  bağımsız olarak olan bir değişiklik, collector yeniden taranmadan) gelen değişiklikleri
+  YAKALAMAZ; polling/zamanlanmış tekrar-tarama ileride eklenebilir.
+
+  Şema: `Monitor(target_type, target_id, ...)` — Entity/Event/Investigation'ın 3'ü de
+  izlenebilir; KùzuDB heterojen FROM/TO'yu tek rel table'da desteklemediği için tip+id
+  tutan bağımsız bir node tercih edildi (3 ayrı rel table yerine). `InboxItem(item_type,
+  priority, detail JSON, status, ...)`. Yeni uçlar: `POST/GET/DELETE /monitors`,
+  `GET/PATCH /inbox`, `GET/PUT /inbox/settings` (Q13), `GET /intelligence/diff` (Q10/Q11).
+  Ayrıca önceden eksik olan `PUT /events/{id}/entities/{id}` (INVOLVED_IN) eklendi —
+  recall.py bu ilişkiyi zaten okuyordu ama yazan bir uç yoktu.
+
+  **Q24 Intelligence Prioritization** deterministik kural tablosuyla (`compute_priority`,
+  confidence.py disipliniyle aynı, açıklanabilir): çelişki + aktif investigation ->
+  CRITICAL, çelişki tek başına -> HIGH, investigation durum geçişi -> sabit MEDIUM
+  (confidence-bağımsız, kullanıcı bilinçli izliyor), aktif investigation + yüksek confidence
+  -> CRITICAL/HIGH, salt confidence/novelty -> MEDIUM/LOW/INFO. v1'de KULLANILMAYAN Q24
+  faktörleri (geographic/temporal significance, entity importance) bilinçli sınırlama —
+  grafta henüz karşılığı yok.
+
+  **Q10/Q11 Intelligence Diff** on-demand (materialize edilmiyor) — kapsam "hepsi birden":
+  new_entities/events/sources/investigations/claims, claims_changed (confidence/state
+  değişmiş ama yeni değil — bunun için Claim ve Investigation'a `updated_at` alanı
+  eklendi), new_contradictions, investigation_updates, new_relationships,
+  new_validated_findings.
+
+  **Uçtan uca test** (curl/python, gerçek senaryo): izlenmeyen bir entity'ye claim eklendi
+  → Inbox'ta HİÇBİR öğe oluşmadı (noise kontrolü, madde 25 "more signal, less noise")
+  doğrulandı. İzlenen bir entity'ye ilk claim → NEW_RELATIONSHIP/LOW; aynı entity'ye
+  çelişen ikinci claim → CONTRADICTION/HIGH (2 öğe: yeni claim + çelişilen eski claim
+  için); entity bir ACTIVE investigation'a dahil edilip üçüncü bir çelişki eklenince ->
+  CONTRADICTION/**CRITICAL**'e yükseldi (aktif investigation sinyali doğrulandı).
+  Investigation OPEN->ACTIVE geçişi hem investigation'ın kendisi hem INCLUDES'lu entity
+  için (ikisi de izleniyorsa) INVESTIGATION_UPDATE/MEDIUM ürettiği doğrulandı. Yeni
+  `PUT /events/{id}/entities/{id}` ile izlenen bir entity yeni bir event'e bağlanınca
+  NEW_EVENT öğesi düştüğü (ve aktif investigation varsa MEDIUM'a yükseldiği) doğrulandı.
+  `min_priority=HIGH` filtresi INFO/LOW/MEDIUM öğeleri gizledi, sadece CRITICAL/HIGH
+  kaldı. `PATCH /inbox/{id}` ile Q14 durumu (CONFIRMED) loglandı, `actioned_at` dolduğu
+  doğrulandı. Intelligence Diff: `since` parametresiyle "investigation oluşturulmadan
+  ÖNCE" bir zaman verilince investigation_updates'te göründüğü, `new_investigations`'ta
+  görünmediği (ve tam tersi geniş pencerede) doğrulandı — created_at/updated_at ayrımı
+  doğru çalışıyor. Test verisi temizlendi.
 
 ### Faz 8: Frontend (Next.js Dashboard)
 - **İşler:**

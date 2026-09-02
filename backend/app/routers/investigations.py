@@ -13,13 +13,14 @@ from app.models import (
     InvestigationCreate,
     InvestigationTransition,
 )
+from app.monitoring import notify_if_monitored
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
 hypotheses_router = APIRouter(prefix="/hypotheses", tags=["hypotheses"])
 
 _INV_FIELDS = (
     "i.id AS id, i.title AS title, i.research_question AS research_question, "
-    "i.status AS status, i.created_at AS created_at"
+    "i.status AS status, i.created_at AS created_at, i.updated_at AS updated_at"
 )
 _HYP_FIELDS = "h.id AS id, h.text AS text, h.status AS status, h.created_at AS created_at"
 
@@ -42,10 +43,10 @@ def create_investigation(payload: InvestigationCreate) -> Investigation:
     created_at = datetime.now(timezone.utc)
     conn.execute(
         "CREATE (:Investigation {id: $id, title: $title, research_question: $rq, "
-        "status: 'OPEN', created_at: $created_at})",
+        "status: 'OPEN', created_at: $created_at, updated_at: $created_at})",
         {"id": inv_id, "title": payload.title, "rq": payload.research_question, "created_at": created_at},
     )
-    return Investigation(id=inv_id, status="OPEN", created_at=created_at, **payload.model_dump())
+    return Investigation(id=inv_id, status="OPEN", created_at=created_at, updated_at=created_at, **payload.model_dump())
 
 
 @router.get("", response_model=list[Investigation])
@@ -75,13 +76,40 @@ def transition_investigation(investigation_id: str, payload: InvestigationTransi
             status_code=409,
             detail=f"Cannot transition from {current.status} to {payload.to_status}. Allowed: {list(allowed)}",
         )
+    now = datetime.now(timezone.utc)
     conn.execute(
-        "MATCH (i:Investigation {id: $id}) SET i.status = $status",
-        {"id": investigation_id, "status": payload.to_status},
+        "MATCH (i:Investigation {id: $id}) SET i.status = $status, i.updated_at = $now",
+        {"id": investigation_id, "status": payload.to_status, "now": now},
     )
     if payload.to_status in CLOSING_STATUSES:
         _promote_verified_findings(conn, investigation_id)
+    _notify_investigation_update(conn, investigation_id, current.status, payload.to_status)
     return get_investigation(investigation_id)
+
+
+def _notify_investigation_update(conn, investigation_id: str, from_status: str, to_status: str) -> None:
+    """Faz 7 — bir investigation'ın kendisi VEYA ona dahil edilmiş (INCLUDES/INVESTIGATES)
+    entity/event'ler izleniyorsa, durum geçişi Intelligence Inbox'a düşer."""
+    title = f"Investigation durumu değişti: {from_status} -> {to_status}"
+    detail = {"investigation_id": investigation_id, "from_status": from_status, "to_status": to_status}
+    notify_if_monitored(
+        conn, target_type="Investigation", target_id=investigation_id,
+        item_type="INVESTIGATION_UPDATE", title=title, detail=detail,
+    )
+    for row in fetch_all(conn.execute(
+        "MATCH (i:Investigation {id: $id})-[:INCLUDES]->(e:Entity) RETURN e.id AS id", {"id": investigation_id}
+    )):
+        notify_if_monitored(
+            conn, target_type="Entity", target_id=row["id"],
+            item_type="INVESTIGATION_UPDATE", title=title, detail=detail,
+        )
+    for row in fetch_all(conn.execute(
+        "MATCH (i:Investigation {id: $id})-[:INVESTIGATES]->(e:Event) RETURN e.id AS id", {"id": investigation_id}
+    )):
+        notify_if_monitored(
+            conn, target_type="Event", target_id=row["id"],
+            item_type="INVESTIGATION_UPDATE", title=title, detail=detail,
+        )
 
 
 def _promote_verified_findings(conn, investigation_id: str) -> list[str]:

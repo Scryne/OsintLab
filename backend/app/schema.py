@@ -51,6 +51,7 @@ NODE_TABLES = [
         valid_from TIMESTAMP,
         valid_to TIMESTAMP,
         created_at TIMESTAMP,
+        updated_at TIMESTAMP,
         PRIMARY KEY(id)
     )
     """,
@@ -72,6 +73,7 @@ NODE_TABLES = [
         research_question STRING,
         status STRING,
         created_at TIMESTAMP,
+        updated_at TIMESTAMP,
         PRIMARY KEY(id)
     )
     """,
@@ -92,6 +94,40 @@ NODE_TABLES = [
         text STRING,
         status STRING,
         created_at TIMESTAMP,
+        PRIMARY KEY(id)
+    )
+    """,
+    # Faz 7 — Continuous Monitoring (madde 22). target_type/target_id polimorfik referans:
+    # KùzuDB'de heterojen FROM/TO tek bir rel table'da desteklenmediği için (Entity/Event/
+    # Investigation'ın 3'ü de izlenebilir olduğundan), tip+id çiftini tutan bağımsız bir node
+    # tercih edildi — tek kullanıcılı bir sistemde "kim izliyor" alanına gerek yok.
+    """
+    CREATE NODE TABLE IF NOT EXISTS Monitor(
+        id STRING,
+        target_type STRING,
+        target_id STRING,
+        label STRING,
+        active BOOLEAN,
+        created_at TIMESTAMP,
+        PRIMARY KEY(id)
+    )
+    """,
+    # Faz 7 — Intelligence Inbox (madde 27) + Q14 davranış loglama. status: NEW (varsayılan)
+    # veya kullanıcının aksiyonu (IGNORED/CONFIRMED/REJECTED/INVESTIGATING/FOLLOWED) —
+    # loglanır ama v1'de prioritization'ı otomatik etkilemez (Q13/Q14 kararı).
+    """
+    CREATE NODE TABLE IF NOT EXISTS InboxItem(
+        id STRING,
+        item_type STRING,
+        priority STRING,
+        title STRING,
+        detail STRING,
+        target_type STRING,
+        target_id STRING,
+        monitor_id STRING,
+        status STRING,
+        created_at TIMESTAMP,
+        actioned_at TIMESTAMP,
         PRIMARY KEY(id)
     )
     """,
