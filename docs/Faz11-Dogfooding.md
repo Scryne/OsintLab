@@ -2,7 +2,7 @@
 proje: OsintLab
 created: 2026-09-03
 type: faz-log
-status: aktif
+status: tamamlandi
 ---
 # Faz 11 — Dogfooding Sürtünme Günlüğü
 
@@ -1026,6 +1026,67 @@ seviyesiyle Inbox'a düşüyor."* Astra izlemeye alındı, yeni claim promote ed
 **Öncelik doğru (bug değil, kayda geçiyor):** claim confidence 0.30, çelişki yok, aktif
 investigation yok (bizimki CLOSED) → `compute_priority` kural tablosuna göre INFO. Aktif bir
 investigation'a bağlı olsaydı MEDIUM, çelişkili olsaydı HIGH/CRITICAL olurdu.
+
+## Oturum 5 — 2026-09-04: temiz koşu (Faz 11'in bitiş sınavı)
+
+Amaç yeni alan zorlamak değildi: **baştan sona bir araştırma döngüsü, engele çarpmadan.**
+Gözden geçirilmiş bitti kriterinin sınavı buydu. Hiçbir parçası önceden kurulmamış bir vaka
+seçildi (Krebs'in TeamPCP tutuklama haberi — kaynak da, entity de, investigation da yoktu).
+
+**Yürütülen döngü:** Source (Krebs on Security, rel 0.8) → Entity (TeamPCP) → Promote →
+İzlemeye alma → Evidence oluştur + claim'e bağla → Investigation aç → Kapsam → Hipotez →
+hipoteze kanıt → Finding → `OPEN → ACTIVE → RESOLVED → CLOSED`.
+
+**Sonuç: sıfır engel.** Faz 11 boyunca açılan yolların tamamı (F26 çelişki, F29/F30 SAME_AS
+ve alias, F35 kapsam, F36/F40 hipotez kanıtı, F38 investigation ve finding, F45 supersede)
+gerçek bir araştırmada arka arkaya kullanıldı ve hiçbiri tıkanmadı.
+
+**Beklenen davranışlar, doğrulandı:**
+- Claim `REPORTED` %39'da kaldı (Krebs 0.8 + 1 kanıt, bağımsız doğrulama yok) → finding
+  `validated=False`. **Doğru:** çelişkili ya da tek kaynaklı bilgi kalıcı bilgiye terfi etmiyor.
+- Vault notu doğru render etti (F19/F43 düzeltmeleri tuttu), `monitored: true`, investigation
+  wikilink'i bağlı.
+
+**İki gözlem, ikisi de bug değil — kayda geçiyor:**
+1. **Investigation durum geçişleri Inbox'a düştü (MEDIUM)** — investigation'ın kendisi
+   izlenmiyordu, ama kapsamındaki `TeamPCP` izleniyordu.
+   `_notify_investigation_transition` bildirimleri kapsamdaki entity'lere de yayıyor. Tasarım
+   gereği, ve **ilk kez gerçek veriyle kanıtlandı**: F35'in açtığı kapsam, Faz 7'nin bildirim
+   yayılımını besliyor — iki fazın birbirine bağlandığı yer.
+2. **"Yeni claim" bildirimi oluşmadı** — claim 21:37:48'de, monitor 21:38:19'da yaratılmış.
+   Promote, izlemeye almadan 31 saniye önce yapıldı. **Runbook sıralaması hatasıydı** (Oturum
+   4'te "önce izlemeye al" denmişti, Oturum 5'te promote önce yazıldı). İzleme ileriye dönük
+   çalışıyor, geriye dönük bildirim üretmiyor — doğru semantik. *(Nice-to-have: arayüz
+   izlemeye alırken bunun ileriye dönük olduğunu söyleyebilir.)*
+
+## Faz 11 kapanış bilançosu
+
+| Tur | Bulgu |
+| --- | --- |
+| Oturum 1 (AI ekosistemi) | 20 bulgu — 16 kapatıldı, 4 Faz 13'e |
+| Oturum 2 (siber güvenlik) | 8 kritik — hepsi kapatıldı (F25–F33), F28 Faz 13'e |
+| Sistematik tarama | 4 bulgu — hepsi kapatıldı (F34–F37) |
+| Tarama eki | F38 kapatıldı, F39 Faz 13'e |
+| Oturum 3 (investigation) | F40, F43 kapatıldı; F41, F42 Faz 13'e |
+| Oturum 4 (monitoring/temporal) | F44, F45, F46 kapatıldı |
+| Oturum 5 (temiz koşu) | **0 bulgu** |
+
+**Tek cümlelik ders:** kod yanlış çalışmıyordu — **sistem yaptığı şeyi söyleyemiyordu.**
+46 bulgunun neredeyse tamamı üç kalıptan biriydi: *(a)* yetenek şemada/formülde var ama
+gerçek yoldan erişilemiyor, *(b)* işlem yapılıyor ama sonucu hiçbir yerde okunmuyor,
+*(c)* sistem bir şeyi doğru yapıyor ama yanlış anlatıyor. Hiçbiri birim testiyle
+yakalanamazdı, çünkü hiçbirinde yanlış sonuç üretilmiyordu.
+
+**İkinci ders — tekrar eden kalıp:** "bunu şu anda söylemezsen bir daha söyleyemezsin"
+**altı kez** çıktı (F16 about bağı, F23b lineage, F26 çelişki, F29 SAME_AS, F38
+investigation/finding, F45 supersede). Yeni bir yazma yolu eklenirken sorulacak soru artık
+belli: *sonradan düzeltilebiliyor mu?*
+
+**Üçüncü ders — kendi araçlarıma da uygulanıyor:** otomatik tarama sonucu doğrulanmadan bulgu
+sayılmaz. Tarayıcı üç kez yanıldı (regex `[r:REL]` biçimini kaçırdı, kapsamayı yol düzeyinde
+kontrol etti, jenerik tipleri çok satırda kaçırdı) ve her seferinde elle doğrulama ayıkladı.
+Aynı disiplin iki yanlış "bulgu"yu da eledi (çelişki confidence'ı düşürmüyor → kasıtlı;
+PATCH alias'ları düşürüyor → benim curl encoding'im).
 
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
 

@@ -89,7 +89,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | --- | --- | --- | --- |
 | 9 | Living Brain — Obsidian Vault Sistemi | ✅ Tamamlandı | `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir Entity ve bir Investigation notu gerçek graph verisiyle (confidence, `[[wikilink]]`'ler dahil) doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında `daily/` notu ve `Dashboard.md` otomatik güncelleniyor. |
 | 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ✅ Tamamlandı | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
-| 11 | Dogfooding / Sertleştirme Turu | 🔄 Devam Ediyor | En az 5 gerçek araştırma oturumu tamamlandı; bulunan sürtünme noktaları/bug'lar listelendi, kritik olanlar aynı fazda kapatıldı. |
+| 11 | Dogfooding / Sertleştirme Turu | ✅ Tamamlandı | 5 gerçek araştırma oturumu + 1 sistematik tarama tamamlandı; 46 bulgu listelendi, kritik olanların tamamı bu fazda kapatıldı; son oturum (temiz koşu) baştan sona engelsiz tamamlandı. |
 | 12 | Zamanlanmış Otomatik Tarama | ⏳ Bekliyor | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
 | 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ⏳ Bekliyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
 | 14 | Deploy/Erişim Kolaylığı | ✅ Tamamlandı | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
@@ -751,6 +751,34 @@ ayrı" kararıyla tutarlı).
   **Faz 11 durumu:** 4 oturum + 1 sistematik tarama. Bitti kriteri hâlâ karşılanmadı — Oturum
   4'ün kendisi bir engele çarptı (F45). Sıradaki oturumun amacı yeni alan zorlamak değil,
   **temiz koşu**: baştan sona bir araştırma döngüsü, hiçbir engele çarpmadan.
+
+  **Oturum 5/5 — 2026-09-04. Temiz koşu: FAZ KAPANDI.** Hiçbir parçası önceden kurulmamış bir
+  vaka seçildi (Krebs'in TeamPCP tutuklama haberi). Yürütülen döngü: Source → Entity →
+  Promote → İzlemeye alma → Evidence → Investigation → Kapsam → Hipotez → hipoteze kanıt →
+  Finding → `OPEN → ACTIVE → RESOLVED → CLOSED`. **Sıfır engel.** Faz 11 boyunca açılan
+  yolların tamamı (F26, F29/F30, F35, F36/F40, F38, F45) arka arkaya kullanıldı ve hiçbiri
+  tıkanmadı.
+
+  Beklenen davranışlar doğrulandı: claim `REPORTED` %39'da kaldı (tek kaynak, bağımsız
+  doğrulama yok) → finding `validated=False`; vault doğru render etti. **Bir tasarım
+  davranışı ilk kez gerçek veriyle kanıtlandı:** investigation durum geçişleri, kapsamdaki
+  izlenen entity üzerinden Inbox'a düştü — yani F35'in açtığı kapsam Faz 7'nin bildirim
+  yayılımını besliyor, iki faz burada birbirine bağlanıyor. ("Yeni claim" bildirimi
+  oluşmadı çünkü promote izlemeye almadan 31 sn önce yapılmıştı — runbook sıralaması hatası,
+  izleme ileriye dönük çalışıyor.)
+
+  **Faz 11 bilançosu:** Oturum 1: 20 bulgu · Oturum 2: 8 · tarama: 4 (+F38/F39) · Oturum 3: 4 ·
+  Oturum 4: 3 · Oturum 5: **0**. Toplam ~46 bulgu; kritik olanların tamamı kapatıldı,
+  Faz 13'e devredilenler: F7, F9, F11, F20, F22, F23, F24, F28, F39, F41, F42 ve `Claim.text`in
+  bileşik alan olması (F19/F43/F46'nın kök sebebi).
+
+  **Fazın tek cümlelik dersi:** kod yanlış çalışmıyordu — **sistem yaptığı şeyi
+  söyleyemiyordu.** Bulguların neredeyse tamamı üç kalıptan biriydi: yetenek var ama gerçek
+  yoldan erişilemiyor / işlem yapılıyor ama sonucu okunmuyor / doğru yapılıyor ama yanlış
+  anlatılıyor. Hiçbiri birim testiyle yakalanamazdı çünkü hiçbirinde yanlış sonuç
+  üretilmiyordu. İkinci ders: **"bunu şu anda söylemezsen bir daha söyleyemezsin"** kalıbı
+  altı kez çıktı (F16, F23b, F26, F29, F38, F45) — yeni bir yazma yolu eklenirken sorulacak
+  soru artık belli: *sonradan düzeltilebiliyor mu?*
 
 ### Faz 12: Zamanlanmış Otomatik Tarama
 
