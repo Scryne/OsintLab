@@ -154,8 +154,10 @@ Backfill'de yalnızca `Claim.text` temizlendi (türetilmiş alan); `Observation.
 HAM kayıt olduğu için kaynaktan geldiği gibi bırakıldı.
 
 **Yan etki (bilinçli kabul):** aynı feed yeniden taranırsa temizlenmiş metin farklı bir dedup
-anahtarı üretir, yani o 80 gözlem için kopya oluşabilir. Faz 12'den önce feed'leri bir kez
-sıfırlamak gerekebilir.
+anahtarı üretir, yani o 80 gözlem için kopya oluşabilir. F21 (web modu çıkarımı) aynı etkiyi
+büyüttü — mevcut 81 gözlemin tamamı artık "eski çıkarım" ile kayıtlı. **Faz 12'ye (zamanlanmış
+tarama) geçmeden önce gözlem tabanını bir kez sıfırlamak gerekiyor**; aksi halde ilk otomatik
+tarama her kaydın kopyasını üretir.
 
 ### F14 — `start.ps1 -Stop` öksüz process bırakıyor, KùzuDB kilidi düşmüyor  🔴 KRİTİK → ✅ kapatıldı
 
@@ -231,6 +233,45 @@ listenin dışına düşüyordu — üç ayrı render noktasında (entity, event
 
 Düzeltme: ortak `claim_bullet()` — ilk satır kalın başlık · güven etiketi · kaynak wikilink'i,
 kalanı girintili devam satırı. Üç çağrı yeri de buna geçirildi.
+
+## Oturum 1 eki — `web` modunun ilk testi (2026-09-03)
+
+Kullanıcının bir arkadaşı `kayisu.github.io` adresini denemeyi önerdi. Araştırma konusuyla
+(AI/LLM ekosistemi) ilgisi yok — kişisel bir portfolyo sayfası — ama **collector'un `web`
+modu Faz 11 boyunca hiç çalıştırılmamıştı**: sekiz tarama yapıldı, hepsi RSS. Kodun test
+edilmemiş yarısı buydu. Observation olarak alındı, bilinçli olarak promote EDİLMEDİ (Astra
+grafını kirletmemek için).
+
+Güvenlik ön kontrolü (Q22): injection deneme yok, gizli/görünmez element yok, form/iframe
+yok. Temiz.
+
+### F21 — `web` modu sayfa iskeletini içerik sanıyor  🟠 → ✅ kapatıldı
+
+`extract_text_from_html` tüm gövdeyi düz metne çeviriyordu; sonuç 137 satırın **74'ü tekrar**:
+`→` 13 kez, "Opens in a new tab" 7 kez, menü öğeleri 3-5 kez, "Skip to main content", tema
+seçici ("System/Light/Dark")...
+
+Sadece okunabilirlik sorunu değil: Faz 7 change detection içeriği karşılaştırdığı için, site
+**menüsünü** değiştirdiğinde tüm sayfa "değişmiş" sayılıp yanlış alarm üretirdi. Dedup
+anahtarı da (`source_url`, `raw_content`) aynı sebeple kırılırdı.
+
+Düzeltme: semantic HTML'e güven — `<main>`/`<article>` varsa onu al, yoksa gövdeden
+nav/header/footer/aside çıkar. Daraltma içeriğin neredeyse tamamını yerse (JS ile dolan bir
+kabuk olabilir) ham gövdeye dönen bir güvenlik ağı var.
+
+Doğrulandı: 2723→2329 karakter, ilk satır "Skip to main content" yerine "Personal portfolio",
+"Theme" ve "Skip to main content" 0 kez.
+
+### F22 — JS ile render edilen içerik sessizce eksik geliyor  🟡 Faz 13
+
+Aynı sayfada çıktının içinde `Loading the solar system…` kaldı: sayfanın asıl gövdesi
+JavaScript ile geliyor, collector ise statik HTML alıyor (requests + BeautifulSoup, tarayıcı
+yok). Bu beklenen bir mimari sınırlama, **ama hiçbir yerde yazmıyor ve kullanıcıya
+bildirilmiyor** — "sayfayı taradım" denilirken içeriğin bir kısmı hiç gelmemiş oluyor.
+
+Faz 13 önerisi: fetch yanıtında bir uyarı bayrağı (ör. `<noscript>` içeriği, "loading"/"enable
+javascript" kalıpları, ya da script-ağırlıklı + metin-fakir sayfa oranı) ve UI'da görünür not.
+Tam çözüm (headless tarayıcı) v1 kapsamı dışında.
 
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
 

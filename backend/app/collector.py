@@ -174,13 +174,37 @@ def _truncate(text: str) -> str:
 
 def extract_text_from_html(html: bytes | str) -> str:
     """Toplanan içerik burada YALNIZCA düz metne çevrilir — script/style çalıştırılmaz,
-    hiçbir HTML/JS içeriği işlenmez ya da değerlendirilmez (içerik-veri ayrımı)."""
+    hiçbir HTML/JS içeriği işlenmez ya da değerlendirilmez (içerik-veri ayrımı).
+
+    Faz 11 (dogfooding F21): sayfanın iskeleti (nav/menü/footer/tema seçici) içerik değil,
+    gürültüdür. Bir portfolyo sayfasında çıkarılan 137 satırın 74'ü tekrardı ("→" 13 kez,
+    "Opens in a new tab" 7 kez, menü öğeleri 3-5 kez). Bu yalnızca okunabilirlik sorunu
+    değil: Faz 7 change detection içeriği karşılaştırdığı için, site menüsünü değiştirdiğinde
+    tüm sayfa "değişmiş" sayılıp yanlış alarm üretirdi.
+
+    Strateji: semantic HTML'e güven — <main>/<article> varsa onu al, yoksa gövdeden iskeleti
+    çıkar. Sonuç şüpheli derecede kısaysa (JS ile dolan bir kabuk olabilir) tüm gövdeye dön."""
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
-    text = soup.get_text(separator="\n")
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return _truncate("\n".join(lines))
+
+    def collect(node) -> str:
+        raw = node.get_text(separator="\n")
+        return "\n".join(line.strip() for line in raw.splitlines() if line.strip())
+
+    full = collect(soup)
+    root = soup.find("main") or soup.find("article")
+    if root is not None:
+        text = collect(root)
+    else:
+        for tag in soup(["nav", "header", "footer", "aside"]):
+            tag.decompose()
+        text = collect(soup)
+
+    # Güvenlik ağı: daraltma içeriğin neredeyse tamamını yediyse ham gövdeye dön.
+    if len(text) < 200 and len(full) > len(text):
+        text = full
+    return _truncate(text)
 
 
 def _entry_published(entry) -> datetime | None:
