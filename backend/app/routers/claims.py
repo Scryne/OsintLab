@@ -6,8 +6,8 @@ from fastapi import APIRouter, HTTPException
 from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
-from app.models import Claim, ClaimAboutUpdate, ClaimContradictionAdd, ClaimCreate
-from app.monitoring import notify_if_monitored
+from app.models import Claim, ClaimAboutUpdate, ClaimContradictionAdd, ClaimCreate, ClaimSupersedeAdd
+from app.monitoring import claim_headline, notify_if_monitored
 from app.recall import why_matters
 from app.vault import safe_render_vault
 
@@ -312,17 +312,9 @@ def create_claim(payload: ClaimCreate) -> Claim:
             title="Var olan bir claim ile çelişki tespit edildi",
         )
 
-    # Q9 temporal versiyonlama: eski claim silinmez, valid_to = şimdi ile "supersede" edilir.
+    # Q9 temporal versiyonlama: eski claim silinmez, geçerliliği kapatılır.
     if payload.supersedes:
-        conn.execute(
-            "MATCH (c:Claim {id: $cid}), (old:Claim {id: $oid}) "
-            "CREATE (c)-[:SUPERSEDES {at: $now}]->(old)",
-            {"cid": claim_id, "oid": payload.supersedes, "now": now},
-        )
-        conn.execute(
-            "MATCH (old:Claim {id: $oid}) SET old.valid_to = $now",
-            {"oid": payload.supersedes, "now": now},
-        )
+        _apply_supersede(conn, new_claim_id=claim_id, old_claim_id=payload.supersedes, new_valid_from=valid_from, now=now)
 
     final_result = _recompute_and_store(conn, claim_id)
     _notify_change(
@@ -331,7 +323,7 @@ def create_claim(payload: ClaimCreate) -> Claim:
         about_entity_id=payload.about_entity_id,
         about_event_id=payload.about_event_id,
         result=final_result,
-        title=f"Yeni claim: {payload.text[:80]}",
+        title=f"Yeni claim: {claim_headline(payload.text)}",
     )
     safe_render_vault(conn)
     return get_claim(claim_id)
@@ -490,5 +482,89 @@ def add_claim_contradiction(claim_id: str, payload: ClaimContradictionAdd) -> Cl
             title=title,
         )
 
+    safe_render_vault(conn)
+    return get_claim(claim_id)
+
+
+def _apply_supersede(conn, *, new_claim_id: str, old_claim_id: str, new_valid_from, now) -> None:
+    """Eski claim'in geçerliliğini kapatır ve SUPERSEDES kenarını kurar.
+
+    Faz 11 (dogfooding F44): eskiden `old.valid_to = now` yazılıyordu — yani KAYIT anı.
+    Doğrusu yeni claim'in `valid_from`'u, yani iddianın geçerli olmaya BAŞLADIĞI an: eski
+    bilgi, yenisi yürürlüğe girdiğinde sona erer, biz onu kaydettiğimizde değil. Arşivden
+    bir Ağustos haberi bugün promote edilip eski bir claim'i supersede ettiğinde, eskisinin
+    geçerliliği bugün kapanıyordu. Bu, F1/F12'nin (yayın tarihi vs kayıt anı) aynı alan
+    çiftinin diğer ucundaki tekrarıdır.
+
+    `at` kenar özelliği KAYIT anı olarak kalır — "bu ilişkiyi ne zaman kurduk" ayrı bir soru
+    ve denetlenebilirlik için gerekli."""
+    conn.execute(
+        "MATCH (c:Claim {id: $cid}), (old:Claim {id: $oid}) "
+        "CREATE (c)-[:SUPERSEDES {at: $now}]->(old)",
+        {"cid": new_claim_id, "oid": old_claim_id, "now": now},
+    )
+    conn.execute(
+        "MATCH (old:Claim {id: $oid}) SET old.valid_to = $valid_to, old.updated_at = $now",
+        {"oid": old_claim_id, "valid_to": new_valid_from, "now": now},
+    )
+
+
+@router.post("/{claim_id}/supersedes", response_model=Claim)
+def add_claim_supersede(claim_id: str, payload: ClaimSupersedeAdd) -> Claim:
+    """Faz 11 (F45): var olan bir claim'in, var olan başka bir claim'in yerini aldığını
+    sonradan bildirir.
+
+    F26'da bilerek ertelenmişti ("hangi an" bir modelleme sorusu). Oturum 4'te gerçek bir
+    engel oldu: veride gerçek bir supersede vardı (OpenAI Ağustos'ta eşiği "dışlayamıyoruz"
+    diyor, 1 Eylül'de doğruluyor) ama Eylül claim'i graf'ta ZATEN vardı — promote sırasında
+    beyan etmeyi şart koşan tasarım, gerçek araştırma sırasına uymuyor. Aynı ders altıncı
+    kez (F16, F23b, F26, F29, F38, bu).
+
+    "Hangi an" sorusu F44 ile çözüldü: eski claim'in valid_to'su, yeni claim'in valid_from'u."""
+    conn = get_connection()
+    yeni = fetch_one(
+        conn.execute(f"MATCH (c:Claim {{id: $id}}) RETURN {_FIELDS}", {"id": claim_id})
+    )
+    if yeni is None:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    eski = fetch_one(
+        conn.execute(f"MATCH (c:Claim {{id: $id}}) RETURN {_FIELDS}", {"id": payload.supersedes_claim_id})
+    )
+    if eski is None:
+        raise HTTPException(status_code=404, detail=f"Claim not found: {payload.supersedes_claim_id}")
+    if claim_id == payload.supersedes_claim_id:
+        raise HTTPException(status_code=422, detail="Bir claim kendi yerini alamaz")
+
+    mevcut = fetch_one(
+        conn.execute(
+            "MATCH (a:Claim)-[:SUPERSEDES]->(b:Claim {id: $oid}) RETURN a.id AS id",
+            {"oid": payload.supersedes_claim_id},
+        )
+    )
+    if mevcut:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Bu claim'in yerini zaten başka bir claim almış (claim {mevcut['id'][:8]}…)",
+        )
+
+    # Zaman çizgisi tersine dönmesin: yerini alan bilgi, aldığı bilgiden önce başlayamaz.
+    if yeni["valid_from"] < eski["valid_from"]:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Yerini alan claim daha ESKİ bir tarihte geçerli olmaya başlıyor "
+                f"({yeni['valid_from']} < {eski['valid_from']}) — zaman çizgisi tersine dönerdi. "
+                "Yön yanlış olabilir: hangisi yenisi?"
+            ),
+        )
+
+    now = datetime.now(timezone.utc)
+    _apply_supersede(
+        conn,
+        new_claim_id=claim_id,
+        old_claim_id=payload.supersedes_claim_id,
+        new_valid_from=yeni["valid_from"],
+        now=now,
+    )
     safe_render_vault(conn)
     return get_claim(claim_id)

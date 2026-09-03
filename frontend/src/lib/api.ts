@@ -181,6 +181,10 @@ export const api = {
     // kaydedildikten günler sonra çıkıyor.
     addContradiction: (id: string, otherClaimId: string) =>
       post<Claim>(`/claims/${id}/contradicts`, { other_claim_id: otherClaimId }),
+    // Faz 11 (F45): supersede sonradan da bildirilebilmeli — gerçek araştırmada yeni bilgi
+    // eskisi kaydedildikten sonra çıkıyor, bazen de eskisi sonradan kaydediliyor.
+    addSupersede: (id: string, supersedesClaimId: string) =>
+      post<Claim>(`/claims/${id}/supersedes`, { supersedes_claim_id: supersedesClaimId }),
   },
 
   evidence: {

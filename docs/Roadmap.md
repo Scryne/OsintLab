@@ -722,6 +722,36 @@ ayrı" kararıyla tutarlı).
   **Hâlâ sınanmamış:** Faz 7 monitoring/Inbox (0 monitor, Inbox boş) ve F34'ün supersede
   işareti (graf'ta hiç `SUPERSEDES` kenarı yok — yalnızca izole DB testiyle doğrulandı).
 
+  **Oturum 4/5 — 2026-09-04. Konu: monitoring + temporal supersede.** Yukarıdaki iki delik
+  kapatıldı. Astra izlemeye alındı, gerçek bir temporal zincir kuruldu (OpenAI 18 Ağustos'ta
+  eşiği doğrulamamıştı, 1 Eylül'de doğruladı). Zorlama bir supersede kurulmadı: aday üç
+  gözlemden ikisi "aynı konuda politika değişimi" idi, biri diğerinin yerini almıyordu.
+
+  **Faz 7'nin bitti kriteri doğrulandı:** yeni claim izlenen entity'de Inbox'a düştü. Öncelik
+  INFO ve bu DOĞRU (confidence 0.30, çelişki yok, aktif investigation yok — `compute_priority`
+  kural tablosu). **F34 de gerçek veriyle doğrulandı:** eski claim entity sayfasında ve
+  recall'da arşiv olarak işaretlendi.
+
+  **3 bulgu, hepsi kapatıldı.** **F44** — supersede `old.valid_to = now` yazıyordu, yani KAYIT
+  anı; doğrusu yeni claim'in `valid_from`'u (eski bilgi, yenisi yürürlüğe girdiğinde biter).
+  F1/F12'nin aynı alan çiftinin diğer ucundaki tekrarı: F12 `valid_from`'u düzeltmiş,
+  `valid_to` düzeltilmemiş kalmıştı. Arşivden promote edilen her haber temporal pencereyi
+  bozardı. Gerçek veride doğrulandı: `2026-08-18 → 2026-09-01`, bugün değil. **F45** — sonradan
+  supersede etme yolu yoktu (F26'da ertelenmişti); bu turda varsayım olmaktan çıkıp gerçek
+  engel oldu, çünkü yeni claim graf'ta zaten duruyordu. **Aynı ders altıncı kez** (F16, F23b,
+  F26, F29, F38, F45): sistem "bunu şu anda söylemezsen bir daha söyleyemezsin" diyordu.
+  **F46** — Inbox başlığı çok satırlı claim metnini ortasından kesiyordu; **aynı hatanın
+  üçüncü tekrarı** (F19, F43, F46) ve kök sebep bir render hatası değil, şema: `Claim.text`
+  bileşik bir alan (`"başlık
+
+özet"`), ayrı `title` alanı yok, bu yüzden her render eden yer
+  ilk satırı kendi çıkarmak zorunda. Ortak `claim_headline()` yardımcısı eklendi; kalıcı
+  çözüm (ayrı `title` alanı) Faz 13'e.
+
+  **Faz 11 durumu:** 4 oturum + 1 sistematik tarama. Bitti kriteri hâlâ karşılanmadı — Oturum
+  4'ün kendisi bir engele çarptı (F45). Sıradaki oturumun amacı yeni alan zorlamak değil,
+  **temiz koşu**: baştan sona bir araştırma döngüsü, hiçbir engele çarpmadan.
+
 ### Faz 12: Zamanlanmış Otomatik Tarama
 
 - **İşler:**

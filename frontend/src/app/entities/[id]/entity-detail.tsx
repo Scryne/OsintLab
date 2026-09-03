@@ -28,6 +28,7 @@ import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { NewClaimDialog } from "@/components/forms/claim-form";
 import { ClaimLinkDialog } from "@/components/forms/claim-link-dialog";
 import { ClaimContradictDialog } from "@/components/forms/claim-contradict-dialog";
+import { ClaimSupersedeDialog } from "@/components/forms/claim-supersede-dialog";
 import { SameAsManualDialog } from "@/components/forms/same-as-manual-dialog";
 import { EntityAliasesDialog } from "@/components/forms/entity-aliases-dialog";
 import { EvidenceLinkDialog } from "@/components/forms/evidence-link-dialog";
@@ -175,6 +176,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
           />
           <ClaimLinkDialog entityId={entityId} onLinked={reloadRecall} />
           <ClaimContradictDialog
+            entityClaimIds={recall.related_claims.map((c) => c.id)}
+            onLinked={reloadRecall}
+          />
+          <ClaimSupersedeDialog
             entityClaimIds={recall.related_claims.map((c) => c.id)}
             onLinked={reloadRecall}
           />

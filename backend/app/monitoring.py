@@ -81,6 +81,27 @@ class PriorityInputs:
     is_novel: bool = False
 
 
+def claim_headline(text: str, limit: int = 90) -> str:
+    """Claim metninin başlık gibi okunan ilk satırı.
+
+    Faz 11 (dogfooding F46): `Claim.text` bileşik bir alan — RSS'ten gelen içerik "başlık
+
+özet"
+    biçiminde tek bir string olarak saklanıyor, ayrı bir başlık alanı yok. Bu yüzden her
+    render eden yer ilk satırı KENDİ çıkarmak zorunda, ve unutan her yer bozuk çıktı üretiyor.
+    Aynı hata üç ayrı yerde çıktı: F19 (entity vault notu), F43 (investigation vault notu) ve
+    burada (Inbox bildirim başlığı — `text[:80]` boş satırın ötesine taşıp cümleyi ortasından
+    kesiyordu). Ortak yardımcı, dördüncüsünü önlemek için.
+
+    Kalıcı çözüm (Faz 13): `Claim`e ayrı bir `title` alanı, ya da tüm render yollarının tek
+    bir noktadan geçmesi."""
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            return line[:limit] + ("…" if len(line) > limit else "")
+    return "(boş claim)"
+
+
 def compute_priority(inputs: PriorityInputs) -> str:
     """Deterministik, açıklanabilir kural tablosu (Auditability — confidence.py ile aynı
     disiplin). Çelişkiler her zaman en az HIGH; aktif bir investigation'daki bir çelişki

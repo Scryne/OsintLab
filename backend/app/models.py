@@ -213,6 +213,13 @@ class ClaimContradictionAdd(BaseModel):
     other_claim_id: str
 
 
+class ClaimSupersedeAdd(BaseModel):
+    """Faz 11 (F45): supersede sonradan da bildirilebilmeli — gerçek araştırmada yeni bilgi,
+    eskisi kaydedildikten sonra çıkıyor ve bazen eskisi SONRADAN kaydediliyor."""
+
+    supersedes_claim_id: str
+
+
 class ClaimAboutUpdate(BaseModel):
     """Faz 11 (dogfooding F16): bir claim'in hangi entity/event hakkında olduğu, claim
     oluştuktan SONRA da düzeltilebilmeli. Promote sırasında bu alan atlanırsa claim graf'ta

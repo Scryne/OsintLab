@@ -946,6 +946,87 @@ ilk kez gerçek veriyle sınandığında tuttu.
 - **F34'ün supersede işareti:** graf'ta hâlâ hiç `SUPERSEDES` kenarı yok; düzeltme yalnızca
   izole DB testiyle doğrulandı, gerçek veride görülmedi.
 
+## Oturum 4 — 2026-09-04: Monitoring + temporal supersede
+
+Kalan iki delik kapatıldı: Faz 7 (Monitoring/Inbox) gerçek kullanımda hiç çalıştırılmamıştı
+(0 monitor) ve F34'ün supersede işareti yalnızca izole DB testiyle doğrulanmıştı.
+
+**Vaka seçimi — zorlama bir supersede kurmadım.** Veride üç aday vardı (OpenAI'ın Ağustos'taki
+siber-yetenek yazıları), ama "erişimi genişletiyoruz" (10 Ağustos) ile "geliştirme hızını
+yavaşlatıyoruz" (18 Ağustos) birbirinin yerini almıyor — aynı konuda politika değişimi, farklı
+şey. Gerçek supersede şuydu: **OpenAI Ağustos'ta eşiği geçtiğini doğrulamamıştı, 1 Eylül'de
+doğruladı.** Bu da doğrudan bir engele çarptı (aşağıda).
+
+### F44 — Supersede `valid_to`'yu kayıt anıyla kapatıyordu  🔴 KRİTİK → ✅ kapatıldı
+
+`create_claim`'in supersede dalı `old.valid_to = now` yazıyordu — yani **kayıt anı**. Doğrusu
+yeni claim'in `valid_from`'u: eski bilgi, yenisi **yürürlüğe girdiğinde** biter, biz onu
+kaydettiğimizde değil.
+
+Bu, F1/F12'nin aynı alan çiftinin diğer ucundaki tekrarı. F12 `valid_from`'u kayıt anından
+yayın tarihine çekmişti; `valid_to` düzeltilmemiş kalmıştı. Sonuç: arşivden bir haber bugün
+promote edilip eski bir claim'i supersede ettiğinde, eskisinin geçerliliği gerçekte bittiği
+tarihte değil **bugün** kapanıyordu — temporal sorguların tamamı (Faz 7 "son 30 günde ne
+değişti" dahil) yanlış pencereyle çalışırdı.
+
+`SUPERSEDES` kenarındaki `at` özelliği kayıt anı olarak KALDI — "bu ilişkiyi ne zaman kurduk"
+ayrı bir soru ve denetlenebilirlik için gerekli. Karıştırılan şey ikisinin aynı değere
+yazılmasıydı.
+
+**Doğrulama (gerçek veri):** eski claim `valid_from=2026-08-18T11:00`, `valid_to=2026-09-01T13:00`
+— tam olarak yeni claim'in `valid_from`'u. Bugün (2026-09-04) değil.
+
+### F45 — Sonradan supersede etme yolu yoktu  🔴 KRİTİK → ✅ kapatıldı
+
+F26'da bilerek ertelenmişti, gerekçesi "hangi an yazılmalı, bu bir modelleme sorusu" idi.
+F44 o soruyu cevapladı. Ve bu oturumda varsayım olmaktan çıkıp **karşılaşılmış engel** oldu:
+veride gerçek bir supersede vardı ama yeni claim (1 Eylül) graf'ta **zaten duruyordu**;
+supersede'i yalnızca claim OLUŞTURULURKEN beyan ettiren tasarım, gerçek araştırma sırasına
+uymuyor — yeni bilgi çoğu zaman eskisi kaydedildikten sonra çıkıyor, bazen de eskisi sonradan
+kaydediliyor (bizim vakamızda tam olarak bu oldu).
+
+**Aynı ders altıncı kez:** F16 (about bağı), F23b (lineage), F26 (çelişki), F29 (SAME_AS),
+F38 (investigation/finding), F45 (supersede). Hepsinde sistem "bunu şu anda söylemezsen bir
+daha söyleyemezsin" diyordu.
+
+**Düzeltme:** `POST /claims/{id}/supersedes` + `ClaimSupersedeDialog`. Bütünlük kuralı: yerini
+alan claim daha ESKİ bir tarihte başlıyorsa 422 — zaman çizgisi tersine dönerdi, ve bu genelde
+yönün yanlış seçildiği anlamına gelir. Zaten superseded bir claim ikinci kez alınamaz (409).
+
+**Doğrulama:** kendi kendini 422, olmayan claim 404; gerçek vakada eski claim entity
+sayfasında ve recall'da **arşiv** olarak işaretlendi — **F34'ün gerçek veriyle ilk testi de
+böylece kapandı.**
+
+### F46 — Inbox başlığı çok satırlı claim metnini ortasından kesiyor  🟠 → ✅ kapatıldı
+
+Inbox kaydı şöyle göründü: *"Yeni claim: Pacing model development in an era of cyber-critical
+capabilities
+
+OpenAI is str"* — `title=f"Yeni claim: {payload.text[:80]}"` ham metni 80
+karakterden kesiyor, boş satırın ötesine taşıp cümleyi ortasından bölüyor.
+
+**Aynı hatanın üçüncü tekrarı** (F19 entity vault notu, F43 investigation vault notu, bu).
+Kök sebep bir render hatası değil, **şema:** `Claim.text` bileşik bir alan — RSS'ten gelen
+içerik `"başlık
+
+özet"` biçiminde tek string olarak saklanıyor, ayrı bir `title` alanı yok.
+Bu yüzden her render eden yer ilk satırı kendi çıkarmak zorunda, ve unutan her yer bozuk
+çıktı üretiyor.
+
+**Düzeltme:** `monitoring.claim_headline()` ortak yardımcısı; bildirim başlığı ondan geçiyor.
+**Kalıcı çözüm Faz 13'e:** `Claim`e ayrı bir `title` alanı, ya da tüm render yollarının tek
+noktadan geçmesi. Yardımcı dördüncü tekrarı önler ama kök sebebi çözmez.
+
+### Oturum 4 kapanışı — Faz 7 ilk kez tetiklendi
+
+**Bitti kriteri (Faz 7):** *"İzlenen bir entity'de değişiklik olduğunda doğru öncelik
+seviyesiyle Inbox'a düşüyor."* Astra izlemeye alındı, yeni claim promote edildi, Inbox'a
+**INFO** önceliğiyle düştü.
+
+**Öncelik doğru (bug değil, kayda geçiyor):** claim confidence 0.30, çelişki yok, aktif
+investigation yok (bizimki CLOSED) → `compute_priority` kural tablosuna göre INFO. Aktif bir
+investigation'a bağlı olsaydı MEDIUM, çelişkili olsaydı HIGH/CRITICAL olurdu.
+
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
 
 ### F28 — Tek bir claim'in detay sayfası yok  🟡 Faz 13
