@@ -157,10 +157,13 @@ def _claim_contradictions(conn, claim_id: str) -> list[str]:
 def _entity_claims(conn, entity_id: str) -> list[dict]:
     return fetch_all(
         conn.execute(
+            # F34: yerini almış claim vault notunda da işaretlenmeli — Living Brain'de eskimiş
+            # bilginin güncelinden ayırt edilememesi, notu okuyanı yanıltır.
             "MATCH (s:Source)-[:ASSERTS]->(c:Claim)-[:ABOUT_ENTITY]->(:Entity {id: $id}) "
+            "OPTIONAL MATCH (yeni:Claim)-[:SUPERSEDES]->(c) "
             "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
-            "c.confidence AS confidence, s.id AS source_id, s.name AS source_name "
-            "ORDER BY c.created_at",
+            "c.confidence AS confidence, s.id AS source_id, s.name AS source_name, "
+            "yeni.id AS superseded_by_claim_id ORDER BY c.created_at",
             {"id": entity_id},
         )
     )
@@ -271,6 +274,8 @@ def render_entity_note(conn, entity: dict) -> str:
             tag = confidence_tag(c["knowledge_state"], c["confidence"])
             src = wikilink("sources", c["source_id"], c["source_name"]) if c["source_id"] else "?"
             lines.append(claim_bullet(c["text"], tag, src))
+            if c.get("superseded_by_claim_id"):
+                lines.append("  - ⏳ Bu bilginin yerini daha yenisi aldı (silinmedi, arşivde).")
             # F27: "ÇELİŞKİLİ" etiketi tek başına eksik bilgi — karşı taraf da yazılır.
             for other in _claim_contradictions(conn, c["id"]):
                 lines.append(f"  - ⚔ Çelişiyor: «{other}»")

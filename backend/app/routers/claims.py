@@ -184,13 +184,35 @@ def _notify_change(
         )
 
 
+def _claim_supersede_links(conn, claim_id: str) -> tuple[str | None, str | None]:
+    """F34: (bu claim'in yerini alan, bu claim'in yerini aldığı). SUPERSEDES tek yön
+    saklanıyor (yeni)-[:SUPERSEDES]->(eski), ama iki soru da sorulabilmeli: 'bu bilgi hâlâ
+    geçerli mi' ve 'neyin yerini aldı'."""
+    yeni = fetch_one(
+        conn.execute(
+            "MATCH (yeni:Claim)-[:SUPERSEDES]->(c:Claim {id: $id}) RETURN yeni.id AS id",
+            {"id": claim_id},
+        )
+    )
+    eski = fetch_one(
+        conn.execute(
+            "MATCH (c:Claim {id: $id})-[:SUPERSEDES]->(eski:Claim) RETURN eski.id AS id",
+            {"id": claim_id},
+        )
+    )
+    return (yeni["id"] if yeni else None, eski["id"] if eski else None)
+
+
 def _row_to_claim(conn, row: dict) -> Claim:
     source_row = _claim_source_id(conn, row["id"])
     about_entity_id, about_event_id = _claim_about(conn, row["id"])
+    superseded_by, supersedes = _claim_supersede_links(conn, row["id"])
     return Claim(
         source_id=source_row["id"] if source_row else "",
         about_entity_id=about_entity_id,
         about_event_id=about_event_id,
+        superseded_by_claim_id=superseded_by,
+        supersedes_claim_id=supersedes,
         **row,
     )
 

@@ -111,6 +111,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       knowledge_state: c.knowledge_state,
       confidence: c.confidence,
       via_entity_name: viaByClaimId.get(c.id) ?? null,
+      superseded: Boolean(c.superseded_by_claim_id),
     }));
     const events = (recall?.related_events ?? []).map((e) => ({
       id: e.id,
@@ -120,6 +121,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       knowledge_state: null as KnowledgeState | null,
       confidence: undefined,
       via_entity_name: null as string | null,
+      superseded: false,
     }));
     return [...claims, ...events]
       .filter((item) => !confidenceFilter || item.knowledge_state === confidenceFilter)
@@ -221,6 +223,11 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                       <Calendar aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
                       <div className="flex min-w-0 flex-col gap-1">
                         <p className="text-sm text-foreground">{item.title}</p>
+                        {item.superseded && (
+                          <p className="text-xs text-priority-high">
+                            Yerini daha yenisi aldı — arşiv kaydı.
+                          </p>
+                        )}
                         {item.via_entity_name && (
                           <p className="text-xs text-text-tertiary">
                             Aynı olduğu onaylanan{" "}
@@ -264,6 +271,13 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                       <p className="text-foreground">{claim.text}</p>
                       <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} className="shrink-0" />
                     </div>
+                    {/* F34: yerini almış claim gizlenmiyor (History Is Immutable) ama
+                        güncel olandan ayırt edilebilir olmalı. */}
+                    {claim.superseded_by_claim_id && (
+                      <p className="mt-1 text-xs text-priority-high">
+                        Bu bilginin yerini daha yenisi aldı — arşiv kaydı, güncel bilgi değil.
+                      </p>
+                    )}
                     {claim.via_entity_name && (
                       <p className="mt-1 text-xs text-text-tertiary">
                         Aynı olduğu onaylanan{" "}

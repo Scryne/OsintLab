@@ -121,6 +121,16 @@ export const api = {
   },
 
   sources: {
+    // Faz 11 (F37): Faz 6'nın otomatik türetme tespiti backend'de vardı ama arayüzden hiç
+    // çağrılmıyordu — kullanıcı "bu iki haber birbirinden mi türemiş" diye soramıyordu.
+    detectLineage: (claimIdA: string, claimIdB: string) =>
+      post<{
+        similarity: number;
+        shared_agencies: string[];
+        is_derived: boolean;
+        method: string;
+        edge_created: boolean;
+      }>("/sources/lineage/detect", { claim_id_a: claimIdA, claim_id_b: claimIdB }),
     list: () => get<Source[]>("/sources"),
     get: (id: string) => get<Source>(`/sources/${id}`),
     create: (payload: { name: string; source_type: string; url?: string | null; reliability?: number }) =>
@@ -193,6 +203,21 @@ export const api = {
       ),
     transition: (id: string, to_status: string) =>
       post<Investigation>(`/investigations/${id}/transition`, { to_status }),
+    // Faz 11 (F35): kapsam uçları backend'de vardı ama arayüzden hiç çağrılmıyordu — bir
+    // investigation'a entity/event eklemek UI'dan mümkün değildi, okuma ucu ise hiç yoktu.
+    scope: (id: string) =>
+      get<{
+        entities: { id: string; name: string; entity_type: string }[];
+        events: { id: string; title: string; event_type: string }[];
+      }>(`/investigations/${id}/scope`),
+    addEntity: (id: string, entityId: string) => put<void>(`/investigations/${id}/entities/${entityId}`, {}),
+    removeEntity: (id: string, entityId: string) => del(`/investigations/${id}/entities/${entityId}`),
+    addEvent: (id: string, eventId: string) => put<void>(`/investigations/${id}/events/${eventId}`, {}),
+    removeEvent: (id: string, eventId: string) => del(`/investigations/${id}/events/${eventId}`),
+    // F36: hipoteze kanıt bağlama ucu da arayüzden hiç çağrılmıyordu — HYPOTHESIS_EVIDENCE
+    // ilişkisi ve hipotez durumunun (SUPPORTED/WEAKENED) yeniden hesabı UI'dan erişilemezdi.
+    linkHypothesisEvidence: (hypothesisId: string, evidenceId: string, stance: "SUPPORTS" | "WEAKENS" | "REFUTES") =>
+      put<Hypothesis>(`/hypotheses/${hypothesisId}/evidence`, { evidence_id: evidenceId, stance }),
   },
 
   observations: {

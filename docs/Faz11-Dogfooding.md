@@ -684,6 +684,89 @@ dikey yığılıyor, aksiyonlar kendi satırına sarabiliyor, rozet satırı da 
 UI cilasında bu satırın bir taşma menüsüne ("…") dönmesi gerekecek — 6 buton sınırda, 7.'si
 taşıracak.
 
+## Sistematik tarama — 2026-09-03 (oturum arası)
+
+Oturum 2 bitince şu gözlemle bir karar verildi: **28 bulgunun tamamı tek bir sınıf** —
+*"yetenek şemada/formülde var, gerçek yolda erişilemiyor ya da görünmüyor."* Bu sınıf artık
+taranabilir; tek tek oturumla keşfetmek pahalı. Kalan oturumların **yeni** sürtünme türleri
+bulması için ucuz olanlar tek geçişte kapatıldı.
+
+**Yöntem — desenin üç sorusu, üç ayrı tarama:**
+
+| Soru | Nasıl tarandı | Sonuç |
+| --- | --- | --- |
+| Okunuyor mu? | 20 rel tablosunun her biri için CREATE/MATCH sayımı | 1 şüpheli: `SUPERSEDES` |
+| Görünüyor mu? | node tablolarının alanları ↔ frontend kaynağı | temiz |
+| Yazılabiliyor mu? | 70 OpenAPI ucu ↔ `frontend/src/lib/api.ts` | 6 uç hiç çağrılmıyor |
+
+İlk tarayıcı hatalıydı ve bunu kaydetmek gerekiyor: regex `[:REL]` arıyordu, oysa kod
+`[r:SAME_AS]` gibi değişken adlı kenarlar da kullanıyor — SAME_AS ve CLAIM_CONTRADICTS yanlışlıkla
+"hiç okunmuyor" işaretlendi. Düzeltilmiş tarama tek gerçek şüpheliyi verdi. **Otomatik tarama
+sonucu, doğrulanmadan bulgu sayılmaz** (F23'ün dersinin tarama araçlarına uygulanmış hali).
+
+### F34 — `SUPERSEDES` yazılıyor, hiçbir yerde okunmuyor  🔴 KRİTİK → ✅ kapatıldı
+
+Bir claim supersede edildiğinde `(yeni)-[:SUPERSEDES]->(eski)` kenarı kuruluyor ve
+`eski.valid_to` yazılıyor. Ama kenar kaynak kodda **yalnızca 1 kez** geçiyor (o CREATE), ve
+`Claim.valid_to`'yu **hiçbir sorgu filtrelemiyor** (yalnızca `ENTITY_RELATION.valid_to`
+kullanılıyor, o da `status` alanı üzerinden).
+
+Sonuç: yerini almış bir claim entity sayfasında, timeline'da ve vault'ta güncel olanla
+**birebir aynı** görünüyor. Faz 2'nin bitti kriteri "eski bilgi silinmeden temporal
+supersede ediliyor" diyor — depolama katmanında ediliyor, kullanıcının gördüğü hiçbir şeyde
+etmiyor. F31'in ("onaylanan birleştirme hiçbir şey yapmıyordu") birebir kardeşi, bu kez
+oturum yapmadan, taramayla bulundu.
+
+**Düzeltme:** `Claim`e `superseded_by_claim_id` + `supersedes_claim_id` (iki soru da
+sorulabilmeli: "bu bilgi hâlâ geçerli mi" ve "neyin yerini aldı"); recall ve vault sorguları
+`OPTIONAL MATCH (yeni)-[:SUPERSEDES]->(c)` ile işaretliyor; arayüz Claim'ler sekmesinde ve
+timeline'da "yerini daha yenisi aldı — arşiv kaydı" uyarısı gösteriyor. **Gizlemiyoruz,
+işaretliyoruz** — History Is Immutable.
+
+**Doğrulama:** sorgu mantığı izole bir KùzuDB'de iki yönde de doğrulandı
+(`eski → superseded_by=yeni`, `yeni → supersedes=eski`); API alanları dönüyor. **Eksik:**
+graf'ta henüz gerçek bir supersede yok, bu yüzden işaretin gerçek veride görünmesi
+sınanmadı — uydurma veri üretmek yerine Oturum 3'e bırakıldı.
+
+### F35 — Investigation'ın kapsamı arayüzden kurulamıyor, hiçbir yerden okunamıyor  🔴 KRİTİK → ✅ kapatıldı
+
+`PUT /investigations/{id}/entities/{id}` ve `.../events/{id}` backend'de vardı, **arayüz
+ikisini de hiç çağırmıyordu**. Dahası: karşılığında **hiçbir GET yoktu** — kapsam kurulsa
+bile geri okunamıyordu, yani `INCLUDES`/`INVESTIGATES` fiilen yaz-bir-daha-okuma.
+
+Faz 3'ün akışı (Proje-Fikri madde 30) "Research Question → **Scope → Entities** → Sources →
+... → Conclusion" diye ilerliyor; Scope adımı erişilemezdi. Faz 3 roadmap'te ✅ ama gerçek
+kullanımda hiç çalıştırılmamış (graf'ta 0 investigation var) — bu yüzden görülmemişti.
+
+Ek olarak iki bug: PUT'lar **idempotent değildi** (aynı entity iki kez eklenince iki
+`INCLUDES` kenarı), ve kapsamdan **çıkarma yolu yoktu** — yanlış ekleneni geri almanın hiçbir
+yolu olmaması, Faz 11'de üç kez tekrarlanan hatanın (F16, F23b, F29) dördüncüsü olurdu.
+
+**Düzeltme:** `GET /investigations/{id}/scope`, `DELETE` uçları, PUT'lara idempotency guard;
+frontend'de "Kapsam" bölümü (ekle/çıkar), Findings'ten **önce** — akış sırası bu.
+
+### F36 — Hipoteze kanıt bağlama arayüzden çağrılmıyor  🟠 → ✅ kapatıldı
+
+`PUT /hypotheses/{id}/evidence` hipotezin durumunu bağlı kanıtlara göre yeniden hesaplıyor
+(SUPPORTED/WEAKENED/REFUTED), ama arayüzden hiç çağrılmıyordu. Sonuç: `HYPOTHESIS_EVIDENCE`
+hiç yazılmaz, hipotez durumu gerçek kullanımda **hep UNRESOLVED** kalırdı. Hipotez sistemi
+(Faz 3) kanıt bağlanamayınca yalnızca bir metin listesi. Düzeltme: hipotez kartına "Kanıt
+bağla" (kanıt + duruş seçimi).
+
+### F37 — Otomatik türetme tespiti arayüzden tetiklenemiyor  🟠 → ✅ kapatıldı
+
+`POST /sources/lineage/detect` (Faz 6'nın otomatik tespiti) arayüzden hiç çağrılmıyordu.
+F23b'de **elle** lineage kurma yolu açılmıştı; otomatik olan hâlâ erişilemezdi — kullanıcı
+"bu iki haber birbirinden mi türemiş" sorusunu sisteme soramıyordu. Düzeltme: Kaynaklar
+sayfasına "Türetme sına". Sonuç **ham haliyle** gösteriliyor (benzerlik skoru + yöntem),
+çünkü F23'te öğrenildi: tespit gerçek veride 0.0000 verebiliyor ve kararı insanın
+verebilmesi için skoru görmesi gerekiyor.
+
+**Tarama sonrası:** çağrılmayan uç 6'dan 2'ye düştü. Kalan ikisi bilinçli kabul —
+`POST /vault/render` her yazmada zaten otomatik tetikleniyor, `GET /hypotheses/{id}` ise
+hipotezler investigation üzerinden listelendiği için gereksiz. İkisi de bir yeteneği
+gizlemiyor.
+
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
 
 ### F28 — Tek bir claim'in detay sayfası yok  🟡 Faz 13

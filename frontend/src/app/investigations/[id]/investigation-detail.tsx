@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { InvestigationScope } from "@/components/forms/investigation-scope";
+import { HypothesisEvidenceDialog } from "@/components/forms/hypothesis-evidence-dialog";
 import type { InvestigationStatus } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +81,10 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         </div>
       </header>
 
+      {/* F35: Kapsam, Findings'ten önce — Faz 3'ün akışı "Research Question → Scope →
+          Entities → ... → Findings" sırasında ilerliyor. */}
+      <InvestigationScope investigationId={investigationId} />
+
       <section>
         <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Findings</h2>
         {!findings || findings.length === 0 ? (
@@ -110,9 +116,10 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
             {hypotheses.map((h) => (
               <div key={h.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-surface p-3">
                 <p className="text-sm text-foreground">{h.text}</p>
-                <Badge variant="outline" className="shrink-0">
-                  {h.status}
-                </Badge>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <HypothesisEvidenceDialog hypothesisId={h.id} onLinked={reloadHypotheses} />
+                  <Badge variant="outline">{h.status}</Badge>
+                </div>
               </div>
             ))}
           </div>

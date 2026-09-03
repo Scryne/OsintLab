@@ -151,6 +151,46 @@ def _promote_verified_findings(conn, investigation_id: str) -> list[str]:
     return promoted
 
 
+def _scope_edge_exists(conn, investigation_id: str, rel: str, node_id: str) -> bool:
+    return (
+        fetch_one(
+            conn.execute(
+                f"MATCH (i:Investigation {{id: $iid}})-[:{rel}]->(n {{id: $nid}}) RETURN n.id AS id",
+                {"iid": investigation_id, "nid": node_id},
+            )
+        )
+        is not None
+    )
+
+
+@router.get("/{investigation_id}/scope")
+def get_scope(investigation_id: str) -> dict:
+    """Faz 11 (tarama bulgusu F35): investigation'ın kapsamı YAZILABİLİYOR ama OKUNAMIYORDU —
+    `INCLUDES`/`INVESTIGATES` için PUT uçları vardı, karşılığında hiçbir GET yoktu. Yani bir
+    investigation'ın hangi entity/event'leri kapsadığı, kurulduktan sonra hiçbir yerden geri
+    alınamıyordu (arayüz de bu yüzden hiç göstermiyordu).
+
+    Faz 3'ün "Research Question → Scope → Entities → ..." akışının Scope adımı bu."""
+    conn = get_connection()
+    if not _node_exists(conn, "Investigation", investigation_id):
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    entities = fetch_all(
+        conn.execute(
+            "MATCH (i:Investigation {id: $iid})-[:INCLUDES]->(e:Entity) "
+            "RETURN e.id AS id, e.name AS name, e.entity_type AS entity_type ORDER BY e.name",
+            {"iid": investigation_id},
+        )
+    )
+    events = fetch_all(
+        conn.execute(
+            "MATCH (i:Investigation {id: $iid})-[:INVESTIGATES]->(ev:Event) "
+            "RETURN ev.id AS id, ev.title AS title, ev.event_type AS event_type ORDER BY ev.title",
+            {"iid": investigation_id},
+        )
+    )
+    return {"entities": entities, "events": events}
+
+
 @router.put("/{investigation_id}/entities/{entity_id}", status_code=204)
 def include_entity(investigation_id: str, entity_id: str) -> None:
     conn = get_connection()
@@ -158,8 +198,27 @@ def include_entity(investigation_id: str, entity_id: str) -> None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     if not _node_exists(conn, "Entity", entity_id):
         raise HTTPException(status_code=404, detail="Entity not found")
+    # F35: PUT idempotent olmalı; guard yokken aynı entity iki kez eklenince graf'ta iki
+    # INCLUDES kenarı oluşuyordu (kapsam listesi kaydı çift gösterirdi).
+    if _scope_edge_exists(conn, investigation_id, "INCLUDES", entity_id):
+        return
     conn.execute(
         "MATCH (i:Investigation {id: $iid}), (e:Entity {id: $eid}) CREATE (i)-[:INCLUDES]->(e)",
+        {"iid": investigation_id, "eid": entity_id},
+    )
+    safe_render_vault(conn)
+
+
+@router.delete("/{investigation_id}/entities/{entity_id}", status_code=204)
+def exclude_entity(investigation_id: str, entity_id: str) -> None:
+    """F35: kapsamdan çıkarma yolu yoktu. Yanlış eklenen bir entity'yi geri almanın hiçbir
+    yolu olmaması, Faz 11'de üç kez tekrarlanan hatanın (F16, F23b, F29) aynısı olurdu.
+    Kapsam bir çalışma alanı tanımıdır, geçmiş kaydı değil — düzeltilebilir olmalı."""
+    conn = get_connection()
+    if not _node_exists(conn, "Investigation", investigation_id):
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    conn.execute(
+        "MATCH (i:Investigation {id: $iid})-[r:INCLUDES]->(e:Entity {id: $eid}) DELETE r",
         {"iid": investigation_id, "eid": entity_id},
     )
     safe_render_vault(conn)
@@ -172,8 +231,22 @@ def investigate_event(investigation_id: str, event_id: str) -> None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     if not _node_exists(conn, "Event", event_id):
         raise HTTPException(status_code=404, detail="Event not found")
+    if _scope_edge_exists(conn, investigation_id, "INVESTIGATES", event_id):
+        return
     conn.execute(
         "MATCH (i:Investigation {id: $iid}), (e:Event {id: $eid}) CREATE (i)-[:INVESTIGATES]->(e)",
+        {"iid": investigation_id, "eid": event_id},
+    )
+    safe_render_vault(conn)
+
+
+@router.delete("/{investigation_id}/events/{event_id}", status_code=204)
+def uninvestigate_event(investigation_id: str, event_id: str) -> None:
+    conn = get_connection()
+    if not _node_exists(conn, "Investigation", investigation_id):
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    conn.execute(
+        "MATCH (i:Investigation {id: $iid})-[r:INVESTIGATES]->(e:Event {id: $eid}) DELETE r",
         {"iid": investigation_id, "eid": event_id},
     )
     safe_render_vault(conn)

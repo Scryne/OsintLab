@@ -107,6 +107,13 @@ class Claim(BaseModel):
     confidence: float
     valid_from: datetime
     valid_to: datetime | None
+    # Faz 11 (tarama bulgusu F34): SUPERSEDES kenarı yazılıyor ve `valid_to` set ediliyordu,
+    # ama kenar HİÇBİR yerde okunmuyor ve `valid_to`'yu hiçbir sorgu filtrelemiyordu. Sonuç:
+    # yerini almış (eskimiş) bir claim, entity sayfasında/timeline'da/vault'ta güncel olanla
+    # birebir aynı görünüyordu — Faz 2'nin "temporal supersede" kriteri depolamada vardı,
+    # kullanıcının gördüğü hiçbir şeyde yoktu.
+    superseded_by_claim_id: str | None = None
+    supersedes_claim_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

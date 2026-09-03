@@ -64,9 +64,13 @@ def entity_recall(conn, entity_id: str) -> dict:
             investigations.append({**row, "via_entity_name": t["name"]})
         for row in fetch_all(
             conn.execute(
+                # F34: yerini almış claim'ler GİZLENMEZ (History Is Immutable) ama işaretlenir
+                # — aksi halde eskimiş bilgi güncel olanla aynı görünüyordu.
                 "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity {id: $id}) "
+                "OPTIONAL MATCH (yeni:Claim)-[:SUPERSEDES]->(c) "
                 "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
-                "c.confidence AS confidence, c.created_at AS created_at ORDER BY c.created_at",
+                "c.confidence AS confidence, c.created_at AS created_at, "
+                "yeni.id AS superseded_by_claim_id ORDER BY c.created_at",
                 {"id": t["id"]},
             )
         ):

@@ -57,6 +57,10 @@ export interface Claim {
   confidence: number;
   valid_from: string;
   valid_to: string | null;
+  // Faz 11 (F34): SUPERSEDES yazılıyor ama hiç okunmuyordu — eskimiş claim güncel olanla
+  // aynı görünüyordu. Gizlemiyoruz (History Is Immutable), işaretliyoruz.
+  superseded_by_claim_id: string | null;
+  supersedes_claim_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -136,6 +140,7 @@ export interface EntityRecall {
   })[];
   related_claims: (Pick<Claim, "id" | "text" | "knowledge_state" | "confidence" | "created_at"> & {
     via_entity_name: string | null;
+    superseded_by_claim_id: string | null;
   })[];
   related_events: (Pick<EventItem, "id" | "title" | "event_type" | "created_at"> & {
     via_entity_name: string | null;

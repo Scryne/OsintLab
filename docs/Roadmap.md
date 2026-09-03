@@ -659,6 +659,37 @@ ayrı" kararıyla tutarlı).
   corroboration/supersede hep "şu claim" diye işaret ediyor ve gidilecek adres yok), F33'ün
   notu (aksiyon satırı 6 butonda sınırda, taşma menüsü gerekiyor).
 
+  **Sistematik tarama — 2026-09-03 (oturum arası).** 28 bulgunun tamamı tek sınıf olduğu için
+  ("yetenek var, gerçek yolda erişilemiyor/görünmüyor") bu sınıf taranabilir hale gelmişti;
+  kalan oturumların YENİ sürtünme türleri bulması için ucuz olanlar tek geçişte kapatıldı.
+  Desenin üç sorusu üç ayrı taramaya çevrildi: 20 rel tablosu okunuyor mu (1 şüpheli), node
+  alanları arayüzde görünüyor mu (temiz), 70 API ucu arayüzden çağrılıyor mu (6 çağrılmıyor).
+
+  **4 bulgu, hepsi kapatıldı:** **F34** — `SUPERSEDES` yazılıyor, hiçbir yerde okunmuyordu;
+  yerini almış claim güncel olanla birebir aynı görünüyordu (Faz 2'nin temporal supersede
+  kriteri depolamada vardı, kullanıcının gördüğünde yoktu). **F35** — investigation'ın kapsamı
+  arayüzden kurulamıyor ve hiçbir yerden okunamıyordu (GET ucu hiç yazılmamıştı); ayrıca
+  PUT'lar idempotent değildi ve kapsamdan çıkarma yolu yoktu. **F36** — hipoteze kanıt bağlama
+  ucu çağrılmıyordu, dolayısıyla hipotez durumu gerçek kullanımda hep UNRESOLVED kalırdı.
+  **F37** — Faz 6'nın otomatik türetme tespiti arayüzden tetiklenemiyordu.
+
+  F35/F36 birlikte şunu gösterdi: **Faz 3 (Investigation & Hypothesis) roadmap'te ✅ ama
+  gerçek kullanımda hiç çalıştırılmamış** — graf'ta 0 investigation olduğu için Scope adımının
+  fiilen erişilemez olduğu görülmemişti. Aynı şüphe Faz 7 (Monitoring/Inbox) için de geçerli:
+  0 monitor, 0 evidence.
+
+  Çağrılmayan uç 6'dan 2'ye düştü; kalan ikisi bilinçli kabul (`/vault/render` her yazmada
+  otomatik tetikleniyor, `GET /hypotheses/{id}` investigation listesi üzerinden karşılanıyor).
+
+  **Bitti kriteri gözden geçirildi.** "5 oturum" bir vekil ölçüydü ve bulgu hızı düşmüyor
+  (Oturum 1: 20, Oturum 2: 8, tarama: 4). Daha dürüst kriter: **bir araştırma döngüsü baştan
+  sona bir engele çarpmadan tamamlanıyor ve tarama temiz.** Oturum sayısı hedef değil, sonuç.
+
+  **Oturum 3 planı:** yeni veri toplamak yerine graf'taki gerçek soruyla (Astra çelişkisi
+  çözülmemiş) bir Investigation'ı uçtan uca yürütmek — Faz 3 + Faz 7 + Evidence'ı tek turda
+  zorlar. Faz 12 (otomatik tarama) bilinçli olarak ERTELENDİ: 146 gözlemin 140'ı hâlâ
+  işlenmemiş, zamanlanmış tarama bu yığını büyütmekten başka bir şey yapmaz.
+
 ### Faz 12: Zamanlanmış Otomatik Tarama
 
 - **İşler:**

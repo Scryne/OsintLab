@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { LineageDialog } from "@/components/forms/lineage-dialog";
 import { TypeCombo } from "@/components/forms/type-combo";
 import { useToast } from "@/components/ui/toast";
+import { LineageDetectDialog } from "@/components/forms/lineage-detect-dialog";
 
 // Öneri listesi — kural DEĞİL (bkz. TypeCombo).
 const SOURCE_TYPE_SUGGESTIONS = [
@@ -46,7 +47,11 @@ export default function SourcesPage() {
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Kaynaklar</h1>
           <p className="text-sm text-text-secondary">Claim ve event&apos;lerin atıflı olduğu bilgi kaynakları.</p>
         </div>
-        <NewSourceDialog onCreated={reload} existingTypes={sources?.map((s2) => s2.source_type) ?? []} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* F37: Faz 6'nın otomatik türetme tespiti arayüzden hiç tetiklenemiyordu. */}
+          <LineageDetectDialog onDetected={reload} />
+          <NewSourceDialog onCreated={reload} existingTypes={sources?.map((s2) => s2.source_type) ?? []} />
+        </div>
       </div>
 
       <div className="relative">
