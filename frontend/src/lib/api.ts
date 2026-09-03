@@ -195,6 +195,14 @@ export const api = {
   investigations: {
     list: () => get<Investigation[]>("/investigations"),
     get: (id: string) => get<Investigation>(`/investigations/${id}`),
+    // Faz 11 (F38): `POST /investigations` backend'de vardı ama arayüzde ne api metodu ne de
+    // buton vardı — investigation UI'dan hiç açılamıyordu. İlk taramada gözden kaçtı çünkü
+    // uç kapsaması YOL düzeyinde kontrol edilmişti: GET /investigations çağrıldığı için yol
+    // "kapsanmış" göründü. Metot düzeyinde tarayınca çıktı.
+    create: (payload: { title: string; research_question: string }) =>
+      post<Investigation>("/investigations", payload),
+    addFinding: (id: string, claimId: string) => put<void>(`/investigations/${id}/findings/${claimId}`, {}),
+    removeFinding: (id: string, claimId: string) => del(`/investigations/${id}/findings/${claimId}`),
     hypotheses: (id: string) => get<Hypothesis[]>(`/investigations/${id}/hypotheses`),
     createHypothesis: (id: string, text: string) => post<Hypothesis>(`/investigations/${id}/hypotheses`, { text }),
     findings: (id: string) =>

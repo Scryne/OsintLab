@@ -259,8 +259,26 @@ def add_finding(investigation_id: str, claim_id: str) -> None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     if not _node_exists(conn, "Claim", claim_id):
         raise HTTPException(status_code=404, detail="Claim not found")
+    # F38: kapsam PUT'larıyla aynı sorun — guard yokken aynı claim iki kez eklenince iki
+    # HAS_FINDING kenarı oluşuyor ve finding listesi kaydı çift gösteriyordu.
+    if _scope_edge_exists(conn, investigation_id, "HAS_FINDING", claim_id):
+        return
     conn.execute(
         "MATCH (i:Investigation {id: $iid}), (c:Claim {id: $cid}) CREATE (i)-[:HAS_FINDING]->(c)",
+        {"iid": investigation_id, "cid": claim_id},
+    )
+    safe_render_vault(conn)
+
+
+@router.delete("/{investigation_id}/findings/{claim_id}", status_code=204)
+def remove_finding(investigation_id: str, claim_id: str) -> None:
+    """F38: yanlış eklenen finding geri alınabilmeli. Claim SİLİNMEZ — yalnızca bu
+    investigation'ın bulgu listesinden çıkarılır."""
+    conn = get_connection()
+    if not _node_exists(conn, "Investigation", investigation_id):
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    conn.execute(
+        "MATCH (i:Investigation {id: $iid})-[r:HAS_FINDING]->(c:Claim {id: $cid}) DELETE r",
         {"iid": investigation_id, "cid": claim_id},
     )
     safe_render_vault(conn)

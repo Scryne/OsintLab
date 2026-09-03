@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { InvestigationScope } from "@/components/forms/investigation-scope";
 import { HypothesisEvidenceDialog } from "@/components/forms/hypothesis-evidence-dialog";
+import { AddFindingDialog } from "@/components/forms/add-finding-dialog";
 import type { InvestigationStatus } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,10 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
       <InvestigationScope investigationId={investigationId} />
 
       <section>
-        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Findings</h2>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Findings</h2>
+          <AddFindingDialog investigationId={investigationId} onAdded={reloadFindings} />
+        </div>
         {!findings || findings.length === 0 ? (
           <EmptyState title="Henüz finding eklenmedi" />
         ) : (

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorState, EmptyState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { WireframeRipple } from "@/components/ui/wireframe-ripple";
+import { NewInvestigationDialog } from "@/components/forms/new-investigation-dialog";
 
 export default function InvestigationsPage() {
   const { data: investigations, error, loading, reload } = useApi(() => api.investigations.list(), []);
@@ -14,9 +15,13 @@ export default function InvestigationsPage() {
   return (
     <div className="relative isolate mx-auto flex max-w-3xl flex-col gap-6 overflow-hidden">
       <WireframeRipple className="pointer-events-none absolute -right-10 -top-14 -z-10 h-52 w-52 text-white/5" />
-      <div>
-        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Investigation&apos;lar</h1>
-        <p className="text-sm text-text-secondary">Research Question → Findings → Conclusion.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Investigation&apos;lar</h1>
+          <p className="text-sm text-text-secondary">Research Question → Findings → Conclusion.</p>
+        </div>
+        {/* F38: investigation acmanin arayuzde hicbir yolu yoktu. */}
+        <NewInvestigationDialog onCreated={reload} />
       </div>
 
       {loading && <SkeletonRows />}

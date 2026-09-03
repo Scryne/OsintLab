@@ -767,6 +767,55 @@ verebilmesi için skoru görmesi gerekiyor.
 hipotezler investigation üzerinden listelendiği için gereksiz. İkisi de bir yeteneği
 gizlemiyor.
 
+### F38 — Investigation açılamıyor, finding eklenemiyordu (taramanın kendi kör noktası)  🔴 KRİTİK → ✅ kapatıldı
+
+**Nasıl bulundu:** Oturum 3'ün ilk adımını yazarken investigations sayfasına bakıldı —
+**"Yeni investigation" butonu yoktu.** `api.investigations` içinde `create` metodu da yoktu.
+
+**Taramanın kör noktası:** ilk uç taraması kapsamayı **YOL** düzeyinde kontrol ediyordu.
+`GET /investigations` çağrıldığı için `/investigations` yolu "kapsanmış" göründü ve
+`POST /investigations`'ın hiç çağrılmadığı görülmedi. Metot düzeyinde tarayınca çıktı.
+İkinci tarayıcı da kusurluydu (jenerik tipler çok satıra yayıldığı için `/inbox`,
+`/monitors`, `findings` GET'i gibi çağrılan uçları "çağrılmıyor" sandı) — sonuçlar tek tek
+elle doğrulanarak ayıklandı. **Aynı ders üçüncü kez: otomatik tarama sonucu, doğrulanmadan
+bulgu sayılmaz** (F23 → tarayıcı regex'i → tarayıcı kapsama düzeyi).
+
+**Gerçek boşluklar:**
+- `POST /investigations` — investigation UI'dan **hiç açılamıyordu**. Faz 3'ün roadmap'te ✅
+  olmasına rağmen graf'ta 0 investigation olmasının sebebi buydu; F35'te "hiç
+  çalıştırılmamış" derken sebebini henüz bilmiyorduk.
+- `PUT /investigations/{id}/findings/{claim_id}` — bulgu eklenemiyordu. Findings bölümü
+  yalnızca okunuyordu ve hiçbir zaman dolamazdı; kapanışta `VALIDATED_FINDING`'e yükselecek
+  bir şey de olmazdı. Yani Faz 3'ün "kapanan investigation'ın doğrulanmış bulguları kalıcı
+  bilgiye yükselir" kriteri gerçek kullanımda hiç tetiklenemezdi.
+
+**Düzeltme:** `NewInvestigationDialog` (başlık + araştırma sorusu), `AddFindingDialog`
+(claim seçimi, kapanışta ne olacağını açıklayan notla), `DELETE .../findings/{claim_id}`
+(yanlış eklenen geri alınabilmeli — claim silinmez, yalnızca bulgu listesinden çıkar) ve
+`add_finding`'e idempotency guard (kapsam PUT'larıyla aynı çift-kenar sorunu).
+
+**Doğrulama:** `/investigations` artık `GET,POST`; `.../findings/{claim_id}` artık
+`PUT,DELETE`; olmayan investigation'a finding eklemek 404 dönüyor.
+
+### F39 — Event'ler oluşturulamıyor, listelenemiyor  🟠 → 📋 Faz 13
+
+`POST /events` arayüzden hiç çağrılmıyor ve `frontend/src/app/events/` altında **yalnızca
+`[id]` var — liste sayfası yok**, sol menüde de Event girişi yok. Yani Event, Core Knowledge
+Model'in ana node tiplerinden biri olmasına rağmen: oluşturulamıyor, gezilemiyor. Yalnızca
+bir claim'in `about_event` bağıyla dolaylı olarak var olabiliyor (ki o da promote ekranındaki
+"Event" seçeneği boş liste gösterdiği için pratikte imkânsız).
+
+**Bilerek bu fazda yapılmadı:** yeni bir liste sayfası + menü girişi + oluşturma formu, Faz
+11'in "ucuz olanları tek geçişte kapat" kapsamının dışında; ve Oturum 3'ün (Astra
+investigation) event'e ihtiyacı yok. Faz 13'ün UI maddelerine eklendi. **Sonuç:** Faz 11
+boyunca event tarafı sınanmamış olarak kalacak — bunu bilerek kabul ediyoruz.
+
+**Ayrıca bilinçli kabul (bulgu değil):** `DELETE /entities/{id}`, `DELETE /events/{id}`,
+`DELETE /sources/{id}` arayüzden çağrılmıyor. Silme yıkıcı bir işlem ve `sources` zaten
+provenance kaybını 409 ile engelliyor; v1'de arayüzden silme sunmamak savunulabilir bir
+tercih. `GET /observations/{id}` ve `GET /hypotheses/{id}` liste uçları üzerinden
+karşılanıyor, `POST /vault/render` her yazmada otomatik tetikleniyor.
+
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
 
 ### F28 — Tek bir claim'in detay sayfası yok  🟡 Faz 13
