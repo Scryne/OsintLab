@@ -12,6 +12,9 @@ __pycache__/
 # OSINT Brain'in kişisel/canlı verisi — koda ait değil, commit edilmez
 /data/
 
+# Hook'ların ürettiği çalışma-anı durumu — makineye özel, koda ait değil
+.claude/.sync-lock.json
+
 # Ortam / sır dosyaları
 .env
 .env.local
