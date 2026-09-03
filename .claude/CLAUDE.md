@@ -20,6 +20,37 @@ bittiğinde `asama` alanını sırayla güncelle: `fikir` → `denetim` → `fin
   otomatik okur
 - `docs/Design.md` — bu projeye özel frontend kimliği (accent palet, tipografi, mood)
 
+## Nasıl çalıştırılır
+
+Proje kökünden:
+
+```powershell
+.\start.ps1            # backend + frontend, her biri kendi penceresinde
+.\start.ps1 -Stop      # ikisini de kapat
+.\start.ps1 -Reload    # backend --reload ile (kod düzeltirken)
+```
+
+- Dashboard: http://localhost:3000
+- API dokümantasyonu: http://127.0.0.1:8420/docs
+- Obsidian vault: `data/vault/` ("Open folder as vault")
+
+**Portlar sabit, keyfi değil.** Backend **8420**, frontend **3000**:
+
+- `frontend/.env.local` → `NEXT_PUBLIC_API_BASE=http://127.0.0.1:8420`
+- `.claude/hooks/vault-session-end.ps1` → `$apiBase = 'http://127.0.0.1:8420'`
+- `backend/app/main.py` CORS → sadece `localhost:3000` / `127.0.0.1:3000`
+
+Yani `uvicorn`'u elle varsayılan 8000'de başlatırsan hem arayüz hem oturum-sonu vault
+senkronu **sessizce** kırılır (hata vermez, sadece veri gelmez). `start.ps1` portu her zaman
+açıkça verir — elle başlatma.
+
+`-Reload` varsayılan olarak **kapalı**: uvicorn'un reload'u gömülü KùzuDB bağlantısını oturum
+ortasında yeniden açar. Ürünü kullanırken kapalı bırak, bug düzeltirken aç.
+
+İlk kurulum (venv/node_modules yoksa script zaten söyler):
+`cd backend; py -3.12 -m venv .venv; .venv\Scripts\pip install -r requirements.txt`
+ve `cd frontend; npm install`.
+
 ## Proje-özel not: OSINT Brain'in teknik temeli
 
 "OSINT Brain" kavramı muhtemelen ScryneOS vault'unda (`C:\Users\scryn\Documents\ScryneOS`)
