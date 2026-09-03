@@ -297,6 +297,16 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
   18'in tam istediği davranış. Test verisi (Source/Claim/Entity/DERIVED_FROM + collector
   allowlist + KùzuDB) temizlendi, Brain temiz başlıyor.
 
+- **Faz 11 dogfooding uyarısı (2026-09-03):** Bu fazın "en az 3 türetilmiş kaynak örneğinde
+  çalışıyor" kriteri gerçekten sağlanmıştı, ama test kümesinin tamamı **tek bir yayıncılık
+  kültüründen** geliyordu (Türk haber siteleri — ajans metnini birebir kopyalayan). Gerçek
+  AI/LLM haberlerinde (TechCrunch, The Verge) aynı olay kendi cümleleriyle yeniden yazıldığı
+  için `detect_derivation` dört claim çiftinde de **similarity 0.0000** verdi. Ayrıca RSS
+  özetleri (~30-40 kelime) `SHINGLE_SIZE=5` için fazla kısa. Detay: `docs/Faz11-Dogfooding.md`
+  → F23. Ayrıca F24: `DERIVED_FROM` Source→Source modellenmiş, ama türetme claim seviyesinde
+  gerçekleşiyor — bağımsız bir yayın organını kaynak seviyesinde bağlamak, o kaynağın TÜM
+  claim'lerini kalıcı olarak bağımlı sayıyor. İkisi de Faz 13'te ele alınacak.
+
 ### Faz 7: Monitoring, Change Detection, Intelligence Inbox
 - **İşler:**
   - Continuous Monitoring: Entity/Topic/Event izleme kaydı.
@@ -590,9 +600,18 @@ ayrı" kararıyla tutarlı).
   döktü) ve F3 (observation dedup'ı yok) kapatılmadan zamanlanmış tarama her çalıştırmada
   arşivin tamamını yeniden dökerdi. Sıralamayı dogfooding→otomatik tarama yapmak doğruymuş.
 
-  **Kalan:** 4 oturum. Sonraki oturumda lineage (F11, Faz 13 kapsamı) olmadan Astra vakasının
-  türetme zinciri kurulamadı — TechCrunch'ın 09-01 yazısı OpenAI duyurusunu aktarıyor ama bu
-  ilişki graf'a yazılamıyor.
+  **Lineage denemesi (Faz 13'ten öne çekilen dilim).** Manuel lineage kurma yolu açıldı
+  (`POST/DELETE /sources/{id}/derived-from`, `LineageDialog`, `method='MANUAL'` — F23b). Ama
+  Astra vakasının lineage'ı **bilinçli olarak kurulmadı**: iki temel bulgu çıktı ve ikisi de
+  bug değil, doğrulanmamış varsayım. **F23** — otomatik tespit dört claim çiftinde de
+  similarity 0.0000 verdi; Faz 6 spike'ı metni birebir kopyalayan Türk haber siteleriyle
+  doğrulanmıştı, TechCrunch/Verge ise olayı kendi cümleleriyle yazıyor (üstelik RSS özetleri
+  SHINGLE_SIZE=5 için fazla kısa). **F24** — `DERIVED_FROM` Source→Source modellenmiş ama
+  türetme claim seviyesinde gerçekleşiyor; TechCrunch'ı OpenAI'a bağlamak, TechCrunch'ın
+  Nvidia–Hugging Face haberini de OpenAI kökenli sayardı. Faz 6 notuna sınır uyarısı eklendi.
+
+  **Kalan:** 4 oturum. Faz 13'ün ilk iki maddesi netleşti: lineage tespitinin iyileştirilmesi
+  (n-gram tek başına yetmiyor) ve claim seviyesinde lineage şeması.
 
 ### Faz 12: Zamanlanmış Otomatik Tarama
 

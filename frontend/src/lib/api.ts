@@ -125,6 +125,15 @@ export const api = {
       get<{ ancestors: Source[]; descendants: Source[]; independent_root_id: string }>(
         `/sources/${id}/lineage`
       ),
+    // Faz 11 (F23): otomatik tespit yalnizca metni birebir kopyalayan yayincilarda calisiyor;
+    // yeniden yazan yayincilarda karari insan veriyor (Design Principle #7).
+    linkDerivedFrom: (id: string, payload: { upstream_source_id: string; note?: string | null }) =>
+      post<{ downstream_source_id: string; upstream_source_id: string; method: string; recomputed_claims: number }>(
+        `/sources/${id}/derived-from`,
+        payload
+      ),
+    unlinkDerivedFrom: (id: string, upstreamId: string) =>
+      del(`/sources/${id}/derived-from/${upstreamId}`),
   },
 
   claims: {

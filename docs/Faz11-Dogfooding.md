@@ -273,6 +273,69 @@ Faz 13 önerisi: fetch yanıtında bir uyarı bayrağı (ör. `<noscript>` içer
 javascript" kalıpları, ya da script-ağırlıklı + metin-fakir sayfa oranı) ve UI'da görünür not.
 Tam çözüm (headless tarayıcı) v1 kapsamı dışında.
 
+## Oturum 1 kapanışı — lineage denemesi (Faz 13'ten öne çekilen dilim)
+
+Astra vakasının en öğretici yarısı eksik kalmıştı: sistem "dört kaynak var" diyebiliyor ama
+"üçü aynı kaynaktan besleniyor" diyemiyordu. F11 (lineage UI'a bağlı değil) Faz 13 kapsamında
+olsa da, kalan dört oturumun her birinde aynı duvara toslanacağı için en küçük dilim öne
+çekildi (start.ps1'in Faz 14'ten öne çekilmesiyle aynı gerekçe).
+
+Sonuç beklenenden farklı çıktı: vaka kapatılamadı, ama projenin **iki çekirdek varsayımının
+sınırı** bulundu. Bunlar bug değil — doğrulanmamış varsayımlar.
+
+### F23 — Otomatik lineage tespiti gerçek veride çalışmıyor  🔴 → 📋 Faz 13 (kısmen kapatıldı)
+
+Astra vakasının dört claim çiftinde de `detect_derivation` **similarity = 0.0000** verdi.
+
+Sebep tek değil, iki sorun üst üste binmiş:
+1. **Yayıncılık kültürü farkı.** `lineage.py` dokstring'i Faz 6 spike'ının Türk haber
+   siteleriyle doğrulandığını yazıyor (`aa.com.tr → ensondakika.com.tr` 0.44,
+   `karsmanset → yildirimgazetesi → marmarisyenisayfa` 0.56-0.60). O ekosistemde ajans metni
+   BİREBİR kopyalanır. TechCrunch/The Verge ise aynı olayı kendi cümleleriyle yazıyor —
+   ortak 5-kelimelik dizi yok.
+2. **RSS özetleri çok kısa.** Claim metni ~30-40 kelime; `SHINGLE_SIZE=5` ile bu ~30 shingle
+   demek. Yöntem tam makale gövdesi varsayıyor, collector RSS modunda başlık+özet topluyor.
+
+Faz 6 "en az 3 türetilmiş kaynak örneğinde çalışıyor" kriteriyle kapatılmıştı ve o kriter
+gerçekten sağlanmıştı — ama test kümesinin tamamı tek bir yayıncılık kültüründen geliyordu.
+
+**Bu fazda kapatılan kısım:** kararı insana veren yol açıldı (aşağıda). **Faz 13'e kalan:**
+tespit yönteminin iyileştirilmesi (entity/olay örtüşmesi + zaman yakınlığı + "OpenAI said" /
+"according to" atıf kalıpları). Salt n-gram benzerliği yeterli değil.
+
+### F23b — Manuel lineage kurma yolu yoktu  🔴 → ✅ kapatıldı
+
+Otomatik tespit başarısız olduğunda insanın kararını graf'a yazmasının hiçbir yolu yoktu:
+`sources.py`'de yalnızca `POST /lineage/detect` (otomatik) vardı. Oysa Design Principle #7
+(Human Remains In Control) gereği son karar zaten insanda olmalı.
+
+Eklendi: `POST /sources/{id}/derived-from` + `DELETE /sources/{id}/derived-from/{upstream}`
+(F16'nın dersi: düzeltilemeyen veri kötü veridir) + `LineageDialog` (Kaynaklar sayfası).
+Elle kurulan bağ `method='MANUAL'` olarak işaretleniyor — kararı sistemin mi insanın mı
+verdiği graf'ta ayırt edilebilir kalmalı (Auditability). Döngü koruması ve kendine-bağlama
+koruması var; bağ kurulunca etkilenen claim'lerin confidence'ı yeniden hesaplanıyor.
+
+### F24 — Lineage yanlış seviyede modellenmiş  🔴 KRİTİK → 📋 Faz 13 (şema kararı)
+
+**Astra vakasının lineage'ı bilinçli olarak KURULMADI** — kurmak, çözmeye çalıştığımız
+sorundan daha büyük bir sorun yaratırdı.
+
+`DERIVED_FROM` ilişkisi Source→Source. Ama türetme gerçekte **haber (claim) seviyesinde**
+oluyor. `confidence.py`'de `independence`, corroborating kaynakları
+`resolve_independent_root()` ile indirgiyor — yani kaynak seviyesinde ve KALICI olarak.
+
+Somut sonuç: "TechCrunch → OpenAI" bağı kurulsaydı, sistem TechCrunch'ın OpenAI hakkındaki
+*her* claim'ini OpenAI kökenli sayardı. Astra haberi için doğru, TechCrunch'ın
+Nvidia–Hugging Face haberi için tamamen yanlış — ve sessizce yanlış.
+
+Faz 6'nın test kümesinde bu görünemezdi: `ensondakika.com.tr` gibi siteler *sürekli* ajanstan
+kopyalar, orada kaynak seviyesi doğru soyutlama. TechCrunch bağımsız bir yayın organı, yalnızca
+bu haberde aktarıcı. Yani sorun "kaynak seviyesi yanlış" değil — **tek bir seviye yetmiyor.**
+
+Faz 13 önerisi: `Claim -[:DERIVED_FROM]-> Claim` ekle, kaynak seviyesini (sürekli aktaran
+siteler için) koru. `independence` hesabı önce claim seviyesine, yoksa kaynak seviyesine
+baksın. Şema değişikliği gerektirdiği için Faz 11'de yapılmadı.
+
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
 
 ### F20 — Dashboard henüz oluşmamış daily notuna link veriyor  🟡 Faz 13

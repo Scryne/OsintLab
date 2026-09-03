@@ -190,6 +190,17 @@ class ClaimAboutUpdate(BaseModel):
     about_event_id: str | None = None
 
 
+class LineageLinkRequest(BaseModel):
+    """Faz 11 (dogfooding F23): iki kaynak arasındaki DERIVED_FROM ilişkisini ELLE kurmak.
+
+    Otomatik tespit (POST /sources/lineage/detect) metin benzerliğine dayanıyor ve gerçek
+    veride yalnızca metni birebir kopyalayan yayıncılarda çalışıyor; olayı kendi cümleleriyle
+    yeniden yazan yayıncılarda similarity 0.0 çıkıyor. Design Principle #7 gereği son karar
+    zaten insanda — bu, insanın kararını graf'a yazabilmesini sağlıyor."""
+    upstream_source_id: str = Field(..., description="Bu kaynağın TÜRETİLDİĞİ (daha önceki/orijinal) Source")
+    note: str | None = Field(None, description="Kullanıcının gerekçesi (denetlenebilirlik için saklanır)")
+
+
 class LineageDetectRequest(BaseModel):
     claim_id_a: str = Field(..., description="Daha erken (upstream/orijinal) olduğu varsayılan claim — created_at otomatik karşılaştırılır")
     claim_id_b: str = Field(..., description="İkinci claim — hangisinin daha erken olduğu created_at'e göre otomatik belirlenir")

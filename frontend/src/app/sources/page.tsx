@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { LineageDialog } from "@/components/forms/lineage-dialog";
 import { TypeCombo } from "@/components/forms/type-combo";
 import { useToast } from "@/components/ui/toast";
 
@@ -70,7 +71,7 @@ export default function SourcesPage() {
       {!loading && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {filtered.map((source) => (
-            <SourceCard key={source.id} source={source} />
+            <SourceCard key={source.id} source={source} allSources={sources ?? []} />
           ))}
         </div>
       )}
@@ -78,7 +79,7 @@ export default function SourcesPage() {
   );
 }
 
-function SourceCard({ source }: { source: Source }) {
+function SourceCard({ source, allSources }: { source: Source; allSources: Source[] }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
@@ -96,6 +97,7 @@ function SourceCard({ source }: { source: Source }) {
           </>
         )}
       </p>
+      <LineageDialog source={source} allSources={allSources} />
     </div>
   );
 }
