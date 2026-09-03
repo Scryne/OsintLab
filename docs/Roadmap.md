@@ -690,6 +690,38 @@ ayrı" kararıyla tutarlı).
   zorlar. Faz 12 (otomatik tarama) bilinçli olarak ERTELENDİ: 146 gözlemin 140'ı hâlâ
   işlenmemiş, zamanlanmış tarama bu yığını büyütmekten başka bir şey yapmaz.
 
+  **Oturum 3/5 — 2026-09-03/04. Konu: "Astra güvenlik eşiği" investigation'ı.** Yeni veri
+  toplanmadı; graf'taki çözülmemiş soru kullanıldı. Investigation açıldı → kapsam (Astra +
+  OpenAI) → iki rakip hipotez → her birine kanıt → iki finding → `OPEN → ACTIVE → RESOLVED →
+  CLOSED`. Bu, **Faz 3'ün gerçek kullanımdaki ilk çalışması**.
+
+  **Faz 3'ün bitti kriteri doğrulandı ve tuttu:** iki finding de `CONTRADICTED` durumdaydı ve
+  ikisi de `validated=False` kaldı — çelişkili bilgi kalıcı bilgiye terfi etmedi. Faz 4
+  (recall) ve Faz 9 (vault) kapsamı anında yansıttı; Intelligence Diff (Faz 7) ilk kez gerçek
+  veriyle çalıştı.
+
+  **4 bulgu:** **F40** (kapatıldı) — hipoteze kanıt bağlama diyaloğu çıkmaz sokaktı: graf'ta
+  hiç Evidence olmadığı için "Sonuç yok" deyip duruyordu, oluşturma yolu yoktu. Bu benim
+  eksiğimdi; claim tarafındaki diyalog "var olan / yeni oluştur" geçişini zaten sunuyordu,
+  yeni yazdığım ekranda yoktu. **F43** (kapatıldı) — F19'un Markdown-listesi düzeltmesi
+  investigation notuna uğramamıştı; `claim_bullet()` 3 yerde çağrılıyordu, findings ve
+  hipotezler ham f-string kullanmaya devam ediyordu (investigation hiç oluşturulamadığı için
+  bu kod yolu bugüne kadar hiç çalışmamıştı). **F41** (Faz 13) — `Evidence` şemada hiçbir
+  `Source`'a bağlı değil; `Proje-Fikri` madde 32 Evidence Vault'u "(Type, **Source**, ...)"
+  diye tarif ediyor ama Source alanı hiç uygulanmamış. Somut sonucu: H1'in tek kanıtı
+  OpenAI'ın kendi açıklaması, H2'ninki bağımsız bir kaynak — sistem ikisine de eşit ağırlık
+  verip her ikisini `SUPPORTED` yaptı, farkı **göremez**. F7 (reliability tek boyutlu) ile
+  birlikte tasarlanmalı. **F42** (Faz 13, tasarım kararı) — yarışan hipotezler modellenmiyor;
+  öneri `Hypothesis -[:COMPETES_WITH]-> Hypothesis` + tutarsızlık uyarısı (otomatik karar
+  değil, sinyal).
+
+  **Bug olmayan iki şey kayda geçti:** iki çelişen hipotezin birden `SUPPORTED` olması spec'e
+  uygun (madde 31); `investigation_updates: 0` de doğru (sorgu çift sayımı önlemek için
+  `created_at < since` şartı koyuyor).
+
+  **Hâlâ sınanmamış:** Faz 7 monitoring/Inbox (0 monitor, Inbox boş) ve F34'ün supersede
+  işareti (graf'ta hiç `SUPERSEDES` kenarı yok — yalnızca izole DB testiyle doğrulandı).
+
 ### Faz 12: Zamanlanmış Otomatik Tarama
 
 - **İşler:**

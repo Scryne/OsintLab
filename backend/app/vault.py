@@ -471,7 +471,11 @@ def render_investigation_note(conn, inv: dict) -> str:
         for f in findings:
             tag = confidence_tag(f["knowledge_state"], f["confidence"])
             validated = " **[validated]**" if f["validated"] else ""
-            lines.append(f"- {f['text']} {tag}{validated}")
+            # Faz 11 (F43): burada ham `f['text']` basılıyordu — claim metni çok satırlı
+            # (RSS başlığı + özet) olduğu için içindeki boş satır Markdown listesini KIRIYOR
+            # ve güven etiketi gövdenin sonuna düşüyordu. F19 tam olarak bu hatayı entity
+            # notlarında `claim_bullet()` ile düzeltmişti; bu kod yolu güncellenmemişti.
+            lines.append(claim_bullet(f["text"], f"{tag}{validated}"))
     else:
         lines.append("_Henüz finding eklenmedi._")
     lines.append("")
@@ -479,7 +483,8 @@ def render_investigation_note(conn, inv: dict) -> str:
     lines.append("## Hipotezler")
     if hypotheses:
         for h in hypotheses:
-            lines.append(f"- {h['text']} — **{h['status']}**")
+            # F43: hipotez metni de çok satırlı yazılabilir — aynı kırılma riski.
+            lines.append(claim_bullet(h["text"], f"**{h['status']}**"))
     else:
         lines.append("_Henüz hipotez yok._")
     lines.append("")

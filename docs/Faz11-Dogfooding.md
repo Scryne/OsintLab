@@ -816,6 +816,136 @@ provenance kaybını 409 ile engelliyor; v1'de arayüzden silme sunmamak savunul
 tercih. `GET /observations/{id}` ve `GET /hypotheses/{id}` liste uçları üzerinden
 karşılanıyor, `POST /vault/render` her yazmada otomatik tetikleniyor.
 
+## Oturum 3 — 2026-09-03/04: Investigation'ı uçtan uca yürütme
+
+Yeni veri toplanmadı. Graf'taki gerçek çözülmemiş soru kullanıldı: *"Astra 'Critical' siber
+risk seviyesine ulaştıysa, OpenAI'ın açıkladığı önlemler yeterli mi?"* Amaç Faz 3 + Faz 7 +
+Evidence'ı tek turda zorlamak — üçü de gerçek kullanımda hiç çalıştırılmamıştı.
+
+**Adım 1 (kapsam) çalıştı ve sistemin geri kalanına yansıdı.** Investigation açıldı, kapsama
+Astra + OpenAI eklendi; Astra entity'sinin **recall'ında** investigation göründü (Faz 4) ve
+**vault notu** kapsamı wikilink'lerle render etti (Faz 9). Vault'un `## Entity'ler` bölümü
+F35'ten önce hep boş kalacaktı, çünkü kapsam kurulamıyordu.
+
+### F40 — Hipoteze kanıt bağlama diyaloğu çıkmaz sokak  🟠 → ✅ kapatıldı
+
+**Semptom:** kullanıcı "Kanıt bağla"ya bastı, **"Kanıt ara… → Sonuç yok"** çıktı ve diyalogda
+yapılabilecek başka bir şey yoktu. Graf'ta hiç Evidence olmadığı için liste boştu; kanıtın
+nereden yaratılacağı hiçbir yerde yazmıyordu.
+
+**Bu bulgu benim eksiğim:** F36'da bu diyaloğu yazarken yalnızca "var olanı bağla" akışını
+kurmuştum. Claim tarafındaki `EvidenceLinkDialog` (Faz 10 B4) **"var olan / yeni oluştur"**
+geçişini zaten sunuyordu — yani desen projede vardı, yeni yazdığım ekranda yoktu. Asimetri
+tam da Faz 11'in tekrar tekrar bulduğu şeyin bir örneği: yetenek sistemde var, kullanıcının
+o an bulunduğu yolda yok.
+
+**Düzeltme:** aynı mod geçişi hipotez diyaloğuna taşındı (tür + dosya yolu ile yeni kanıt
+oluşturup tek adımda bağlıyor). Ayrıca "existing" modunda liste boşsa açık yönlendirme:
+"Henüz hiç kanıt yok — Yeni kanıt oluştur'a geç."
+
+**Düzeltme (kayıt):** hipotezlerin başlangıç durumu `PROPOSED`, `UNRESOLVED` değil —
+kullanıcıya `UNRESOLVED` bekleyeceğini söylemiştim, yanlıştı. `UNRESOLVED`, kanıt bağlandıktan
+sonra destek/çürütme dengelenemediğinde `_recompute_hypothesis_status`'un ürettiği durum.
+
+### F41 — Evidence'ın Source bağı yok; hipotez durumu kanıtın kalitesini göremiyor  🔴 → 📋 Faz 13 (şema kararı)
+
+**Nasıl bulundu:** H1 (*OpenAI'ın önlemleri yeterli*) ve H2 (*yetenek önlemleri aşıyor*)
+birbirini dışlayan iki hipotez olarak kuruldu, her birine birer kanıt bağlandı ve **ikisi de
+`SUPPORTED`** oldu.
+
+**Önce elenen şüphe:** "iki çelişen hipotez birden destekleniyor" bir bug DEĞİL.
+`Proje-Fikri.md` madde 31 sistemi tam olarak böyle tarif ediyor: *"birden fazla hipotez
+bulunabilir (H1/H2/H3). Kanıtlar hipotezleri destekleyebilir, zayıflatabilir, çürütebilir."*
+Hipotezlerin birbiriyle yarıştığına dair modelde hiçbir şey yok, dolayısıyla sistem ikisinin
+birbirini dışladığını **bilmiyor** — gizlemiyor. (Ayrı bir tasarım sorusu olarak aşağıda.)
+
+**Asıl bulgu:** iki hipotezin kanıtları eşit ağırlıkta sayıldı, oysa değiller.
+- H1'in tek kanıtı: `openai.com/index/path-to-astra/` — **öznenin kendi hakkındaki açıklaması.**
+- H2'nin tek kanıtı: securityaffairs.com — bağımsız üçüncü taraf.
+
+`_recompute_hypothesis_status` yalnızca stance SAYIYOR (`supports > weakens → SUPPORTED`).
+Kaynak kalitesini hesaba katamaz, çünkü **`Evidence` şemada hiçbir `Source`'a bağlı değil**:
+`Evidence(id, evidence_type, file_path, content_hash, collected_at)` — ilişkileri yalnızca
+`SUPPORTS/CONTRADICTS → Claim` ve `HYPOTHESIS_EVIDENCE → Hypothesis`. `file_path` alanına
+URL yazmak bir string; `Source` node'una (ve onun `reliability`'sine) bağ değil.
+
+**Bu bir spec-uygulama boşluğu:** `Proje-Fikri.md` madde 32 Evidence Vault'u *"(Type,
+**Source**, Collected, First Seen, Hash, Related Claims, Related Events)"* diye tarif ediyor.
+Source alanı hiç uygulanmamış.
+
+**Sonuçları:**
+1. **Provenance kanıt katmanında kopuyor.** Claim tarafında zincir sağlam
+   (`Source -[:ASSERTS]-> Claim`, lineage dahil), ama en "sert" artefakt olan Evidence'ın
+   kaynağı yok — Data Provenance ilkesinin tam ortasında bir delik.
+2. **Hipotez durumu yanıltıcı olabiliyor.** Bir tarafın kendi açıklaması ile bağımsız bir
+   kaynağın raporu aynı ağırlıkta; investigation "iki hipotez de destekleniyor" diyor.
+3. Faz 11 / F7'de bulunan `Source.reliability`'nin tek boyutlu olması sorunu burada
+   birleşiyor: kanıt kaynağa bağlansa bile "doğruluk" ile "bağımsızlık" ayrılmadan bu vaka
+   doğru puanlanamaz (OpenAI kendi modeli hakkında **doğru** ama **bağımsız değil**).
+
+**Neden bu fazda yapılmadı:** şema değişikliği (yeni rel tablosu + Evidence oluşturma
+akışında kaynak seçimi + `_recompute_hypothesis_status`'un ağırlıklandırılması) dogfooding
+turunu keser ve F7 ile birlikte tasarlanmalı. Faz 13'ün Evidence Vault maddesine bağlandı.
+
+### F42 — Yarışan hipotezler modellenmiyor (tasarım kararı, bulgu değil)  🟡 Faz 13
+
+F41'in yanında duran ayrı bir soru: birbirini dışlayan iki hipotez aynı anda `SUPPORTED`
+görünürken sistem hiçbir gerilim sinyali vermiyor. Investigation'ı okuyan biri "iki
+doğrulanmış sonuç" görüyor.
+
+Bu bir bug değil — model hipotezler arası bir ilişki taşımıyor, dolayısıyla söyleyecek bir
+şeyi de yok. Ama OSINT'in standart tekniği (Analysis of Competing Hypotheses) tam da bunun
+üzerine kurulu: hipotezler yarışır, kanıt hepsine karşı puanlanır.
+
+**Öneri (karar kullanıcınındır):** `Hypothesis -[:COMPETES_WITH]-> Hypothesis` eklenip, aynı
+yarışma kümesindeki iki hipotez birlikte `SUPPORTED` olduğunda investigation'da bir uyarı
+gösterilmesi — "kanıt kümen tutarsız, gözden geçir". Otomatik karar değil, sinyal (Design
+Principle #7). Faz 13'te F41 ile birlikte değerlendirilecek.
+
+### F43 — F19'un düzeltmesi investigation notuna uğramamış  🟠 → ✅ kapatıldı
+
+Kapanan investigation'ın vault notunda Findings bölümü kırık render ediliyordu: madde bir boş
+satırla ikiye bölünmüş, güven etiketi gövdenin sonuna düşmüştü.
+
+Sebep, Oturum 1'deki **F19'un birebir aynısı**: claim metni çok satırlı (RSS başlığı + özet),
+`- {text}` olarak basılınca içindeki boş satır Markdown listesini kırıyor. F19 bunu
+`claim_bullet()` ile düzeltmişti — ama yalnızca kullanıldığı yerlerde. `claim_bullet` vault'ta
+3 yerde çağrılıyordu (entity, event, source claim'leri); **investigation findings'i ve
+hipotezler ham `f-string` kullanmaya devam ediyordu.** Investigation hiç oluşturulamadığı için
+(F38) bu kod yolu bugüne kadar hiç çalışmamıştı.
+
+**Düzeltme:** her iki yer de `claim_bullet()`'a geçirildi. Hipotez metni bugün tek satırdı ama
+kullanıcı çok satırlı bir hipotez yazarsa aynı kırılma olurdu — o yüzden orası da düzeltildi.
+
+**Ders:** bir düzeltmeyi yardımcı fonksiyona taşımak, o fonksiyonun ÇAĞRILDIĞI yerleri
+düzeltir; aynı işi yapan diğer kod yollarını değil. Faz 13'te vault renderer'ının tüm
+madde üretimi tek bir yoldan geçirilmeli.
+
+### Oturum 3 kapanışı — Faz 3 ilk kez uçtan uca çalıştı
+
+**Bitti kriteri gerçek veriyle doğrulandı.** Faz 3'ün kriteri: *"kapanan investigation'ın
+sadece verified findings'i Knowledge Graph'a yükselir, geçici notlar yükselmez."* Investigation
+`OPEN → ACTIVE → RESOLVED → CLOSED` geçti; iki finding de `CONTRADICTED` durumdaydı ve
+**ikisi de `validated=False` kaldı** — çelişkili bilgi kalıcı bilgiye terfi etmedi
+(`VERIFIED_KNOWLEDGE_STATES = {SUPPORTED, CORROBORATED, HIGH_CONFIDENCE}`). Kriter, uygulanışı
+ilk kez gerçek veriyle sınandığında tuttu.
+
+**Bug olmayan iki şey (kayda geçiyor ki tekrar sorgulanmasın):**
+1. **İki çelişen hipotez birden `SUPPORTED`** — spec'e uygun (madde 31), model hipotezler arası
+   ilişki taşımıyor. Ayrı bir tasarım sorusu olarak F42'de.
+2. **`intelligence/diff` → `investigation_updates: 0`** — sorgu bilerek `created_at < since`
+   şartı koyuyor; pencere içinde oluşturulanlar `new_investigations`'a (1) düşüyor.
+   Çift sayımı önlüyor, doğru davranış.
+
+**Intelligence Diff ilk kez gerçek veriyle çalıştı:** 4 entity, 4 source, 6 claim,
+1 investigation, 1 contradiction (son 30 gün).
+
+**Hâlâ sınanmamış kalan iki şey:**
+- **Faz 7 (Monitoring/Inbox):** graf'ta 0 monitor var, Inbox boş. Hiçbir entity izlemeye
+  alınmadığı için bildirim boru hattı gerçek kullanımda hiç tetiklenmedi.
+- **F34'ün supersede işareti:** graf'ta hâlâ hiç `SUPERSEDES` kenarı yok; düzeltme yalnızca
+  izole DB testiyle doğrulandı, gerçek veride görülmedi.
+
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
 
 ### F28 — Tek bir claim'in detay sayfası yok  🟡 Faz 13
