@@ -29,6 +29,34 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Faz 11 (dogfooding F5): API hataları ekrana ham gövdeyle basılıyordu, yani kullanıcı
+ * bir allowlist reddinde `{"detail":"Reddedildi: ..."}` görüyordu. FastAPI hatayı hep
+ * `detail` altında döndürür; doğrulama hatalarında ise bu bir alan listesidir.
+ */
+function errorMessage(body: string, fallback: string): string {
+  if (!body) return fallback;
+  try {
+    const parsed = JSON.parse(body);
+    const detail = parsed?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const parts = detail
+        .map((d) => {
+          const field = Array.isArray(d?.loc) ? d.loc.filter((x: unknown) => x !== "body").join(".") : "";
+          const msg = typeof d?.msg === "string" ? d.msg : "";
+          return field && msg ? `${field}: ${msg}` : msg || field;
+        })
+        .filter(Boolean);
+      if (parts.length) return parts.join("; ");
+    }
+    if (typeof parsed?.message === "string") return parsed.message;
+  } catch {
+    // JSON değilse ham metni göstermek, hiçbir şey göstermemekten iyi.
+  }
+  return body;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -37,7 +65,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new ApiError(res.status, body || res.statusText);
+    throw new ApiError(res.status, errorMessage(body, res.statusText));
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -123,6 +151,9 @@ export const api = {
         knowledge_state: string;
       }>(`/claims/${id}/explain`),
     whyMatters: (id: string) => get<{ claim_id: string; reasons: WhyMattersReason[] }>(`/claims/${id}/why-matters`),
+    // Faz 11 (F16): claim oluştuktan sonra entity/event bağını düzeltmek için.
+    updateAbout: (id: string, payload: { about_entity_id?: string | null; about_event_id?: string | null }) =>
+      patch<Claim>(`/claims/${id}/about`, payload),
   },
 
   evidence: {
@@ -169,7 +200,13 @@ export const api = {
     allowlist: () => get<{ hostnames: string[] }>("/collectors/allowlist"),
     addAllowlist: (hostname: string) => post<{ hostnames: string[] }>("/collectors/allowlist", { hostname }),
     removeAllowlist: (hostname: string) => del(`/collectors/allowlist/${encodeURIComponent(hostname)}`),
-    fetch: (url: string, mode: "rss" | "web") => post<CollectorFetchResult>("/collectors/fetch", { url, mode }),
+    fetch: (url: string, mode: "rss" | "web", opts?: { limit?: number; since_days?: number | null }) =>
+      post<CollectorFetchResult>("/collectors/fetch", {
+        url,
+        mode,
+        ...(opts?.limit ? { limit: opts.limit } : {}),
+        ...(opts?.since_days ? { since_days: opts.since_days } : {}),
+      }),
   },
 
   monitors: {

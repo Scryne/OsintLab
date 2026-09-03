@@ -107,6 +107,8 @@ export default function CollectorsPage() {
 function FetchForm({ hostnames }: { hostnames: string[] }) {
   const [url, setUrl] = useState("");
   const [mode, setMode] = useState<"rss" | "web">("rss");
+  const [limit, setLimit] = useState("50");
+  const [sinceDays, setSinceDays] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CollectorFetchResult | null>(null);
@@ -117,7 +119,10 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
     setError(null);
     setResult(null);
     try {
-      const res = await api.collectors.fetch(url.trim(), mode);
+      const res = await api.collectors.fetch(url.trim(), mode, {
+        limit: Number(limit) || 50,
+        since_days: sinceDays.trim() ? Number(sinceDays) : null,
+      });
       setResult(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bilinmeyen hata");
@@ -147,6 +152,34 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
           </SelectContent>
         </Select>
       </div>
+      {mode === "rss" && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="collector-limit">En fazla kaç öğe</Label>
+            <Input
+              id="collector-limit"
+              type="number"
+              min={1}
+              max={500}
+              value={limit}
+              onChange={(e) => setLimit(e.target.value)}
+            />
+            <p className="text-xs text-text-tertiary">En yeniden başlayarak. Bazı feed&apos;ler tüm arşivi yayınlar.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="collector-since">Son kaç gün</Label>
+            <Input
+              id="collector-since"
+              type="number"
+              min={1}
+              value={sinceDays}
+              onChange={(e) => setSinceDays(e.target.value)}
+              placeholder="hepsi"
+            />
+            <p className="text-xs text-text-tertiary">Boş bırakılırsa tarih filtresi uygulanmaz.</p>
+          </div>
+        </div>
+      )}
       <Button onClick={submit} disabled={submitting || !url.trim()} className="self-start">
         <Rss aria-hidden className="h-4 w-4" />
         {submitting ? "Taranıyor…" : "Tara"}
@@ -155,8 +188,13 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
       {result && (
         <div className="rounded-lg border border-border bg-surface-raised p-3 text-sm">
           <p className="text-foreground">
-            {result.observations_created} gözlem oluşturuldu ({result.final_url})
+            {result.observations_created} gözlem oluşturuldu
           </p>
+          <p className="mt-1 text-xs text-text-secondary">
+            Kaynakta {result.items_available} öğe · {result.items_considered} tanesi değerlendirildi
+            {result.duplicates_skipped > 0 && ` · ${result.duplicates_skipped} kopya atlandı`}
+          </p>
+          <p className="mt-1 break-all font-mono text-xs text-text-tertiary">{result.final_url}</p>
           <Link href="/observations" className="mt-1 inline-block text-xs text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
             Gözlemlere git →
           </Link>

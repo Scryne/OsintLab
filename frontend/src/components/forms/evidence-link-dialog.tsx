@@ -17,10 +17,14 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
+import { TypeCombo } from "@/components/forms/type-combo";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
-const EVIDENCE_TYPES = ["fotoğraf", "video", "belge", "uydu görüntüsü"];
+// Öneri listesi — kural DEĞİL (bkz. TypeCombo).
+const EVIDENCE_TYPE_SUGGESTIONS = [
+  "fotoğraf", "video", "belge", "uydu görüntüsü", "ekran görüntüsü", "arşiv kaydı", "veri seti",
+];
 
 /** Bir Claim'e kanıt bağlama akışı (Faz 10 B4) — "Bitti Kriteri"nin contradicts doğrulama
  * testinin doğrudan UI karşılığı: stance=CONTRADICTS seçilirse confidence.py'nin ceza dalı
@@ -32,7 +36,7 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
   const { data: evidenceList } = useApi(() => api.evidence.list(), [open]);
 
   const [evidenceId, setEvidenceId] = useState<string | null>(null);
-  const [evidenceType, setEvidenceType] = useState(EVIDENCE_TYPES[0]);
+  const [evidenceType, setEvidenceType] = useState(EVIDENCE_TYPE_SUGGESTIONS[0]);
   const [filePath, setFilePath] = useState("");
   const [stance, setStance] = useState<"SUPPORTS" | "CONTRADICTS">("SUPPORTS");
   const [submitting, setSubmitting] = useState(false);
@@ -134,19 +138,14 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
           ) : (
             <>
               <div className="flex flex-col gap-1.5">
-                <Label>Tür</Label>
-                <Select value={evidenceType} onValueChange={(v) => v && setEvidenceType(v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EVIDENCE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="evidence-type">Tür</Label>
+                <TypeCombo
+                  id="evidence-type"
+                  value={evidenceType}
+                  onChange={setEvidenceType}
+                  suggestions={EVIDENCE_TYPE_SUGGESTIONS}
+                  placeholder="ör. belge, ekran görüntüsü"
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="evidence-file-path">Dosya yolu (opsiyonel)</Label>

@@ -10,6 +10,7 @@ from app.models import Claim, ClaimCreate, Observation, ObservationCreate, Obser
 from app.recall import entity_recall, event_recall
 from app.recall import why_matters as compute_why_matters
 from app.routers.claims import _claim_about, _gather_confidence_inputs, create_claim, get_claim
+from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/observations", tags=["observations"])
 
@@ -132,6 +133,8 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
         ClaimCreate(
             text=observation.raw_content,
             source_id=payload.source_id,
+            # F12: gözlemin yayın tarihi claim'in valid_from'u olur.
+            valid_from=observation.observed_at,
             about_entity_id=payload.about_entity_id,
             about_event_id=payload.about_event_id,
             evidence_ids=payload.evidence_ids,
@@ -154,6 +157,11 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
             "MATCH (o:Observation {id: $oid}), (c:Claim {id: $cid}) CREATE (o)-[:PRODUCED]->(c)",
             {"oid": observation_id, "cid": claim.id},
         )
+
+    # Faz 11 (dogfooding F18): promote bir Claim üretiyor ama observations.py hiçbir yerde
+    # vault render'ı tetiklemiyordu — diğer tüm yazma uçları tetikliyor. Sonuç: Obsidian'da
+    # entity notu "bu entity hakkında henüz claim yok" demeye devam ediyordu.
+    safe_render_vault(conn)
 
     final_claim = get_claim(claim.id)
     confidence_result = _gather_confidence_inputs(conn, claim.id)

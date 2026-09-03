@@ -72,6 +72,10 @@ class EvidenceClaimLink(BaseModel):
 class ClaimCreate(BaseModel):
     text: str
     source_id: str
+    # Faz 11 (dogfooding F12): iddianın GEÇERLİLİK başlangıcı — kayıt anı değil. Verilmezse
+    # "şimdi"ye düşer. Arşivden toplanan eski bir haber bugün kaydedilse bile temporal
+    # sıralama (supersede) yayın tarihine göre yapılmalı, toplama anına göre değil.
+    valid_from: datetime | None = None
     about_entity_id: str | None = None
     about_event_id: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
@@ -94,6 +98,11 @@ class Claim(BaseModel):
     id: str
     text: str
     source_id: str
+    # Faz 11 (dogfooding F17): bu iki alan ClaimCreate'te KABUL ediliyordu ve `_claim_about()`
+    # helper'ı zaten okuyordu, ama yanıta hiç konmuyordu — yazılabilen ama okunamayan bir bağ.
+    # Sonuç: arayüz "bu claim bir entity'ye bağlı mı" sorusunu cevaplayamıyordu.
+    about_entity_id: str | None = None
+    about_event_id: str | None = None
     knowledge_state: str
     confidence: float
     valid_from: datetime
@@ -169,6 +178,18 @@ class ObservationPromote(BaseModel):
     corroborates: list[str] = Field(default_factory=list)
 
 
+class ClaimAboutUpdate(BaseModel):
+    """Faz 11 (dogfooding F16): bir claim'in hangi entity/event hakkında olduğu, claim
+    oluştuktan SONRA da düzeltilebilmeli. Promote sırasında bu alan atlanırsa claim graf'ta
+    yalıtık kalıyordu ve onarmanın hiçbir yolu yoktu (PATCH/DELETE ucu yok, promote ise
+    idempotent olduğu için 409 veriyor).
+
+    History Is Immutable ilkesiyle çelişmez: claim'in METNİ (kaynağın iddiası) değişmiyor,
+    yalnızca sınıflandırması — neyle ilgili olduğu — düzeltiliyor."""
+    about_entity_id: str | None = None
+    about_event_id: str | None = None
+
+
 class LineageDetectRequest(BaseModel):
     claim_id_a: str = Field(..., description="Daha erken (upstream/orijinal) olduğu varsayılan claim — created_at otomatik karşılaştırılır")
     claim_id_b: str = Field(..., description="İkinci claim — hangisinin daha erken olduğu created_at'e göre otomatik belirlenir")
@@ -181,6 +202,11 @@ class AllowlistAdd(BaseModel):
 class CollectorFetchRequest(BaseModel):
     url: str
     mode: str = Field(..., examples=["rss", "web"])
+    # Faz 11 (dogfooding F2): bazı feed'ler tüm arşivi yayınlıyor (ör. openai.com/news:
+    # 1164 item). Limitsiz tarama sistemi tek hamlede kullanılamaz hale getiriyordu.
+    limit: int = Field(default=50, ge=1, le=500)
+    # Opsiyonel zaman penceresi: sadece son N günde yayınlanmış item'ları al.
+    since_days: int | None = Field(default=None, ge=1)
 
 
 class InvolvedInLink(BaseModel):

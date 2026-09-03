@@ -51,6 +51,8 @@ export interface Claim {
   id: string;
   text: string;
   source_id: string;
+  about_entity_id: string | null;
+  about_event_id: string | null;
   knowledge_state: KnowledgeState;
   confidence: number;
   valid_from: string;
@@ -172,6 +174,9 @@ export interface ObservationPromoteResult {
 export interface CollectorFetchResult {
   final_url: string;
   content_type: string;
+  items_available: number;
+  items_considered: number;
   observations_created: number;
+  duplicates_skipped: number;
   observation_ids: string[];
 }

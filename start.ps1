@@ -56,6 +56,20 @@ function Get-PortOwner {
     try { return Get-Process -Id $conn.OwningProcess -ErrorAction Stop } catch { return $null }
 }
 
+function Get-DescendantIds {
+    # Faz 11 (dogfooding F14): uvicorn --reload iki process acar (izleyici + isci). -Stop
+    # yalnizca portu DINLEYENI oldurdugu icin geride kalan isci KuzuDB lock'unu tutuyordu:
+    # port bosalmis gorunuyor ama backend/harici script veritabanina baglanamiyordu.
+    # Cocuklari ONCE toplamak sart — ebeveyn oldurulunce cocuk agacta gorunmez oluyor.
+    param([int]$Id)
+    $ids = @()
+    foreach ($child in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$Id" -ErrorAction SilentlyContinue)) {
+        $ids += Get-DescendantIds -Id $child.ProcessId
+        $ids += [int]$child.ProcessId
+    }
+    return $ids
+}
+
 function Wait-Endpoint {
     param([string]$Url, [int]$TimeoutSec = 45, [string]$Label)
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
@@ -83,10 +97,32 @@ if ($Stop) {
             Write-Host "  port $port : '$($proc.ProcessName)' (PID $($proc.Id)) - OsintLab'a benzemiyor, DOKUNULMADI." -ForegroundColor Yellow
             continue
         }
+        # Cocuklari ebeveynden ONCE topla (bkz. Get-DescendantIds).
+        $kids = @(Get-DescendantIds -Id $proc.Id)
         Stop-Process -Id $proc.Id -Force
         Write-Host "  port $port : $($proc.ProcessName) (PID $($proc.Id)) durduruldu" -ForegroundColor Green
         $stopped++
+        foreach ($kid in $kids) {
+            try {
+                $kp = Get-Process -Id $kid -ErrorAction Stop
+                Stop-Process -Id $kid -Force
+                Write-Host "            + alt process $($kp.ProcessName) (PID $kid) durduruldu" -ForegroundColor DarkGray
+                $stopped++
+            } catch { }
+        }
     }
+    # Son kontrol: bu proje yolundan calisan, artakalmis python/node var mi? Ebeveyni zaten
+    # olmus bir oksuz process agac yuruyusuyle bulunamaz, ama KuzuDB lock'unu tutmaya devam
+    # eder — bu yuzden komut satirindan da taraniyor.
+    $rootPattern = [regex]::Escape($root)
+    $leftovers = Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe' OR Name='node.exe'" -ErrorAction SilentlyContinue |
+                 Where-Object { $_.CommandLine -and $_.CommandLine -match $rootPattern }
+    foreach ($lo in $leftovers) {
+        Stop-Process -Id $lo.ProcessId -Force -ErrorAction SilentlyContinue
+        Write-Host "  artakalan $($lo.Name) (PID $($lo.ProcessId)) durduruldu" -ForegroundColor DarkGray
+        $stopped++
+    }
+
     Write-Host ""
     Write-Host "$stopped process durduruldu. Servis pencereleri aciksa elle kapatabilirsin."
     return

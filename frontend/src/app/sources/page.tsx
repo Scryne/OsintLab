@@ -19,10 +19,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TypeCombo } from "@/components/forms/type-combo";
 import { useToast } from "@/components/ui/toast";
 
-const SOURCE_TYPES = ["haber sitesi", "resmi açıklama", "sosyal medya"];
+// Öneri listesi — kural DEĞİL (bkz. TypeCombo).
+const SOURCE_TYPE_SUGGESTIONS = [
+  "haber sitesi", "resmi açıklama", "sosyal medya", "blog", "akademik yayın", "kamu kaydı",
+];
 
 export default function SourcesPage() {
   const { data: sources, error, loading, reload } = useApi(() => api.sources.list(), []);
@@ -42,7 +45,7 @@ export default function SourcesPage() {
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Kaynaklar</h1>
           <p className="text-sm text-text-secondary">Claim ve event&apos;lerin atıflı olduğu bilgi kaynakları.</p>
         </div>
-        <NewSourceDialog onCreated={reload} />
+        <NewSourceDialog onCreated={reload} existingTypes={sources?.map((s2) => s2.source_type) ?? []} />
       </div>
 
       <div className="relative">
@@ -97,11 +100,11 @@ function SourceCard({ source }: { source: Source }) {
   );
 }
 
-export function NewSourceDialog({ onCreated }: { onCreated: () => void }) {
+export function NewSourceDialog({ onCreated, existingTypes = [] }: { onCreated: () => void; existingTypes?: string[] }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [sourceType, setSourceType] = useState(SOURCE_TYPES[0]);
+  const [sourceType, setSourceType] = useState(SOURCE_TYPE_SUGGESTIONS[0]);
   const [url, setUrl] = useState("");
   const [reliability, setReliability] = useState("0.5");
   const [submitting, setSubmitting] = useState(false);
@@ -151,19 +154,14 @@ export function NewSourceDialog({ onCreated }: { onCreated: () => void }) {
             <Input id="source-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. Anadolu Ajansı" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Tür</Label>
-            <Select value={sourceType} onValueChange={(value) => value && setSourceType(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SOURCE_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="source-type">Tür</Label>
+            <TypeCombo
+              id="source-type"
+              value={sourceType}
+              onChange={setSourceType}
+              suggestions={[...SOURCE_TYPE_SUGGESTIONS, ...existingTypes]}
+              placeholder="ör. haber sitesi, resmi açıklama"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="source-url">URL (opsiyonel)</Label>

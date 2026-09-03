@@ -108,6 +108,25 @@ def _reset_dir(path: Path) -> None:
 # Veri toplama — her tip için graph'tan gerekli her şeyi tek yerde çeker.
 # --------------------------------------------------------------------------
 
+def claim_bullet(text: str, tag: str, src: str | None = None) -> str:
+    """Bir Claim'i okunabilir tek bir Markdown maddesine çevirir.
+
+    Faz 11 (dogfooding F19): claim metni çok satırlıdır (RSS'ten gelen başlık + özet).
+    Doğrudan `- {text}` olarak basılınca içindeki boş satır Markdown listesini KIRIYOR —
+    Obsidian'da madde yapısı dağılıyor, ikinci paragraf listenin dışına düşüyordu.
+
+    Artık: ilk satır kalın başlık + güven etiketi + kaynak, kalanı girintili devam satırı."""
+    parts = [line.strip() for line in text.splitlines() if line.strip()]
+    head = parts[0] if parts else "(boş claim)"
+    rest = " ".join(parts[1:])
+    line = f"- **{head}** · {tag}"
+    if src:
+        line += f" — Kaynak: {src}"
+    if rest:
+        line += f"\n  {rest}"
+    return line
+
+
 def _entity_claims(conn, entity_id: str) -> list[dict]:
     return fetch_all(
         conn.execute(
@@ -209,7 +228,7 @@ def render_entity_note(conn, entity: dict) -> str:
         for c in claims:
             tag = confidence_tag(c["knowledge_state"], c["confidence"])
             src = wikilink("sources", c["source_id"], c["source_name"]) if c["source_id"] else "?"
-            lines.append(f"- {c['text']} {tag} — Kaynak: {src}")
+            lines.append(claim_bullet(c["text"], tag, src))
     else:
         lines.append("_Bu entity hakkında henüz claim yok._")
     lines.append("")
@@ -295,7 +314,7 @@ def render_event_note(conn, event: dict) -> str:
         for c in claims:
             tag = confidence_tag(c["knowledge_state"], c["confidence"])
             src = wikilink("sources", c["source_id"], c["source_name"]) if c["source_id"] else "?"
-            lines.append(f"- {c['text']} {tag} — Kaynak: {src}")
+            lines.append(claim_bullet(c["text"], tag, src))
     else:
         lines.append("_Bu event hakkında henüz claim yok._")
     lines.append("")
@@ -483,7 +502,7 @@ def render_source_note(conn, source: dict) -> str:
     if claims:
         for c in claims:
             tag = confidence_tag(c["knowledge_state"], c["confidence"])
-            lines.append(f"- {c['text']} {tag}")
+            lines.append(claim_bullet(c["text"], tag))
     else:
         lines.append("_Bu kaynak henüz bir claim atfetmedi._")
     lines.append("")

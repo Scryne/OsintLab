@@ -89,7 +89,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | --- | --- | --- | --- |
 | 9 | Living Brain — Obsidian Vault Sistemi | ✅ Tamamlandı | `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir Entity ve bir Investigation notu gerçek graph verisiyle (confidence, `[[wikilink]]`'ler dahil) doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında `daily/` notu ve `Dashboard.md` otomatik güncelleniyor. |
 | 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ✅ Tamamlandı | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
-| 11 | Dogfooding / Sertleştirme Turu | ⏳ Bekliyor | En az 5 gerçek araştırma oturumu tamamlandı; bulunan sürtünme noktaları/bug'lar listelendi, kritik olanlar aynı fazda kapatıldı. |
+| 11 | Dogfooding / Sertleştirme Turu | 🔄 Devam Ediyor | En az 5 gerçek araştırma oturumu tamamlandı; bulunan sürtünme noktaları/bug'lar listelendi, kritik olanlar aynı fazda kapatıldı. |
 | 12 | Zamanlanmış Otomatik Tarama | ⏳ Bekliyor | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
 | 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ⏳ Bekliyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
 | 14 | Deploy/Erişim Kolaylığı | ⏳ Bekliyor | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
@@ -565,7 +565,34 @@ ayrı" kararıyla tutarlı).
   - Kritik bulunanlar aynı fazda kapatılır, kozmetik/nice-to-have olanlar Faz 13'e not edilir.
 - **Bitti Kriteri:** En az 5 gerçek araştırma oturumu tamamlandı; bulunan sorunlar
   listelendi, kritik olanlar kapatıldı.
-- **Notlar:**
+- **Notlar:** Sürtünme günlüğü ayrı bir dosyada: `docs/Faz11-Dogfooding.md` (her bulgu
+  gerekçesiyle, düzeltmesiyle ve doğrulamasıyla).
+
+  **Oturum 1/5 — 2026-09-03. Konu: AI/LLM ekosistemi (kullanıcı seçimi).** Kaynaklar:
+  openai.com + deepmind.google (birincil), techcrunch.com + theverge.com (ikincil) — birincil/
+  ikincil ayrımı bilinçli, Faz 6 lineage'ını gerçek veriyle sınamak için. Vaka: OpenAI'ın
+  "Astra" modeli; üç kaynakta zıt çerçeveleme (OpenAI "eşik aşıldı, önlemler güçlü" ↔ Verge/
+  TechCrunch "araştırmacılar güvenlik felaketinden korkuyor").
+
+  **20 bulgu: 16'sı kapatıldı, 4'ü Faz 13'e.** Kritik olanların ortak deseni: hiçbiri "kod
+  yanlış çalışıyor" değildi — **sessiz veri kaybı** ya da **sistemin kendini anlatamaması**.
+  Birim testiyle yakalanamazlardı çünkü test verisi elle, o an, doğru alanlarla üretiliyor.
+
+  Öne çıkanlar: F1+F12 (RSS yayın tarihi önce Observation'da, sonra Claim'de düşüyordu —
+  temporal analizin tamamı sahte tarihler üzerinde çalışacaktı; zincirin iki halkasını ayrı
+  ayrı düzeltmek gerekti), F8 (tür alanları UI'da 4 değere kilitliydi ama backend serbest —
+  kullanıcı "AI Model" giremediği için Astra'yı `Organization` kaydetmek zorunda kalacaktı,
+  hatasız ve kalıcı bir veri yanlışlaması), F15+F16 (promote'ta entity bağı sessizce
+  atlanabiliyordu ve sonradan onarmanın hiçbir yolu yoktu — Faz 4 Memory Recall fiilen
+  kapalıydı), F18 (promote vault render'ı tetiklemiyordu: graf doğru, Obsidian bayat).
+
+  Faz 12 (otomatik tarama) için doğrulanmış ön koşul: F2 (limit yok — tek feed 1164 kayıt
+  döktü) ve F3 (observation dedup'ı yok) kapatılmadan zamanlanmış tarama her çalıştırmada
+  arşivin tamamını yeniden dökerdi. Sıralamayı dogfooding→otomatik tarama yapmak doğruymuş.
+
+  **Kalan:** 4 oturum. Sonraki oturumda lineage (F11, Faz 13 kapsamı) olmadan Astra vakasının
+  türetme zinciri kurulamadı — TechCrunch'ın 09-01 yazısı OpenAI duyurusunu aktarıyor ama bu
+  ilişki graf'a yazılamıyor.
 
 ### Faz 12: Zamanlanmış Otomatik Tarama
 

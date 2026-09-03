@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { NewClaimDialog } from "@/components/forms/claim-form";
+import { ClaimLinkDialog } from "@/components/forms/claim-link-dialog";
 import { EvidenceLinkDialog } from "@/components/forms/evidence-link-dialog";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -140,6 +141,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             relatedClaims={recall.related_claims}
             onCreated={reloadRecall}
           />
+          <ClaimLinkDialog entityId={entityId} onLinked={reloadRecall} />
           <NewRelationDialog entityId={entityId} onCreated={reloadRelations} />
           <Button variant={monitor ? "secondary" : "outline"} size="sm" onClick={toggleMonitor} disabled={monitor === undefined}>
             {monitor ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}

@@ -18,6 +18,7 @@ Host header'ı elle ayarlamak) ileride gerekirse eklenebilir.
 import ipaddress
 import json
 import socket
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
@@ -78,6 +79,36 @@ def is_safe_ip(ip_str: str) -> bool:
     )
 
 
+def normalize_hostname(value: str) -> str:
+    """Allowlist'e yazılmadan önce hostname'i kanonikleştirir.
+
+    Faz 11 (dogfooding F6, önlem): allowlist alanına tam URL yapıştırmak çok muhtemel bir
+    hata — o hâliyle kaydedilirse hiçbir zaman eşleşmez ve sebebi ekranda görünmez."""
+    value = value.strip().lower()
+    if "//" in value or value.startswith(("http:", "https:")):
+        parsed = urlparse(value if "//" in value else f"//{value}")
+        value = parsed.hostname or value
+    value = value.split("/")[0].split("@")[-1]
+    if value.count(":") == 1:  # port (IPv6 değil)
+        value = value.split(":")[0]
+    return value.rstrip(".")
+
+
+def _host_allowed(hostname: str, allowlist: set[str]) -> bool:
+    """Faz 11 (dogfooding F4): allowlist'te 'theverge.com' varken feed 'www.theverge.com'da
+    olduğu için tarama reddediliyordu — kullanıcı doğru siteyi eklemiş olmasına rağmen.
+
+    Kapsam bilerek DAR tutuldu: yalnızca tam olarak 'www.' prefix'i, iki yönlü. Genel bir
+    subdomain wildcard'ı (*.example.com) DEĞİL — o, allowlist'in tüm amacını (kullanıcının
+    açıkça izin verdiği host) zayıflatır ve alt alan devralma riskini içeri alır. 'www' ise
+    alan sahibinin kanonik host'unun kendisidir, ayrı bir taraf değil."""
+    if hostname in allowlist:
+        return True
+    if hostname.startswith("www."):
+        return hostname[4:] in allowlist
+    return f"www.{hostname}" in allowlist
+
+
 def _validate_hop(url: str, allowlist: set[str]) -> str:
     parsed = urlparse(url)
     if parsed.scheme not in ALLOWED_SCHEMES:
@@ -85,8 +116,10 @@ def _validate_hop(url: str, allowlist: set[str]) -> str:
     hostname = parsed.hostname
     if not hostname:
         raise CollectorSecurityError("URL'de hostname yok")
-    if hostname not in allowlist:
-        raise CollectorSecurityError(f"Reddedildi: {hostname!r} allowlist'te değil")
+    if not _host_allowed(hostname, allowlist):
+        raise CollectorSecurityError(
+            f"Reddedildi: {hostname!r} allowlist'te değil — Toplayıcılar sayfasından ekleyebilirsin."
+        )
     try:
         infos = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
     except socket.gaierror as exc:
@@ -150,14 +183,43 @@ def extract_text_from_html(html: bytes | str) -> str:
     return _truncate("\n".join(lines))
 
 
+def _entry_published(entry) -> datetime | None:
+    """RSS/Atom yayın tarihini timezone-aware UTC datetime'a çevirir.
+
+    Faz 11 (dogfooding) bulgusu F1: bu tarih daha önce string olarak çıkarılıp hiçbir yerde
+    tüketilmiyordu, dolayısıyla arşivden gelen 2023 tarihli bir duyuru da dünkü duyuru da
+    "bugün gözlendi" olarak kaydediliyordu — temporal analiz (Faz 2 supersede, Faz 7 "son 30
+    günde ne değişti") gerçek veride anlamsızlaşıyordu. feedparser'ın *_parsed alanları
+    struct_time'ı zaten UTC'ye normalize eder; ham string'i elle ayrıştırmaktan güvenilir."""
+    for key in ("published_parsed", "updated_parsed"):
+        value = entry.get(key)
+        if value:
+            try:
+                return datetime(*value[:6], tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _clean_feed_text(value: str) -> str:
+    """RSS başlık/özetleri düz metin değildir: HTML etiketi ve karakter entity'si taşırlar.
+
+    Faz 11 (dogfooding F13): Verge'in özeti sisteme `OpenAI&#8217;s Astra release ... [&#8230;]`
+    olarak girmişti. Bu metin sonra Claim.text'e aynen kopyalanıyor, yani kirlilik graf'ın
+    kalıcı katmanına sızıyordu. get_text() hem etiketi ayıklar hem entity'yi çözer."""
+    if not value:
+        return ""
+    return BeautifulSoup(value, "html.parser").get_text(separator=" ").strip()
+
+
 def parse_rss(content: bytes) -> list[dict]:
     parsed = feedparser.parse(content)
     items = []
     for entry in parsed.entries:
-        text = f"{entry.get('title', '')}\n\n{entry.get('summary', '')}"
+        text = f"{_clean_feed_text(entry.get('title', ''))}\n\n{_clean_feed_text(entry.get('summary', ''))}"
         items.append({
             "text": _truncate(text.strip()),
             "link": entry.get("link", ""),
-            "published": entry.get("published", ""),
+            "published": _entry_published(entry),
         })
     return items

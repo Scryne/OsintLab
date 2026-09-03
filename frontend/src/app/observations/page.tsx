@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -31,8 +31,23 @@ type Filter = "all" | "promoted" | "pending";
 
 export default function ObservationsPage() {
   const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
   const promoted = filter === "all" ? undefined : filter === "promoted";
   const { data: observations, error, loading, reload } = useApi(() => api.observations.list(promoted), [promoted]);
+
+  // Faz 11 (dogfooding F10): tek bir collector taraması bile onlarca gözlem üretiyor
+  // (gerçek bir feed'de yüzlerce). Metin araması olmadan belirli bir gözlemi bulmak
+  // elle kaydırmaya kalıyordu.
+  const filtered = useMemo(() => {
+    if (!observations) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return observations;
+    return observations.filter(
+      (o) =>
+        o.raw_content.toLowerCase().includes(q) ||
+        (o.source_url ?? "").toLowerCase().includes(q)
+    );
+  }, [observations, query]);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -52,15 +67,31 @@ export default function ObservationsPage() {
           <TabsTrigger value="pending">Bekliyor</TabsTrigger>
           <TabsTrigger value="promoted">Promote edildi</TabsTrigger>
         </TabsList>
-        <TabsContent value={filter} className="mt-4">
+        <TabsContent value={filter} className="mt-4 flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Gözlem metninde veya kaynak adresinde ara…"
+              aria-label="Gözlemlerde ara"
+            />
+            {observations && observations.length > 0 && (
+              <span className="shrink-0 text-xs tabular-nums text-text-tertiary">
+                {query.trim() ? `${filtered.length} / ${observations.length}` : `${observations.length} kayıt`}
+              </span>
+            )}
+          </div>
           {loading && <SkeletonRows />}
           {error && <ErrorState message={error.message} onRetry={reload} />}
           {!loading && !error && (!observations || observations.length === 0) && (
             <EmptyState title="Bu filtrede gözlem yok" />
           )}
+          {!loading && !error && observations && observations.length > 0 && filtered.length === 0 && (
+            <EmptyState title="Eşleşen gözlem yok" description="Arama terimini değiştir." />
+          )}
           {!loading && (
             <div className="flex flex-col gap-2">
-              {observations?.map((o) => (
+              {filtered.map((o) => (
                 <ObservationRow key={o.id} observation={o} onPromoted={reload} />
               ))}
             </div>
@@ -173,7 +204,10 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
   const { data: claims } = useApi(() => api.claims.list(), [open]);
 
   const [sourceId, setSourceId] = useState<string | null>(null);
-  const [aboutType, setAboutType] = useState<"none" | "entity" | "event">("none");
+  // Faz 11 (dogfooding F15): varsayılan "none"du ve alan sessizce atlanabiliyordu. Atlanınca
+  // claim graf'ta yalıtık kalıyor — Memory Recall (Faz 4) onu bulamıyor, entity sayfasında ve
+  // vault notunda görünmüyor; üstelik hiçbir uyarı yok. En yaygın durum entity bağlamak.
+  const [aboutType, setAboutType] = useState<"none" | "entity" | "event">("entity");
   const [aboutId, setAboutId] = useState<string | null>(null);
   const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
   const [contradictingIds, setContradictingIds] = useState<string[]>([]);
@@ -218,7 +252,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
 
   function reset() {
     setSourceId(null);
-    setAboutType("none");
+    setAboutType("entity");
     setAboutId(null);
     setEvidenceIds([]);
     setContradictingIds([]);
@@ -273,7 +307,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               <SearchablePicker items={sourceItems} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>İlgili (opsiyonel)</Label>
+              <Label>İlgili entity/event</Label>
               <Select
                 value={aboutType}
                 onValueChange={(v) => {
@@ -294,6 +328,13 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
             </div>
             {aboutType !== "none" && (
               <SearchablePicker items={aboutItems} value={aboutId} onChange={setAboutId} placeholder="Ara…" />
+            )}
+            {(aboutType === "none" || !aboutId) && (
+              <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
+                <span className="font-medium text-foreground">Bağlanmazsa bu claim yalıtık kalır.</span>{" "}
+                Memory Recall onu bulamaz, entity sayfasında ve Obsidian vault notunda görünmez.
+                Claim oluşturulduktan sonra bu bağ <span className="font-medium">şu an</span> değiştirilemiyor.
+              </p>
             )}
             <div className="flex flex-col gap-1.5">
               <Label>Destekleyici kanıt (opsiyonel)</Label>

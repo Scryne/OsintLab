@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
-from app.models import Claim, ClaimCreate
+from app.models import Claim, ClaimAboutUpdate, ClaimCreate
 from app.monitoring import notify_if_monitored
 from app.recall import why_matters
 from app.vault import safe_render_vault
@@ -186,7 +186,13 @@ def _notify_change(
 
 def _row_to_claim(conn, row: dict) -> Claim:
     source_row = _claim_source_id(conn, row["id"])
-    return Claim(source_id=source_row["id"] if source_row else "", **row)
+    about_entity_id, about_event_id = _claim_about(conn, row["id"])
+    return Claim(
+        source_id=source_row["id"] if source_row else "",
+        about_entity_id=about_entity_id,
+        about_event_id=about_event_id,
+        **row,
+    )
 
 
 @router.post("", response_model=Claim, status_code=201)
@@ -210,11 +216,15 @@ def create_claim(payload: ClaimCreate) -> Claim:
 
     claim_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
+    # Faz 11 (F12): created_at = kaydın oluşturulduğu an (değişmez sistem kaydı),
+    # valid_from = iddianın geçerli olduğu an (kaynağın yayın tarihi). İkisi aynı şey değil;
+    # önceden ikisi de "şimdi" olduğu için arşivden gelen eski bilgi en yeni gibi sıralanıyordu.
+    valid_from = payload.valid_from or now
 
     conn.execute(
         "CREATE (:Claim {id: $id, text: $text, knowledge_state: 'OBSERVED', confidence: 0.0, "
-        "valid_from: $now, valid_to: NULL, created_at: $now, updated_at: $now})",
-        {"id": claim_id, "text": payload.text, "now": now},
+        "valid_from: $valid_from, valid_to: NULL, created_at: $now, updated_at: $now})",
+        {"id": claim_id, "text": payload.text, "now": now, "valid_from": valid_from},
     )
     conn.execute(
         "MATCH (s:Source {id: $sid}), (c:Claim {id: $cid}) CREATE (s)-[:ASSERTS]->(c)",
@@ -358,3 +368,42 @@ def claim_why_matters(claim_id: str) -> dict:
     about_entity_id, about_event_id = _claim_about(conn, claim_id)
     reasons = why_matters(conn, claim_id, row, confidence_result, about_entity_id, about_event_id)
     return {"claim_id": claim_id, "reasons": reasons}
+
+
+@router.patch("/{claim_id}/about", response_model=Claim)
+def update_claim_about(claim_id: str, payload: ClaimAboutUpdate) -> Claim:
+    """Faz 11 (F16): claim'in ABOUT_ENTITY/ABOUT_EVENT bağını düzeltir.
+
+    Bir claim aynı anda hem bir entity hem bir event hakkında olamaz; ikisi de boş
+    bırakılırsa bağ tamamen kaldırılır (claim silinmez — History Is Immutable)."""
+    conn = get_connection()
+    if not _node_exists(conn, "Claim", claim_id):
+        raise HTTPException(status_code=404, detail="Claim not found")
+    if payload.about_entity_id and payload.about_event_id:
+        raise HTTPException(
+            status_code=422, detail="Bir claim ya bir entity ya da bir event hakkında olabilir, ikisi birden değil"
+        )
+    if payload.about_entity_id and not _node_exists(conn, "Entity", payload.about_entity_id):
+        raise HTTPException(status_code=404, detail=f"Entity not found: {payload.about_entity_id}")
+    if payload.about_event_id and not _node_exists(conn, "Event", payload.about_event_id):
+        raise HTTPException(status_code=404, detail=f"Event not found: {payload.about_event_id}")
+
+    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_ENTITY]->(:Entity) DELETE r", {"id": claim_id})
+    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_EVENT]->(:Event) DELETE r", {"id": claim_id})
+
+    if payload.about_entity_id:
+        conn.execute(
+            "MATCH (c:Claim {id: $cid}), (e:Entity {id: $eid}) CREATE (c)-[:ABOUT_ENTITY]->(e)",
+            {"cid": claim_id, "eid": payload.about_entity_id},
+        )
+    if payload.about_event_id:
+        conn.execute(
+            "MATCH (c:Claim {id: $cid}), (e:Event {id: $eid}) CREATE (c)-[:ABOUT_EVENT]->(e)",
+            {"cid": claim_id, "eid": payload.about_event_id},
+        )
+    conn.execute(
+        "MATCH (c:Claim {id: $id}) SET c.updated_at = $now",
+        {"id": claim_id, "now": datetime.now(timezone.utc)},
+    )
+    safe_render_vault(conn)
+    return get_claim(claim_id)

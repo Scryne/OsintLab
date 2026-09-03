@@ -20,17 +20,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { TypeCombo } from "@/components/forms/type-combo";
 import { useToast } from "@/components/ui/toast";
 import { WireframeBurst } from "@/components/ui/wireframe-burst";
 
-const ENTITY_TYPES = ["Person", "Organization", "Company", "Location"];
+// Öneri listesi — kural DEĞİL (bkz. TypeCombo). Backend entity_type'ı serbest bırakır.
+const ENTITY_TYPE_SUGGESTIONS = [
+  "Person", "Organization", "Company", "Location",
+  "AI Model", "Product", "Domain", "Vessel", "Aircraft", "Malware",
+];
 
 export default function EntitiesPage() {
   const { data: entities, error, loading, reload } = useApi(() => api.entities.list(), []);
@@ -53,7 +51,7 @@ export default function EntitiesPage() {
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Entity&apos;ler</h1>
           <p className="text-sm text-text-secondary">Bilinen kişi, kurum ve lokasyonlar.</p>
         </div>
-        <NewEntityDialog onCreated={reload} />
+        <NewEntityDialog onCreated={reload} existingTypes={entities?.map((e) => e.entity_type) ?? []} />
       </div>
 
       <div className="relative">
@@ -103,20 +101,20 @@ function EntityCard({ entity }: { entity: Entity }) {
   );
 }
 
-function NewEntityDialog({ onCreated }: { onCreated: () => void }) {
+function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; existingTypes: string[] }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [entityType, setEntityType] = useState(ENTITY_TYPES[0]);
+  const [entityType, setEntityType] = useState(ENTITY_TYPE_SUGGESTIONS[0]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
-    if (!name.trim()) return;
+    if (!name.trim() || !entityType.trim()) return;
     setSubmitting(true);
     setError(null);
     try {
-      await api.entities.create({ entity_type: entityType, name: name.trim() });
+      await api.entities.create({ entity_type: entityType.trim(), name: name.trim() });
       toast(`"${name.trim()}" eklendi`, "success");
       setName("");
       setOpen(false);
@@ -148,19 +146,14 @@ function NewEntityDialog({ onCreated }: { onCreated: () => void }) {
             <Input id="entity-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. Ahmet Yılmaz" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Tür</Label>
-            <Select value={entityType} onValueChange={(value) => value && setEntityType(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ENTITY_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="entity-type">Tür</Label>
+            <TypeCombo
+              id="entity-type"
+              value={entityType}
+              onChange={setEntityType}
+              suggestions={[...ENTITY_TYPE_SUGGESTIONS, ...existingTypes]}
+              placeholder="ör. Organization, AI Model"
+            />
           </div>
           {error && <p className="text-sm text-priority-critical">{error}</p>}
         </div>
