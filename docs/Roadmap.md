@@ -18,7 +18,7 @@ roadmap'in dışında bırakıldı.
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
 | 1 | Temel Altyapı | ✅ Tamamlandı | FastAPI health-check endpoint ve KùzuDB şeması (Entity/Event/Source/Claim/Evidence/Relationship/Investigation/Observation) çalışıyor; API üzerinden temel entity CRUD test edilebiliyor. |
-| 2 | Core Knowledge Model + Confidence Motoru | ✅ Tamamlandı | Bir claim eklenip deterministik formülle confidence hesaplanabiliyor; çelişen ikinci claim eklendiğinde Contradiction objesi otomatik oluşuyor; eski bilgi silinmeden temporal (Valid: X→Y) supersede ediliyor. |
+| 2 | Core Knowledge Model + Confidence Motoru | ✅ Tamamlandı | Bir claim eklenip deterministik formülle confidence hesaplanabiliyor; çelişen ikinci claim beyan edildiğinde Contradiction objesi oluşuyor (bkz. Faz 11 / F26: "otomatik" değil, kullanıcı beyanı — Design Principle #7); eski bilgi silinmeden temporal (Valid: X→Y) supersede ediliyor. |
 | 3 | Investigation & Hypothesis System | ✅ Tamamlandı | Investigation açılıp durumları (OPEN→...→CLOSED/ARCHIVED) arasında geçebiliyor; kapanan investigation'ın sadece verified findings'i Knowledge Graph'a yükseliyor, geçici notlar yükselmiyor. |
 | 4 | OSINT Brain (Claude Code Agent Katmanı) | ✅ Tamamlandı | Yeni bir observation eklendiğinde ilgili geçmiş investigation/entity otomatik hatırlatılıyor (Memory Recall); bir intelligence çıktısı için kural+graph tabanlı "Why This Matters" gerekçesi üretilebiliyor. |
 | 5 | Collection (temel WEBINT) + Collector Güvenliği | ✅ Tamamlandı | Collector sandbox mekanizması seçilip doğrulandı (Q22 spike); bir RSS/web kaynağından güvenli şekilde içerik toplanıp Observation olarak sisteme giriyor; temel prompt-injection/SSRF testleri geçiyor. |
@@ -92,7 +92,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 11 | Dogfooding / Sertleştirme Turu | 🔄 Devam Ediyor | En az 5 gerçek araştırma oturumu tamamlandı; bulunan sürtünme noktaları/bug'lar listelendi, kritik olanlar aynı fazda kapatıldı. |
 | 12 | Zamanlanmış Otomatik Tarama | ⏳ Bekliyor | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
 | 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ⏳ Bekliyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
-| 14 | Deploy/Erişim Kolaylığı | ⏳ Bekliyor | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
+| 14 | Deploy/Erişim Kolaylığı | ✅ Tamamlandı | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
 | 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ⏳ Bekliyor | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi; seçilen domain için ayrı bir spike (teknoloji/veri kaynağı doğrulaması) yapılıp kendi alt-roadmap'i (Faz 15.1, 15.2...) yazıldı. |
 
 ## Faz Detayları
@@ -146,6 +146,14 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
   Investigation'a da confidence/knowledge_state güncellemesi gerektiren akışlar eklenebilir
   (şu an sadece Claim üzerinde tam confidence motoru var, Event.confidence alanı Faz 3-4'te
   claim'lerden türetilecek).
+
+  **Düzeltme (2026-09-03, Faz 11 / F26):** bu fazın bitti kriteri "Contradiction objesi
+  **otomatik** oluşuyor" diyordu; gerçek davranış bu değil. Çelişki otomatik tespit
+  edilmiyor, kullanıcı beyan ediyor (`contradicts` alanı). Bu bilinçli bir tercih —
+  Design Principle #7, kritik kararı insan verir — ama kriter metni yanlış kalmıştı ve
+  yanlışlığı gizliyordu: F26'ya kadar bu beyanın toplanan-veri boru hattından (promote)
+  yapılması **mümkün değildi**, dolayısıyla motor gerçek kullanımda hiç çalışmamıştı.
+  Kriter metni gerçeği yansıtacak şekilde güncellendi.
 
 ### Faz 3: Investigation & Hypothesis System
 - **İşler:**
@@ -613,6 +621,44 @@ ayrı" kararıyla tutarlı).
   **Kalan:** 4 oturum. Faz 13'ün ilk iki maddesi netleşti: lineage tespitinin iyileştirilmesi
   (n-gram tek başına yetmiyor) ve claim seviyesinde lineage şeması.
 
+  **Oturum 2/5 — 2026-09-03. Konu: siber güvenlik / tehdit aktörü ekosistemi.** Kaynaklar:
+  cisa.gov (otorite) + bleepingcomputer.com, securityaffairs.com, krebsonsecurity.com
+  (aktaranlar) — 65 gözlem. Konu bilinçli seçildi: atıf tartışmaları çelişen claim üretir,
+  tehdit aktörlerinin çok isimli olması SAME_AS'i zorunlu kılar, güvenlik siteleri advisory
+  kopyaladığı için lineage ikinci kez sınanabilirdi.
+
+  **8 kritik bulgu, hepsi kapatıldı (F25–F33, F28 hariç).** Oturum 1'in deseni burada iyice
+  netleşti ve tek cümleye indi: **kod yanlış çalışmıyor — sistem yaptığı şeyi söyleyemiyor.**
+  Sekizinin de tek bir birim testi yakalayamazdı, çünkü hiçbirinde yanlış sonuç üretilmiyor.
+
+  Bulgular bir *şiddet merdiveni* oluşturuyor, ve sırayla ortaya çıktılar:
+  **F25** — sistem yanlış şeyi söylüyor (cisa.gov 403 döndü, "kaynakta 0 öğe" diye raporlandı;
+  `safe_fetch` durum kodunu hiç kontrol etmiyordu). **F26** — yol kapalı (çelişki motoru
+  promote'tan erişilemiyordu; `confidence.py`'nin çelişki dalı toplanan veri için ölü koddu).
+  **F27** — sonuç okunamıyor ("bir çelişki var" deniyor, neyle olduğu hiçbir uçtan
+  öğrenilemiyordu). **F29/F30** — özellik erişilemez (SAME_AS'in elle yolu yoktu ve otomatik
+  tespit bu alanda yapısal olarak çalışmaz: APT28 = Fancy Bear = Sofacy, isimler kasten
+  benzemez; ayrıca `aliases` arayüzde hiç yoktu, tespitin yarısı ölüydü). **F31** — işlem hiç
+  gerçekleşmiyor (onaylanan SAME_AS graf'a yazılıyor ve **hiçbir yerde okunmuyordu**).
+  **F32** — başarı başarısızlık gibi görünüyor (eşik altı promote claim üretiyor ama gözlem
+  "bekliyor" kalıyordu; 5 gözlem bu görünmez haldeydi, dördü Oturum 1'den). **F33** — aynı
+  claim bir sekmede gerekçeli, diğerinde gerekçesiz + başlık taşması (bu oturumda eklenen 2
+  butonun yan hasarı).
+
+  **Faz 2'nin kriteri düzeltildi:** çelişki "otomatik" oluşmuyor, kullanıcı beyan ediyor
+  (Design Principle #7). Kriter metni yanlıştı ve yanlışlığı gizliyordu — F26'ya kadar bu
+  beyanın toplanan veri boru hattından yapılması mümkün değildi.
+
+  **Yöntem notu:** iki kez yanlış bulguya sapıldı ve ikisi de kovalanarak çürütüldü —
+  (a) "çelişki confidence'ı düşürmüyor" (kasıtlı: Q3 hibrit model, sayı ile etiket ayrı),
+  (b) "PATCH alias'ları sessizce düşürüyor" (gerçekte curl gövdesindeki Türkçe karakterler
+  cp1252 gidip JSON'u bozmuş, 422 dönmüştü). Bu ortamda UTF-8 içeren doğrulamalarda ham
+  byte'lara bakmadan "veri kaybı" denmemeli.
+
+  **Kalan:** 3 oturum. Faz 13'e giden liste büyüdü: F28 (claim detay sayfası yok — çelişki/
+  corroboration/supersede hep "şu claim" diye işaret ediyor ve gidilecek adres yok), F33'ün
+  notu (aksiyon satırı 6 butonda sınırda, taşma menüsü gerekiyor).
+
 ### Faz 12: Zamanlanmış Otomatik Tarama
 
 - **İşler:**
@@ -652,7 +698,16 @@ ayrı" kararıyla tutarlı).
   - (Opsiyonel) Masaüstü kısayolu.
 - **Bitti Kriteri:** Kullanıcı tek bir komut/kısayolla hem API'yi hem dashboard'u ayağa
   kaldırabiliyor.
-- **Notlar:**
+- **Notlar:** 2026-09-03 tamamlandı. Sıra dışına çıkıldı çünkü Faz 11 dogfooding'i zaten
+  her oturumda iki servisi elle başlatmayı gerektiriyordu — `start.ps1` (`5e3ad1c`) o
+  ihtiyaçtan doğdu. Script portları (8420/3000) açıkça veriyor: elle `uvicorn` başlatmak
+  varsayılan 8000'e düşürüp hem arayüzü hem oturum-sonu vault senkronunu **sessizce**
+  kırıyordu. `-Reload` bilinçli olarak varsayılan kapalı (gömülü KùzuDB bağlantısını oturum
+  ortasında yeniden açıyor). Dogfooding'in kendisi bir bug da buldu ve kapattı: F14 —
+  `-Stop` yalnızca portu dinleyen process'i öldürdüğü için uvicorn'un öksüz kalan işçi
+  process'i KùzuDB kilidini tutmaya devam ediyordu (port boş görünüyor, veritabanı kilitli).
+  Düzeltme: alt process'ler ebeveynden ÖNCE toplanıyor + proje yolundan çalışan artakalan
+  python/node komut satırından taranıyor. Masaüstü kısayolu yapılmadı (opsiyoneldi).
 
 ### Faz 15: Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT)
 

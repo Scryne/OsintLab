@@ -19,6 +19,11 @@ _FIELDS = (
     "o.promoted AS promoted, o.source_url AS source_url, o.created_at AS created_at"
 )
 
+# F32: OPTIONAL MATCH ile üretilmiş claim'in id'si. Ayrı bir sorgu yerine aynı sorguya
+# eklendi — liste uçları N+1 sorgu yapmasın diye.
+_FIELDS_WITH_CLAIM = _FIELDS + ", c.id AS produced_claim_id"
+_PRODUCED = "OPTIONAL MATCH (o)-[:PRODUCED]->(c:Claim) "
+
 DAILY_LOG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "daily"
 
 # Q1/Q8: Knowledge Graph'a promote edilmek için bir observation'dan türeyen claim'in
@@ -78,10 +83,13 @@ def create_observation(payload: ObservationCreate) -> Observation:
 def list_observations(promoted: bool | None = None) -> list[Observation]:
     conn = get_connection()
     if promoted is None:
-        result = conn.execute(f"MATCH (o:Observation) RETURN {_FIELDS} ORDER BY o.created_at")
+        result = conn.execute(
+            f"MATCH (o:Observation) {_PRODUCED}RETURN {_FIELDS_WITH_CLAIM} ORDER BY o.created_at"
+        )
     else:
         result = conn.execute(
-            f"MATCH (o:Observation {{promoted: $promoted}}) RETURN {_FIELDS} ORDER BY o.created_at",
+            f"MATCH (o:Observation {{promoted: $promoted}}) {_PRODUCED}"
+            f"RETURN {_FIELDS_WITH_CLAIM} ORDER BY o.created_at",
             {"promoted": promoted},
         )
     return [Observation(**row) for row in fetch_all(result)]
@@ -90,7 +98,10 @@ def list_observations(promoted: bool | None = None) -> list[Observation]:
 @router.get("/{observation_id}", response_model=Observation)
 def get_observation(observation_id: str) -> Observation:
     conn = get_connection()
-    result = conn.execute(f"MATCH (o:Observation {{id: $id}}) RETURN {_FIELDS}", {"id": observation_id})
+    result = conn.execute(
+        f"MATCH (o:Observation {{id: $id}}) {_PRODUCED}RETURN {_FIELDS_WITH_CLAIM}",
+        {"id": observation_id},
+    )
     row = fetch_one(result)
     if row is None:
         raise HTTPException(status_code=404, detail="Observation not found")
@@ -121,7 +132,17 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
         )
     )
     if already_produced:
-        raise HTTPException(status_code=409, detail="Observation already processed (claim already produced)")
+        # F32: eski mesaj ("already processed") kullanıcıya hiçbir şey söylemiyordu — özellikle
+        # eşiği geçmemiş bir promote sonrası, arayüz gözlemi hâlâ "işlenmemiş" gösterdiği için
+        # tekrar denemek doğal bir davranıştı ve bu hata onu şaşırtıyordu.
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Bu gözlemden zaten bir claim üretilmiş "
+                f"(claim {already_produced['id'][:8]}…). Confidence eşiği geçilmemiş olsa bile "
+                "claim graf'ta duruyor — aynı gözlemden ikinci bir claim üretilmez."
+            ),
+        )
 
     recall_before: dict | None = None
     if payload.about_entity_id:
@@ -140,6 +161,10 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
             evidence_ids=payload.evidence_ids,
             contradicting_evidence_ids=payload.contradicting_evidence_ids,
             corroborates=payload.corroborates,
+            # F26: promote bu ikisini geçirmiyordu, dolayısıyla toplanan veriden gelen bir
+            # claim ne çelişkili işaretlenebiliyor ne de eski bir claim'in yerini alabiliyordu.
+            contradicts=payload.contradicts,
+            supersedes=payload.supersedes,
         )
     )
 

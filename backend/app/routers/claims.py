@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
-from app.models import Claim, ClaimAboutUpdate, ClaimCreate
+from app.models import Claim, ClaimAboutUpdate, ClaimContradictionAdd, ClaimCreate
 from app.monitoring import notify_if_monitored
 from app.recall import why_matters
 from app.vault import safe_render_vault
@@ -405,5 +405,68 @@ def update_claim_about(claim_id: str, payload: ClaimAboutUpdate) -> Claim:
         "MATCH (c:Claim {id: $id}) SET c.updated_at = $now",
         {"id": claim_id, "now": datetime.now(timezone.utc)},
     )
+    safe_render_vault(conn)
+    return get_claim(claim_id)
+
+
+@router.post("/{claim_id}/contradicts", response_model=Claim)
+def add_claim_contradiction(claim_id: str, payload: ClaimContradictionAdd) -> Claim:
+    """Faz 11 (F26): var olan iki claim arasına sonradan çelişki ilişkisi kurar.
+
+    Neden ayrı bir uç: çelişki şimdiye kadar SADECE `POST /claims` gövdesinde kurulabiliyordu,
+    ama toplanan veriden gelen claim'lerin tamamı promote üzerinden yaratılıyor ve gerçek
+    araştırma bu sırayla ilerlemiyor — çelişen ikinci haber ilk claim kaydedildikten sonra
+    çıkıyor. Bu uç olmadan confidence.py'nin çelişki dalı gerçek boru hattında hiç
+    tetiklenemiyordu.
+
+    Çelişki simetriktir ama graf'ta tek yön saklanır: okuma tarafı (`_gather_confidence_inputs`)
+    zaten hem gelen hem giden kenara bakıyor, iki yön birden yazmak çift sayıma yol açardı."""
+    conn = get_connection()
+    if not _node_exists(conn, "Claim", claim_id):
+        raise HTTPException(status_code=404, detail="Claim not found")
+    if not _node_exists(conn, "Claim", payload.other_claim_id):
+        raise HTTPException(status_code=404, detail=f"Claim not found: {payload.other_claim_id}")
+    if claim_id == payload.other_claim_id:
+        raise HTTPException(status_code=422, detail="Bir claim kendisiyle çelişemez")
+
+    # Her iki yön de kontrol edilir (ilişki tek yön saklanıyor ama anlamı simetrik).
+    existing = None
+    for a, b in ((claim_id, payload.other_claim_id), (payload.other_claim_id, claim_id)):
+        existing = fetch_one(
+            conn.execute(
+                "MATCH (a:Claim {id: $a})-[r:CLAIM_CONTRADICTS]->(b:Claim {id: $b}) "
+                "RETURN r.status AS status",
+                {"a": a, "b": b},
+            )
+        )
+        if existing:
+            break
+    if existing:
+        raise HTTPException(status_code=409, detail="Bu iki claim arasında zaten bir çelişki kaydı var")
+
+    now = datetime.now(timezone.utc)
+    conn.execute(
+        "MATCH (a:Claim {id: $a}), (b:Claim {id: $b}) "
+        "CREATE (a)-[:CLAIM_CONTRADICTS {status: 'UNRESOLVED', detected_at: $now}]->(b)",
+        {"a": claim_id, "b": payload.other_claim_id, "now": now},
+    )
+
+    # İKİ claim de yeniden hesaplanır: çelişki her ikisinin de knowledge_state'ini
+    # CONTRADICTED'a çeker (bkz. confidence.py) — tek taraflı bırakmak grafı tutarsız yapardı.
+    for cid, title in (
+        (claim_id, "Claim çelişkili olarak işaretlendi"),
+        (payload.other_claim_id, "Var olan bir claim ile çelişki tespit edildi"),
+    ):
+        result = _recompute_and_store(conn, cid)
+        about_entity, about_event = _claim_about(conn, cid)
+        _notify_change(
+            conn,
+            claim_id=cid,
+            about_entity_id=about_entity,
+            about_event_id=about_event,
+            result=result,
+            title=title,
+        )
+
     safe_render_vault(conn)
     return get_claim(claim_id)

@@ -93,6 +93,10 @@ export interface Observation {
   source_url: string | null;
   promoted: boolean;
   created_at: string;
+  // Faz 11 (F32): `promoted` sadece eşiği GEÇEN durumu işaretler. Eşiği geçmeyen bir promote
+  // de claim üretir; bu alan olmadan "hiç işlenmemiş" ile "işlendi, eşiği geçmedi" ayırt
+  // edilemiyordu.
+  produced_claim_id: string | null;
 }
 
 export interface Monitor {
@@ -125,9 +129,18 @@ export interface WhyMattersReason {
 }
 
 export interface EntityRecall {
-  related_investigations: Pick<Investigation, "id" | "title" | "status" | "created_at">[];
-  related_claims: Pick<Claim, "id" | "text" | "knowledge_state" | "confidence" | "created_at">[];
-  related_events: Pick<EventItem, "id" | "title" | "event_type" | "created_at">[];
+  // Faz 11 (F31): recall artık onaylanmış SAME_AS grubunu da kapsıyor. `via_entity_name`,
+  // satırın başka bir (aynı olduğu onaylanmış) kayıttan geldiğini söyler; kendi kaydıysa null.
+  related_investigations: (Pick<Investigation, "id" | "title" | "status" | "created_at"> & {
+    via_entity_name: string | null;
+  })[];
+  related_claims: (Pick<Claim, "id" | "text" | "knowledge_state" | "confidence" | "created_at"> & {
+    via_entity_name: string | null;
+  })[];
+  related_events: (Pick<EventItem, "id" | "title" | "event_type" | "created_at"> & {
+    via_entity_name: string | null;
+  })[];
+  same_as: Pick<Entity, "id" | "name" | "entity_type">[];
 }
 
 export interface EventRecall {

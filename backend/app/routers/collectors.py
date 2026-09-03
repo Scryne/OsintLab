@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException
 
 from app.collector import (
+    CollectorFetchError,
     CollectorSecurityError,
     extract_text_from_html,
     load_allowlist,
@@ -85,11 +86,28 @@ def fetch(payload: CollectorFetchRequest) -> dict:
     try:
         final_url, content, content_type = safe_fetch(payload.url, allowlist)
     except CollectorSecurityError as exc:
+        # 403: BİZ reddettik (allowlist/SSRF) — kullanıcının düzeltebileceği bir yapılandırma.
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except CollectorFetchError as exc:
+        # 502: KARŞI TARAF reddetti — bizim yapılandırmamızda bir sorun yok (F25).
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     if payload.mode == "rss":
         parsed_items = parse_rss(content)
         available = len(parsed_items)
+        # Faz 11 (F25, ikinci savunma): 200 döndüren ama feed olmayan bir yanıt da sessiz
+        # sıfıra yol açar (ör. giriş/onay sayfası, "moved" HTML'i). Gerçekten boş bir feed
+        # XML content-type'la gelir; HTML gelip 0 item çıkıyorsa bu boşluk değil, yanlış
+        # içeriktir — ayırt edip söylüyoruz.
+        if available == 0 and "xml" not in content_type.lower():
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Yanıt bir feed değil: {content_type or 'tür belirtilmemiş'} döndü ve hiç "
+                    f"öğe ayrıştırılamadı ({final_url}). Adres bir RSS/Atom feed'i mi, yoksa "
+                    "normal bir sayfa mı? Sayfaysa 'web' modunu dene."
+                ),
+            )
         selected = _select_items(parsed_items, limit=payload.limit, since_days=payload.since_days)
         candidates = [
             {"text": i["text"], "url": i["link"] or final_url, "published": i["published"]}

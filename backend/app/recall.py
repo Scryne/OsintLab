@@ -8,32 +8,85 @@ gerekçelerdir. Akıcı/doğal dile çevirme işi Claude Code Agent katmanına (
 from app.db import fetch_all
 
 
+def same_as_group(conn, entity_id: str) -> list[dict]:
+    """Faz 11 (dogfooding F31): bir entity ile CONFIRMED SAME_AS ile bağlanmış diğer entity'ler.
+
+    Bulgu: `SAME_AS`'in CONFIRMED durumu graf'a yazılıyordu ve **hiçbir yerde okunmuyordu** —
+    ne recall'da, ne vault'ta, ne de başka bir uçta. Kullanıcı birleştirmeyi onaylıyor, "Eşleşme
+    onaylandı" bildirimini alıyor ve sistemde fiilen hiçbir şey değişmiyordu. Birleştirmenin
+    TEK anlamı, iki kaydın bilgisinin birlikte hatırlanmasıdır.
+
+    Q7 gereği node'lar fiziksel olarak birleştirilmez/silinmez, dolayısıyla "aynılık" okuma
+    zamanında çözülmek zorunda. Kenar tek yön saklanır ama anlamı simetriktir, ve aynılık
+    geçişlidir (A=B, B=C ⇒ A=C) — bu yüzden düz bir komşu sorgusu değil, CONFIRMED kenarlar
+    üzerinde genişlik-öncelikli bir gezinti yapılır. Başlangıç entity'si sonuca dahil DEĞİL."""
+    seen = {entity_id}
+    queue = [entity_id]
+    group: list[dict] = []
+    while queue:
+        current = queue.pop(0)
+        for pattern in (
+            "MATCH (a:Entity {id: $id})-[r:SAME_AS]->(b:Entity) ",
+            "MATCH (b:Entity)-[r:SAME_AS]->(a:Entity {id: $id}) ",
+        ):
+            for row in fetch_all(
+                conn.execute(
+                    pattern + "WHERE r.status = 'CONFIRMED' "
+                    "RETURN b.id AS id, b.name AS name, b.entity_type AS entity_type",
+                    {"id": current},
+                )
+            ):
+                if row["id"] in seen:
+                    continue
+                seen.add(row["id"])
+                queue.append(row["id"])
+                group.append(row)
+    return group
+
+
 def entity_recall(conn, entity_id: str) -> dict:
-    investigations = fetch_all(
-        conn.execute(
-            "MATCH (i:Investigation)-[:INCLUDES]->(e:Entity {id: $id}) "
-            "RETURN i.id AS id, i.title AS title, i.status AS status, i.created_at AS created_at "
-            "ORDER BY i.created_at",
-            {"id": entity_id},
-        )
-    )
-    claims = fetch_all(
-        conn.execute(
-            "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity {id: $id}) "
-            "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
-            "c.confidence AS confidence, c.created_at AS created_at ORDER BY c.created_at",
-            {"id": entity_id},
-        )
-    )
-    events = fetch_all(
-        conn.execute(
-            "MATCH (e:Entity {id: $id})-[:INVOLVED_IN]->(ev:Event) "
-            "RETURN ev.id AS id, ev.title AS title, ev.event_type AS event_type, "
-            "ev.created_at AS created_at ORDER BY ev.created_at",
-            {"id": entity_id},
-        )
-    )
-    return {"related_investigations": investigations, "related_claims": claims, "related_events": events}
+    # F31: birleştirilmiş kayıtlar da hatırlanır. `via` alanı, satırın hangi entity üzerinden
+    # geldiğini söyler — kendi kaydıysa None. Bu olmadan kullanıcı, ekranda gördüğü bir
+    # claim'in neden burada olduğunu anlayamazdı (sistemin kendini anlatması ilkesi).
+    merged = same_as_group(conn, entity_id)
+    targets = [{"id": entity_id, "name": None}] + [{"id": m["id"], "name": m["name"]} for m in merged]
+
+    investigations, claims, events = [], [], []
+    for t in targets:
+        for row in fetch_all(
+            conn.execute(
+                "MATCH (i:Investigation)-[:INCLUDES]->(e:Entity {id: $id}) "
+                "RETURN i.id AS id, i.title AS title, i.status AS status, i.created_at AS created_at "
+                "ORDER BY i.created_at",
+                {"id": t["id"]},
+            )
+        ):
+            investigations.append({**row, "via_entity_name": t["name"]})
+        for row in fetch_all(
+            conn.execute(
+                "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity {id: $id}) "
+                "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
+                "c.confidence AS confidence, c.created_at AS created_at ORDER BY c.created_at",
+                {"id": t["id"]},
+            )
+        ):
+            claims.append({**row, "via_entity_name": t["name"]})
+        for row in fetch_all(
+            conn.execute(
+                "MATCH (e:Entity {id: $id})-[:INVOLVED_IN]->(ev:Event) "
+                "RETURN ev.id AS id, ev.title AS title, ev.event_type AS event_type, "
+                "ev.created_at AS created_at ORDER BY ev.created_at",
+                {"id": t["id"]},
+            )
+        ):
+            events.append({**row, "via_entity_name": t["name"]})
+
+    return {
+        "related_investigations": investigations,
+        "related_claims": claims,
+        "related_events": events,
+        "same_as": merged,
+    }
 
 
 def event_recall(conn, event_id: str) -> dict:
@@ -97,10 +150,45 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
         })
 
     if confidence_result.knowledge_state == "CONTRADICTED":
+        # Faz 11 (dogfooding F27): bu gerekçenin detail'i BOŞTU — sistem "bir çelişki var"
+        # diyor ama "neyle" sorusunu hiçbir uçtan cevaplayamıyordu. Araştırmada asıl soru
+        # tam olarak o: "OpenAI böyle diyor, peki aksini kim söylüyor?" Kardeş gerekçe
+        # (PRIOR_KNOWLEDGE_EXISTS) claim id'lerini zaten dolduruyordu, bu tutarsızlıktı.
+        #
+        # İlişki graf'ta tek yön saklanıyor ama anlamı simetrik — iki yön de taranır.
+        others: list[dict] = []
+        seen_ids: set[str] = set()
+        for pattern in (
+            "MATCH (c:Claim {id: $id})-[r:CLAIM_CONTRADICTS]->(o:Claim) ",
+            "MATCH (o:Claim)-[r:CLAIM_CONTRADICTS]->(c:Claim {id: $id}) ",
+        ):
+            for row in fetch_all(
+                conn.execute(
+                    pattern + "WHERE r.status = 'UNRESOLVED' RETURN o.id AS id, o.text AS text",
+                    {"id": claim_id},
+                )
+            ):
+                if row["id"] not in seen_ids:
+                    seen_ids.add(row["id"])
+                    others.append(row)
+
+        # Metnin kendisi de karşı tarafı adlandırıyor: arayüz `detail`'i hiçbir yerde
+        # göstermiyordu, dolayısıyla sadece detail'i doldurmak gerekçeyi görünür yapmazdı.
+        excerpts = [o["text"].splitlines()[0][:80] if o["text"] else "" for o in others]
+        if excerpts:
+            liste = "; ".join(f"«{e}»" for e in excerpts)
+            text = f"Bu bilgi {len(excerpts)} claim ile çelişiyor, çözülmemiş: {liste}"
+        else:
+            text = "Bu bilgi başka bir claim ile çelişiyor, çözülmemiş."
         reasons.append({
             "code": "CONTRADICTED",
-            "text": "Bu bilgi başka bir claim ile çelişiyor, çözülmemiş.",
-            "detail": {},
+            "text": text,
+            "detail": {
+                "contradicting_claim_ids": [o["id"] for o in others],
+                "contradicting_claims": [
+                    {"id": o["id"], "excerpt": e} for o, e in zip(others, excerpts)
+                ],
+            },
         })
 
     recall = None

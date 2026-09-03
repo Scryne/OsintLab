@@ -11,6 +11,16 @@ import { ProvenanceBlock } from "@/components/provenance/provenance-label";
  * (bkz. backend/app/recall.py). Bu yüzden Q15 etiketlemesinde SYSTEM_INFERENCE: sistemin
  * kendi çıkarımı, ham kaynak metni değil.
  */
+/** `detail` gevşek tipli (Record<string, unknown>) — çelişki listesini güvenle çıkarır. */
+function contradictingClaims(reason: WhyMattersReason): { id: string; excerpt: string }[] {
+  const raw = reason.detail?.contradicting_claims;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (c): c is { id: string; excerpt: string } =>
+      typeof c === "object" && c !== null && typeof (c as { id?: unknown }).id === "string"
+  );
+}
+
 export function WhyMattersDisclosure({ claimId }: { claimId: string }) {
   const [open, setOpen] = useState(false);
   const [reasons, setReasons] = useState<WhyMattersReason[] | null>(null);
@@ -45,6 +55,16 @@ export function WhyMattersDisclosure({ claimId }: { claimId: string }) {
           {reasons?.map((reason, i) => (
             <ProvenanceBlock key={i} type="SYSTEM_INFERENCE" className="mb-1.5">
               {reason.text}
+              {/* Faz 11 (F27): "neyle çelişiyor" araştırmanın asıl sorusu — çelişen
+                  claim'lerin metni burada listeleniyor. Link VERİLMEDİ: tek bir claim'in
+                  detay sayfası (`/claims/[id]`) henüz yok, link kırık olurdu (bkz. F20). */}
+              {reason.code === "CONTRADICTED" && contradictingClaims(reason).length > 0 && (
+                <ul className="mt-1.5 flex list-disc flex-col gap-1 pl-4 text-[11px] text-text-secondary">
+                  {contradictingClaims(reason).map((c) => (
+                    <li key={c.id}>{c.excerpt}</li>
+                  ))}
+                </ul>
+              )}
             </ProvenanceBlock>
           ))}
         </div>

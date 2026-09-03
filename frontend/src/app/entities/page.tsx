@@ -106,6 +106,9 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [entityType, setEntityType] = useState(ENTITY_TYPE_SUGGESTIONS[0]);
+  // Faz 11 (F30): `aliases` API'de baştan beri vardı ama formda alan yoktu — pratikte hep
+  // boş kalıyordu, dolayısıyla SAME_AS tespitinin alias yarısı hiç çalışmamıştı.
+  const [aliases, setAliases] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,9 +117,14 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
     setSubmitting(true);
     setError(null);
     try {
-      await api.entities.create({ entity_type: entityType.trim(), name: name.trim() });
+      await api.entities.create({
+        entity_type: entityType.trim(),
+        name: name.trim(),
+        aliases: aliases.split(",").map((a) => a.trim()).filter(Boolean),
+      });
       toast(`"${name.trim()}" eklendi`, "success");
       setName("");
+      setAliases("");
       setOpen(false);
       onCreated();
     } catch (err) {
@@ -154,6 +162,18 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
               suggestions={[...ENTITY_TYPE_SUGGESTIONS, ...existingTypes]}
               placeholder="ör. Organization, AI Model"
             />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="entity-aliases">Alias&apos;lar (opsiyonel, virgülle ayır)</Label>
+            <Input
+              id="entity-aliases"
+              value={aliases}
+              onChange={(e) => setAliases(e.target.value)}
+              placeholder="ör. INFINITE NIGHTMARE, MSNightmare"
+            />
+            <p className="text-xs text-text-tertiary">
+              Aynı kaydın bilinen diğer isimleri — olası eşleşme tespitine girdi olur.
+            </p>
           </div>
           {error && <p className="text-sm text-priority-critical">{error}</p>}
         </div>

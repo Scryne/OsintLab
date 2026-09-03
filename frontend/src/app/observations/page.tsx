@@ -107,8 +107,17 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-foreground">{observation.raw_content}</p>
-        <Badge variant={observation.promoted ? "secondary" : "outline"} className="shrink-0">
-          {observation.promoted ? "promoted" : "bekliyor"}
+        {/* F32: üç durum var, iki rozet yetmiyordu — "işlendi ama eşiği geçmedi" hâli
+            "hiç işlenmemiş" gibi görünüyordu. */}
+        <Badge
+          variant={observation.promoted ? "secondary" : observation.produced_claim_id ? "secondary" : "outline"}
+          className="shrink-0"
+        >
+          {observation.promoted
+            ? "promoted"
+            : observation.produced_claim_id
+              ? "claim üretildi · eşik altı"
+              : "bekliyor"}
         </Badge>
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -212,6 +221,12 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
   const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
   const [contradictingIds, setContradictingIds] = useState<string[]>([]);
   const [corroborates, setCorroborates] = useState<string[]>([]);
+  // Faz 11 (dogfooding F26): bu iki alan promote diyaloğunda yoktu — sadece "Yeni Claim"
+  // formunda vardı. Ama toplanan veriden Claim'e giden TEK yol promote; yani collector'dan
+  // gelen bir claim ne çelişkili işaretlenebiliyor ne de eski bir claim'i supersede
+  // edebiliyordu. Faz 2'nin çelişki/temporal motoru bu boru hattında hiç çalışmamıştı.
+  const [contradicts, setContradicts] = useState<string[]>([]);
+  const [supersedes, setSupersedes] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ObservationPromoteResult | null>(null);
@@ -236,10 +251,14 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
         evidence_ids: evidenceIds,
         contradicting_evidence_ids: contradictingIds,
         corroborates,
+        contradicts,
+        supersedes,
       });
       setResult(res);
       toast(
-        res.claim.confidence >= 0.45 ? "Claim'e yükseltildi" : "Eşik geçilmedi, ham gözlem olarak kaldı",
+        res.claim.confidence >= 0.45
+          ? "Claim'e yükseltildi"
+          : "Claim oluşturuldu (eşik altı) — gözlem ham haliyle de duruyor",
         res.claim.confidence >= 0.45 ? "success" : "default"
       );
       onPromoted();
@@ -261,7 +280,10 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
     setResult(null);
   }
 
-  if (observation.promoted) return null;
+  // F32: eşiği geçmeyen bir promote de claim üretir ve ikinci promote 409 döner. Buton
+  // durmaya devam edince tekrar denemek doğal oluyordu — artık claim üretilmiş her gözlemde
+  // gizleniyor, sadece `promoted` olanlarda değil.
+  if (observation.promoted || observation.produced_claim_id) return null;
 
   return (
     <Dialog
@@ -353,6 +375,26 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
             <div className="flex flex-col gap-1.5">
               <Label>Doğruladığı claim&apos;ler (opsiyonel)</Label>
               <SearchablePicker items={claimItems} value={corroborates} onChange={setCorroborates} multiple placeholder="Claim ara…" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Çeliştiği claim&apos;ler (opsiyonel)</Label>
+              <SearchablePicker items={claimItems} value={contradicts} onChange={setContradicts} multiple placeholder="Claim ara…" />
+              {contradicts.length > 0 && (
+                <p className="text-xs leading-relaxed text-text-tertiary">
+                  Her iki claim de <span className="font-medium text-foreground">CONTRADICTED</span> durumuna geçer
+                  ve çelişki <span className="font-medium text-foreground">UNRESOLVED</span> olarak kaydedilir —
+                  eski bilgi silinmez.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Yerini aldığı claim (opsiyonel)</Label>
+              <SearchablePicker items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="Claim ara…" />
+              {supersedes && (
+                <p className="text-xs leading-relaxed text-text-tertiary">
+                  Eski claim silinmez; <span className="font-medium text-foreground">valid_to</span> alanı kapatılır.
+                </p>
+              )}
             </div>
             {error && <p className="text-sm text-priority-critical">{error}</p>}
           </div>

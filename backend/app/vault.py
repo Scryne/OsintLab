@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 from app.db import fetch_all, fetch_one
+from app.recall import same_as_group
 
 VAULT_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "vault"
 
@@ -127,6 +128,32 @@ def claim_bullet(text: str, tag: str, src: str | None = None) -> str:
     return line
 
 
+def _claim_contradictions(conn, claim_id: str) -> list[str]:
+    """Faz 11 (dogfooding F27, vault ayağı): notta bir claim'in ÇELİŞKİLİ olduğunu görmek,
+    neyle çeliştiğini bilmeden işe yaramıyor. why-matters ucunda kapatıldı ama vault ayrı bir
+    renderer — Living Brain'in (Faz 9) okunabilir olması bunu orada da göstermeyi gerektiriyor.
+
+    İlişki graf'ta tek yön saklanır, anlamı simetriktir: iki yön de taranır."""
+    heads: list[str] = []
+    seen: set[str] = set()
+    for pattern in (
+        "MATCH (c:Claim {id: $id})-[r:CLAIM_CONTRADICTS]->(o:Claim) ",
+        "MATCH (o:Claim)-[r:CLAIM_CONTRADICTS]->(c:Claim {id: $id}) ",
+    ):
+        for row in fetch_all(
+            conn.execute(
+                pattern + "WHERE r.status = 'UNRESOLVED' RETURN o.id AS id, o.text AS text",
+                {"id": claim_id},
+            )
+        ):
+            if row["id"] in seen:
+                continue
+            seen.add(row["id"])
+            parts = [ln.strip() for ln in (row["text"] or "").splitlines() if ln.strip()]
+            heads.append(parts[0][:100] if parts else "(boş claim)")
+    return heads
+
+
 def _entity_claims(conn, entity_id: str) -> list[dict]:
     return fetch_all(
         conn.execute(
@@ -184,6 +211,9 @@ def _entity_monitor(conn, entity_id: str) -> dict | None:
 
 
 def render_entity_note(conn, entity: dict) -> str:
+    # F31: onaylanmış SAME_AS vault'ta da görünmeli — aksi halde Living Brain'de iki ayrı not
+    # durmaya devam eder ve birleştirme okuyucu için hiç olmamış gibidir.
+    same_as = same_as_group(conn, entity["id"])
     claims = _entity_claims(conn, entity["id"])
     events = _entity_events(conn, entity["id"])
     investigations = _entity_investigations(conn, entity["id"])
@@ -205,6 +235,18 @@ def render_entity_note(conn, entity: dict) -> str:
         lines.append(f"**Alias'lar:** {', '.join(entity['aliases'])}")
     lines.append(f"**İzleniyor:** {'Evet' if monitor else 'Hayır'}")
     lines.append("")
+
+    if same_as:
+        lines.append("## Aynı kayıt (onaylanmış)")
+        for other in same_as:
+            lines.append(f"- {wikilink('entities', other['id'], other['name'])} ({other['entity_type']})")
+        lines.append("")
+        lines.append(
+            "_Kayıtlar birleştirilmedi, silinmedi — aynı oldukları onaylandı "
+            "(History Is Immutable). Aşağıdaki claim'ler yalnızca bu kaydın kendisine aittir; "
+            "birleşik görünüm için arayüzdeki entity sayfasına bak._"
+        )
+        lines.append("")
 
     lines.append("## Known Relationships")
     if relations:
@@ -229,6 +271,9 @@ def render_entity_note(conn, entity: dict) -> str:
             tag = confidence_tag(c["knowledge_state"], c["confidence"])
             src = wikilink("sources", c["source_id"], c["source_name"]) if c["source_id"] else "?"
             lines.append(claim_bullet(c["text"], tag, src))
+            # F27: "ÇELİŞKİLİ" etiketi tek başına eksik bilgi — karşı taraf da yazılır.
+            for other in _claim_contradictions(conn, c["id"]):
+                lines.append(f"  - ⚔ Çelişiyor: «{other}»")
     else:
         lines.append("_Bu entity hakkında henüz claim yok._")
     lines.append("")

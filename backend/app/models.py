@@ -123,6 +123,12 @@ class Observation(ObservationCreate):
     id: str
     promoted: bool
     created_at: datetime
+    # Faz 11 (dogfooding F32): `promoted` yalnızca confidence EŞİĞİNİ GEÇEN durumu işaretler.
+    # Eşiği geçmeyen bir promote de bir Claim üretir (ve o claim graf'ta, entity sayfasında,
+    # vault'ta durur) ama observation `promoted=false` kalır. Bu alan olmadan arayüz "hiç
+    # işlenmemiş" ile "işlendi, eşiği geçmedi"yi ayırt edemiyordu: Promote butonu duruyor,
+    # tekrar basılınca 409 geliyordu.
+    produced_claim_id: str | None = None
 
 
 INVESTIGATION_STATUSES = ("OPEN", "ACTIVE", "PAUSED", "RESOLVED", "CLOSED", "ARCHIVED")
@@ -176,6 +182,28 @@ class ObservationPromote(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     contradicting_evidence_ids: list[str] = Field(default_factory=list)
     corroborates: list[str] = Field(default_factory=list)
+    # Faz 11 (dogfooding F26): bu iki alan yoktu. `create_claim` ikisini de destekliyordu ama
+    # promote geçirmiyordu — ve promote, toplanan veriden Claim'e giden TEK yol. Sonuç:
+    # collector'dan gelen hiçbir claim asla çelişkili işaretlenemiyordu, yani confidence.py'nin
+    # `has_unresolved_contradiction` dalı ve CONTRADICTED durumu bu boru hattı için ölü koddu.
+    contradicts: list[str] = Field(
+        default_factory=list, description="Bu claim'in çeliştiği diğer claim id'leri (Q9)"
+    )
+    supersedes: str | None = Field(
+        default=None, description="Bu claim'in yerini aldığı eski claim id'si (Q9 temporal)"
+    )
+
+
+class ClaimContradictionAdd(BaseModel):
+    """Faz 11 (dogfooding F26): çelişki YALNIZCA claim oluşturulurken kurulabiliyordu; sonradan
+    eklemenin hiçbir yolu yoktu. Bu, F16'nın (about bağı sonradan düzeltilemiyordu) birebir
+    kardeşi — ve gerçek araştırma bu sırayla ilerlemiyor: çelişen ikinci haber, ilk claim
+    kaydedildikten günler sonra çıkıyor.
+
+    History Is Immutable ile çelişmez: iki claim'in METNİ de değişmiyor, aralarına yalnızca
+    bir ilişki ekleniyor ve ikisinin de confidence'ı yeniden hesaplanıyor."""
+
+    other_claim_id: str
 
 
 class ClaimAboutUpdate(BaseModel):

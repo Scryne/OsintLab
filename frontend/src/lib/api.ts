@@ -89,6 +89,10 @@ export const api = {
     recall: (id: string) => get<{ entity_id: string } & EntityRecall>(`/entities/${id}/recall`),
     create: (payload: { entity_type: string; name: string; aliases?: string[] }) =>
       post<Entity>("/entities", payload),
+    // Faz 11 (F30): backend PATCH alias'ları zaten destekliyordu, frontend hiç çağırmıyordu —
+    // alias'lar pratikte hep boş kalıyordu ve SAME_AS tespitinin alias yarısı ölü koddu.
+    update: (id: string, payload: { entity_type: string; name: string; aliases: string[] }) =>
+      patch<Entity>(`/entities/${id}`, payload),
     createRelation: (entityId: string, payload: { to_entity_id: string; relation_type: string; confidence?: number }) =>
       post<EntityRelation & { from_entity_id: string }>(`/entities/${entityId}/relations`, payload),
     listRelations: (entityId: string) => get<EntityRelation[]>(`/entities/${entityId}/relations`),
@@ -163,6 +167,10 @@ export const api = {
     // Faz 11 (F16): claim oluştuktan sonra entity/event bağını düzeltmek için.
     updateAbout: (id: string, payload: { about_entity_id?: string | null; about_event_id?: string | null }) =>
       patch<Claim>(`/claims/${id}/about`, payload),
+    // Faz 11 (F26): çelişki sonradan da kurulabilmeli — çelişen ikinci haber, ilk claim
+    // kaydedildikten günler sonra çıkıyor.
+    addContradiction: (id: string, otherClaimId: string) =>
+      post<Claim>(`/claims/${id}/contradicts`, { other_claim_id: otherClaimId }),
   },
 
   evidence: {
@@ -201,6 +209,10 @@ export const api = {
         evidence_ids?: string[];
         contradicting_evidence_ids?: string[];
         corroborates?: string[];
+        // Faz 11 (F26): promote'ta yoktu — toplanan veriden gelen claim'ler çelişkili
+        // işaretlenemiyor, eski bir claim'in yerini alamıyordu.
+        contradicts?: string[];
+        supersedes?: string | null;
       }
     ) => post<ObservationPromoteResult>(`/observations/${id}/promote`, payload),
   },

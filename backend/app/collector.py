@@ -33,11 +33,31 @@ MAX_BYTES = 5_000_000
 MAX_OBSERVATION_TEXT_LENGTH = 20_000
 USER_AGENT = "OsintLab-Collector/0.1 (personal OSINT research tool)"
 
+# Faz 11 (dogfooding F25): sadece User-Agent göndermek yetmiyor. cisa.gov (Akamai arkasında)
+# UA dışında hiçbir istemci header'ı olmayan isteğe 403 döndürüyor — UA string'i suçlu değil,
+# üç tekrarda da doğrulandı: aynı UA + Accept-Language => 200, UA tek başına => 403.
+# Bunlar sıradan, dürüst HTTP header'ları; kimliğimizi gizlemiyoruz (UA hâlâ kendimizi
+# söylüyor), sadece isteği yarım bırakmıyoruz.
+DEFAULT_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/html;q=0.8, */*;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
 ALLOWLIST_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "config" / "collector_allowlist.json"
 
 
 class CollectorSecurityError(Exception):
     """Allowlist/SSRF/boyut ihlali — collector isteği reddedildi."""
+
+
+class CollectorFetchError(Exception):
+    """Karşı taraf isteği reddetti ya da beklenen içeriği vermedi.
+
+    Faz 11 (dogfooding F25): bu sınıf yokken 403/404 gövdesi "içerik" sayılıyordu. Güvenlik
+    ihlalinden (CollectorSecurityError) ayrı tutuluyor: orada BİZ reddediyoruz, burada
+    KARŞI TARAF. İkisini aynı hataya toplamak "kendi allowlist'im mi engelledi, site mi
+    engelledi" sorusunu cevapsız bırakırdı."""
 
 
 def load_allowlist() -> set[str]:
@@ -144,7 +164,7 @@ def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
             timeout=DEFAULT_TIMEOUT,
             allow_redirects=False,
             stream=True,
-            headers={"User-Agent": USER_AGENT},
+            headers=DEFAULT_HEADERS,
         )
         if response.status_code in (301, 302, 303, 307, 308):
             location = response.headers.get("Location")
@@ -161,6 +181,31 @@ def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
                 response.close()
                 raise CollectorSecurityError(f"Yanıt çok büyük (> {MAX_BYTES} byte)")
         content_type = response.headers.get("Content-Type", "")
+
+        # Faz 11 (F25): 4xx/5xx gövdesi ASLA içerik değildir. Bu kontrol yokken cisa.gov'un
+        # 403 "Access Denied" sayfası (410 byte HTML) feed sanılıp parse ediliyor, 0 item
+        # çıkıyor ve arayüz "Kaynakta 0 öğe" diyordu — yani "site seni engelledi" ile
+        # "kaynakta yeni haber yok" ayırt edilemiyordu. `web` modunda daha da kötüsü olurdu:
+        # engelleme sayfası kalıcı bir Observation olarak graf'a girerdi.
+        if response.status_code >= 400:
+            hostname = urlparse(current_url).hostname or current_url
+            # Durum koduna göre AYRI teşhis: "engellendin", "adres yok" ve "site arızalı"
+            # kullanıcı için tamamen farklı eylemler gerektiriyor. Hepsine aynı cümleyi
+            # yazmak, düzeltmeye çalıştığımız belirsizliği bir katman yukarıda tekrar üretir.
+            if response.status_code in (401, 403, 429):
+                teshis = "kaynak otomatik erişimi engelledi (kaynakta içerik yok demek DEĞİL)"
+            elif response.status_code == 404:
+                teshis = "böyle bir adres yok — feed adresini kontrol et"
+            elif response.status_code >= 500:
+                teshis = "kaynağın kendi sunucusu arızalı, sonra tekrar dene"
+            else:
+                teshis = "istek kabul edilmedi"
+            raise CollectorFetchError(
+                f"{hostname} {response.status_code} döndü: {teshis}. "
+                f"(Yanıt gövdesi {len(content)} byte, {content_type or 'tür belirtilmemiş'} — "
+                "içerik olarak kaydedilmedi.)"
+            )
+
         return current_url, bytes(content), content_type
 
     raise CollectorSecurityError("Çok fazla redirect")

@@ -27,13 +27,16 @@ import { Input } from "@/components/ui/input";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { NewClaimDialog } from "@/components/forms/claim-form";
 import { ClaimLinkDialog } from "@/components/forms/claim-link-dialog";
+import { ClaimContradictDialog } from "@/components/forms/claim-contradict-dialog";
+import { SameAsManualDialog } from "@/components/forms/same-as-manual-dialog";
+import { EntityAliasesDialog } from "@/components/forms/entity-aliases-dialog";
 import { EvidenceLinkDialog } from "@/components/forms/evidence-link-dialog";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 
 export function EntityDetail({ entityId }: { entityId: string }) {
   const toast = useToast();
-  const { data: entity, error: entityError, loading: entityLoading } = useApi(
+  const { data: entity, error: entityError, loading: entityLoading, reload: reloadEntity } = useApi(
     () => api.entities.get(entityId),
     [entityId]
   );
@@ -94,6 +97,12 @@ export function EntityDetail({ entityId }: { entityId: string }) {
   const [confidenceFilter, setConfidenceFilter] = useState<KnowledgeState | null>(null);
 
   const timelineItems = useMemo(() => {
+    // F31/F33: `fullClaims` doğrudan /claims/{id}'den geliyor, `via_entity_name` orada yok —
+    // o bilgi recall'ın kendisinde. Timeline da Claim'ler sekmesiyle aynı şeyi göstermeli,
+    // yoksa aynı claim bir sekmede "nereden geldiği" belli, diğerinde belirsiz oluyor.
+    const viaByClaimId = new Map(
+      (recall?.related_claims ?? []).map((c) => [c.id, c.via_entity_name])
+    );
     const claims = (fullClaims ?? []).map((c) => ({
       id: c.id,
       kind: "claim" as const,
@@ -101,6 +110,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       timestamp: c.created_at,
       knowledge_state: c.knowledge_state,
       confidence: c.confidence,
+      via_entity_name: viaByClaimId.get(c.id) ?? null,
     }));
     const events = (recall?.related_events ?? []).map((e) => ({
       id: e.id,
@@ -109,6 +119,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       timestamp: e.created_at,
       knowledge_state: null as KnowledgeState | null,
       confidence: undefined,
+      via_entity_name: null as string | null,
     }));
     return [...claims, ...events]
       .filter((item) => !confidenceFilter || item.knowledge_state === confidenceFilter)
@@ -122,26 +133,56 @@ export function EntityDetail({ entityId }: { entityId: string }) {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+      {/* Faz 11 (F33): aksiyon sayısı 4'ten 6'ya çıkınca (Çelişki kur, Alias'lar) tek satırlık
+          yerleşim başlığı daralttı — "Chaotic Eclipse" iki satıra kırılıp tür rozeti araya
+          sıkıştı. Aksiyonlar artık kendi satırına sarabiliyor; başlık tam genişliği alıyor. */}
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">{entity.name}</h1>
             <Badge variant="secondary">{entity.entity_type}</Badge>
           </div>
           {entity.aliases.length > 0 && (
             <p className="mt-1 text-sm text-text-secondary">Alias: {entity.aliases.join(", ")}</p>
           )}
+          {/* Faz 11 (F31): onaylanmış SAME_AS artık okunuyor. Kayıtlar SİLİNMEZ (Q7 /
+              History Is Immutable), aynı oldukları işaretlenir — bu yüzden "birleştirildi"
+              değil "aynı kayıt" deniyor ve diğer kayda gidilebiliyor. */}
+          {recall.same_as.length > 0 && (
+            <p className="mt-1 text-sm text-text-secondary">
+              Aynı kayıt:{" "}
+              {recall.same_as.map((o, i) => (
+                <span key={o.id}>
+                  {i > 0 && ", "}
+                  <Link href={`/entities/${o.id}`} className="underline decoration-dotted underline-offset-2 hover:text-foreground">
+                    {o.name}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          )}
           <p className="mt-1 font-mono text-xs text-text-tertiary">
             {new Date(entity.created_at).toLocaleString("tr-TR")} tarihinde eklendi
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
           <NewClaimDialog
             aboutEntityId={entityId}
             relatedClaims={recall.related_claims}
             onCreated={reloadRecall}
           />
           <ClaimLinkDialog entityId={entityId} onLinked={reloadRecall} />
+          <ClaimContradictDialog
+            entityClaimIds={recall.related_claims.map((c) => c.id)}
+            onLinked={reloadRecall}
+          />
+          <EntityAliasesDialog
+            entity={entity}
+            onSaved={() => {
+              reloadEntity();
+              reloadSameAs();
+            }}
+          />
           <NewRelationDialog entityId={entityId} onCreated={reloadRelations} />
           <Button variant={monitor ? "secondary" : "outline"} size="sm" onClick={toggleMonitor} disabled={monitor === undefined}>
             {monitor ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
@@ -180,6 +221,13 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                       <Calendar aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
                       <div className="flex min-w-0 flex-col gap-1">
                         <p className="text-sm text-foreground">{item.title}</p>
+                        {item.via_entity_name && (
+                          <p className="text-xs text-text-tertiary">
+                            Aynı olduğu onaylanan{" "}
+                            <span className="font-medium text-text-secondary">{item.via_entity_name}</span>{" "}
+                            kaydından geliyor
+                          </p>
+                        )}
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-[11px] text-text-tertiary">
                             {new Date(item.timestamp).toLocaleString("tr-TR")}
@@ -216,6 +264,13 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                       <p className="text-foreground">{claim.text}</p>
                       <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} className="shrink-0" />
                     </div>
+                    {claim.via_entity_name && (
+                      <p className="mt-1 text-xs text-text-tertiary">
+                        Aynı olduğu onaylanan{" "}
+                        <span className="font-medium text-text-secondary">{claim.via_entity_name}</span>{" "}
+                        kaydından geliyor
+                      </p>
+                    )}
                     {source && (
                       <p className="mt-1 text-xs text-text-tertiary">
                         Kaynak: {source.name}
@@ -508,9 +563,18 @@ function SameAsTab({
       )}
 
       <div>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-tertiary">Olası eşleşme adayları</h3>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Olası eşleşme adayları</h3>
+          {/* Faz 11 (F29): otomatik tespit isim benzerliğine bakıyor; birbirine benzemeyen
+              takma adlar taşıyan aynı aktör için hiçbir aday üretmiyor ve kullanıcının
+              çıkış yolu yoktu. */}
+          <SameAsManualDialog entityId={entityId} onSuggested={() => { onChanged(); reloadPending(); }} />
+        </div>
         {candidates.length === 0 ? (
-          <EmptyState title="Aday bulunamadı" description="İsim/alias benzerliğine göre otomatik hesaplanır." />
+          <EmptyState
+            title="Aday bulunamadı"
+            description="Adaylar isim/alias benzerliğine göre otomatik hesaplanır. Aynı aktörün isimleri birbirine benzemiyorsa (tehdit gruplarında sık) aday çıkmaz — 'Elle eşleştir' ile kendin bildirebilirsin."
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {candidates.map((c) => (

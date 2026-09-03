@@ -336,7 +336,369 @@ Faz 13 önerisi: `Claim -[:DERIVED_FROM]-> Claim` ekle, kaynak seviyesini (süre
 siteler için) koru. `independence` hesabı önce claim seviyesine, yoksa kaynak seviyesine
 baksın. Şema değişikliği gerektirdiği için Faz 11'de yapılmadı.
 
+## Oturum 2 — 2026-09-03: Siber güvenlik / tehdit aktörü ekosistemi
+
+Konu seçimi (kullanıcı "sen karar ver" dedi): bu alan Faz 11'de henüz hiç zorlanmamış üç
+şeyi aynı anda zorluyor — atıf tartışmaları doğal olarak **çelişen claim** üretir (Faz 2
+contradiction motoru gerçek veriyle hiç tetiklenmedi), tehdit aktörlerinin çok isimli olması
+**SAME_AS** merge'ini (Faz 10'da eklendi, hiç kullanılmadı) zorunlu kılar, ve güvenlik haber
+siteleri CISA advisory'lerini bloklar halinde kopyaladığı için **F23'ün lineage sorunu ikinci
+kez, bu sefer gerçekten kopyalayan veriyle** sınanabilir.
+
+Kaynak seti bilinçli olarak 1 otorite + 3 aktaran: cisa.gov (birincil), bleepingcomputer.com,
+securityaffairs.com, krebsonsecurity.com.
+
+### F25 — HTTP hata yanıtı sessizce "içerik" sanılıyor  🔴 KRİTİK → ✅ kapatıldı
+
+**Semptom (gerçek kullanım):** kullanıcı UI'dan `https://www.cisa.gov/cybersecurity-
+advisories/all.xml` taradı, ekranda **"0 gözlem oluşturuldu · Kaynakta 0 öğe"** çıktı.
+
+**Gerçek sebep:** cisa.gov (Akamai arkasında) isteği **403 Access Denied** ile reddediyordu.
+`safe_fetch` (`collector.py`) `raise_for_status()` çağırmadığı için 403'ün 410 byte'lık HTML
+gövdesi "içerik" olarak dönüyor, `parse_rss` onda haklı olarak 0 item buluyor, arayüz de
+bunu boş bir feed gibi gösteriyordu. **"Site seni engelledi" ile "kaynakta yeni haber yok"
+tamamen ayırt edilemez hale gelmişti.**
+
+`web` modunda sonuç daha ağır olurdu: hata sayfası kalıcı bir Observation olarak graf'a
+girer, üstelik Faz 7 change detection engelleme kalktığında "içerik değişti" diye yanlış
+alarm üretirdi.
+
+**Neden 403 alıyorduk (ve neden UA suçlu değil):** ilk ölçüm yanıltıcıydı — başarısız denemeler
+önce, başarılılar sonra geldiği için "geçici blok" ihtimali vardı. Sıra ters çevrilip 3 kez
+tekrarlandı, sonuç deterministik çıktı:
+
+| İstek | Sonuç |
+| --- | --- |
+| Sadece `User-Agent: OsintLab-Collector/0.1` | **403** (3/3) |
+| Aynı UA + `Accept-Language` | **200** (391 KB, 30 item) |
+| `requests` varsayılan header'ları (UA: `python-requests/2.32.3`) | **200** |
+
+Yani engelleyen bizim kimliğimiz değil — `python-requests` UA'sı bile geçiyor. Engelleyen,
+isteğin **yarım** görünmesi. Düzeltme UA'yı gizlemiyor (hâlâ kendimizi söylüyoruz), sadece
+sıradan `Accept` / `Accept-Language` header'larını ekliyor.
+
+**Düzeltme (iki katman):**
+1. `collector.py`: `DEFAULT_HEADERS` (UA + Accept + Accept-Language) ve yeni bir
+   `CollectorFetchError`. 4xx/5xx artık içerik olarak dönmüyor, durum koduna göre **ayrı
+   teşhis** veriyor — "engellendin" (401/403/429), "böyle bir adres yok" (404), "sunucu
+   arızalı" (5xx) kullanıcı için farklı eylemler gerektirdiği için tek cümleye toplanmadı.
+2. `routers/collectors.py`: `CollectorSecurityError` → **403** (BİZ reddettik: allowlist/SSRF,
+   kullanıcının düzeltebileceği yapılandırma), `CollectorFetchError` → **502** (KARŞI TARAF
+   reddetti). Ayrıca ikinci savunma: rss modunda 200 dönüp içerik XML değilse ve 0 item
+   ayrıştırılmışsa, bu "boş feed" değil "yanlış içerik"tir — ayrı bir 502 mesajıyla söyleniyor
+   ("bu bir sayfaysa `web` modunu dene").
+
+**Doğrulama:**
+
+| Vaka | Önce | Sonra |
+| --- | --- | --- |
+| cisa.gov feed | 0 item (sessiz) | **30 item** |
+| bleepingcomputer.com | 15 item | 15 item (regresyon yok) |
+| securityaffairs.com | 10 item | 10 item |
+| krebsonsecurity.com | 10 item | 10 item |
+| cisa.gov 404 adres | 0 item (sessiz) | **502** "böyle bir adres yok — feed adresini kontrol et" |
+| allowlist dışı host | 403 | 403 (değişmedi) |
+
+**Neden birim testiyle yakalanamazdı:** test sunucusu 200 döndürür. Bu hata yalnızca gerçek
+bir kaynak seni gerçekten engellediğinde ortaya çıkıyor — ve tam da o an sessiz kalıyordu.
+Oturum 1'in ortak desenini birebir tekrarlıyor: kod "yanlış çalışmıyor", sistem kendini
+anlatamıyor.
+
+### F26 — Çelişki motoru toplanan veri boru hattından erişilemiyor  🔴 KRİTİK → ✅ kapatıldı
+
+**Nasıl bulundu:** Oturum 2'nin verisinde Oturum 1'in Astra vakası devam ediyordu
+(securityaffairs 2026-09-02: "OpenAI Astra Brings Autonomous Zero-Day Exploitation to AI").
+Graf'taki 4 Astra claim'i zıt çerçevelemeler taşıyor ama **hiçbiri çelişkili işaretli değil**,
+hepsi `REPORTED`. Faz 2'nin bitti kriteri "çelişen ikinci claim eklendiğinde Contradiction
+objesi oluşuyor" diyordu — neden hiç oluşmamıştı?
+
+**Tespit — üç katmanlı bir boşluk:**
+
+1. Çelişki **otomatik tespit edilmiyor**; kullanıcının `POST /claims` gövdesinde
+   `contradicts` alanıyla beyan etmesi gerekiyor. (Design Principle #7 açısından doğru bir
+   tercih — kritik kararı insan verir — ama Roadmap'te Faz 2 kriteri "otomatik" diyordu.
+   Kriter metni gerçeği yansıtmıyordu; aşağıda düzeltildi.)
+2. `ObservationPromote` modelinde `contradicts`/`supersedes` alanları **yoktu**. `create_claim`
+   ikisini de destekliyordu, promote geçirmiyordu. Promote ise toplanan veriden Claim'e giden
+   **tek** yol.
+3. Sonradan kurmanın **hiçbir yolu yoktu**: `CLAIM_CONTRADICTS` yalnızca claim oluşturulma
+   anında yazılıyor, claims router'ında başka bir uç yok.
+
+Üçü birleşince: collector'dan gelen bir claim asla çelişkili işaretlenemez. Yani
+`confidence.py`'deki `has_unresolved_contradiction` dalı ve `CONTRADICTED` knowledge_state,
+gerçek boru hattı için **ölü kod**. Frontend'de de asimetri vardı — `claim-form.tsx`
+(Entity sayfasından "Yeni Claim") üç alanı da sunuyordu, promote diyaloğu yalnızca
+`corroborates`'i.
+
+**Neden bu F15/F16'nın kardeşi:** aynı desen üçüncü kez çıktı — *bir yetenek şemada ve
+formülde var, ama gerçek kullanımın geçtiği yoldan erişilemiyor.* (v1 denetiminde
+`Evidence -[:CONTRADICTS]-> Claim` aynı şekilde hiç yaratılamıyordu; Faz 10 onu açtı, bu
+onun Claim↔Claim karşılığı.) Ayrıca gerçek araştırma sırası bunu zorunlu kılıyor: **çelişen
+ikinci haber, ilk claim kaydedildikten günler sonra çıkıyor** — oluşturma anında beyan
+etmeyi şart koşan bir tasarım, gerçek zaman akışıyla uyumsuz.
+
+**Düzeltme:**
+- `models.py`: `ObservationPromote`'a `contradicts` + `supersedes`; yeni `ClaimContradictionAdd`.
+- `routers/observations.py`: promote ikisini `create_claim`'e geçiriyor.
+- `routers/claims.py`: yeni `POST /claims/{id}/contradicts`. Çelişki simetrik ama graf'ta
+  **tek yön** yazılıyor — okuma tarafı (`_gather_confidence_inputs`) zaten hem gelen hem
+  giden kenara bakıyor, iki yön yazmak çift sayıma yol açardı. İki claim de yeniden
+  hesaplanıp ikisi için de bildirim üretiliyor; tek taraflı bırakmak grafı tutarsız yapardı.
+- Frontend: promote diyaloğuna "Çeliştiği claim'ler" + "Yerini aldığı claim" alanları
+  (sonucu açıklayan yardım metinleriyle), ve Entity sayfasına `ClaimContradictDialog`
+  ("Çelişki kur"). Backend'de bırakmak F23b'nin dersini tekrarlamak olurdu: yol var ama
+  UI'a bağlı değil.
+
+**Doğrulama:** `ObservationPromote` şeması artık 8 alan döndürüyor (`contradicts`,
+`supersedes` dahil); `POST /claims/{id}/contradicts` → kendisiyle çelişki **422**, olmayan
+claim **404**, var olan çelişkiyi tekrar kurma **409**. `tsc --noEmit` temiz.
+
+**Sınır (kasıtlı):** *sonradan supersede* eklenmedi — supersede eski claim'in `valid_to`
+alanını yazdığı için zaman çizgisini geriye dönük değiştirir ve doğru "hangi an" kararı
+(haberin yayın tarihi mi, düzeltmenin tarihi mi) tek başına bir modelleme sorusu. Promote
+sırasında artık yapılabiliyor; sonradan yapmak Faz 13'e.
+
+### F27 — "Bir çelişki var" deniyor, "neyle" hiçbir yerden öğrenilemiyor  🟠 → ✅ kapatıldı
+
+**Nasıl bulundu:** F26 kapatıldıktan sonra ilk gerçek çelişki UI'dan kuruldu (Astra: OpenAI'ın
+kendi duyurusu ↔ "Researchers fear safety disaster"). Graf doğru davrandı — ikisi de
+`CONTRADICTED`, üçüncü Astra claim'i dokunulmadan `REPORTED` kaldı. Ama çıktıyı denetlerken
+iki şey göze çarptı; **biri bug değildi, biri bug'dı.**
+
+**Bug olmayan (kayda geçiyor ki tekrar sorgulanmasın):** çelişki kurulunca sayısal confidence
+hiç değişmedi (0.3 ve 0.28 aynı kaldı). Bu kasıtlı: `confidence.py` başında yazıyor —
+claim↔claim çelişkisi sayıyı düşürmez, yalnızca `knowledge_state`'i `CONTRADICTED`'a zorlar
+(Q3 hibrit model: sayı ile durum etiketi ayrı tutulur). Sayıyı cezalandıran şey *kanıt*
+tabanlı çelişki (`contradicting_evidence_count`), claim tabanlı değil.
+
+**Asıl bulgu:** `why-matters`'ın `CONTRADICTED` gerekçesinde `detail` **boştu** (`{}`), oysa
+kardeş gerekçe `PRIOR_KNOWLEDGE_EXISTS` `prior_claim_ids`'i dolduruyordu. `GET /claims/{id}`
+çelişki alanı döndürmüyor, entity recall'ın `related_claims`'i de döndürmüyor. Yani sistem
+"bu bilgi başka bir claim ile çelişiyor" diyor ve **hangi claim olduğunu hiçbir uçtan
+söyleyemiyor** — halbuki araştırmadaki asıl soru tam olarak o: *"OpenAI böyle diyor, peki
+aksini kim söylüyor?"*
+
+F26'nın açtığı yeteneği yarım bırakıyordu: çelişki kurulabiliyor ama okunamıyor.
+
+**Düzeltme:** `recall.py`, `CLAIM_CONTRADICTS`'i iki yönde de tarayıp (ilişki tek yön saklanır,
+anlamı simetrik) `detail`'e `contradicting_claim_ids` + `contradicting_claims` (id + alıntı)
+yazıyor. **Gerekçe metninin kendisi de karşı tarafı adlandırıyor** — çünkü arayüz `detail`'i
+hiçbir yerde göstermiyordu, yalnızca `reason.text`'i basıyordu; sadece detail'i doldurmak
+gerekçeyi görünür yapmazdı. Frontend'de `WhyMattersDisclosure` çelişen claim'leri madde
+madde listeliyor.
+
+**Link vermedim, bilerek:** tek bir claim'in detay sayfası (`/claims/[id]`) yok — link kırık
+olurdu, yani F20'nin (Dashboard'un henüz oluşmamış nota link vermesi) aynısını yapardım.
+Bkz. F28.
+
+**Vault ayağı (aynı bulgunun ikinci yeri):** `vault.py` ayrı bir renderer ve aynı eksiği
+taşıyordu — entity notunda iki claim `[ÇELİŞKİLİ]` etiketliydi ama neyle çeliştikleri
+yazmıyordu. Living Brain'in (Faz 9) tek işi okunabilir olmak; "çelişkili" tek başına
+okunabilir değil. `_claim_contradictions()` eklendi, çelişen claim alt madde olarak
+yazılıyor (`⚔ Çelişiyor: «...»`), iki yönde de doğrulandı.
+
+**Doğrulama (API):** her iki yönden de sorulduğunda karşı tarafı adlandırıyor —
+`498d07bc` → «Researchers fear safety disaster ahead of OpenAI's Astra release»,
+`ee1dbe53` → «Path to Astra: critical capabilities and frontier safeguards».
+
+**Süreç notu (kendi hatam):** düzeltmeyi yazarken `split("
+")` kaçışı dosyaya gerçek satır
+sonu olarak düştü, backend açılmadı (`SyntaxError: unterminated string literal`). `start.ps1`
+bunu doğru raporladı ("Backend 45 sn icinde yanit vermedi"), sessiz kalmadı — F14'ün
+düzeltmesinin yan faydası. `splitlines()` ile onarıldı.
+
+### F29 — Entity birleştirmenin elle yolu yok, otomatik tespit bu alanda yapısal olarak çalışmıyor  🔴 KRİTİK → ✅ kapatıldı
+
+**Nasıl bulundu:** SAME_AS (Faz 10'da eklendi, hiç kullanılmamıştı) gerçek bir vakayla
+sınandı. SecurityAffairs aynı aktörü iki haberde dört isimle veriyor: *"Chaotic Eclipse, also
+known as INFINITE NIGHTMARE, MSNightmare and Nightmare-Eclipse"*. İki entity oluşturuldu ve
+kullanıcıdan birleştirme yolunu bulması istendi — **bulamadı.**
+
+**Tespit:** yol aslında vardı (entity sayfasında "Olası Eşleşmeler" sekmesi + sol menüde aynı
+adlı sayfa) ama **boş görünüyordu**: `GET /entities/{id}/same-as/candidates` boş liste
+döndürüyordu. UI'da SAME_AS önermenin **tek yolu** otomatik tespit edilmiş bir adaya "Öner"
+demekti; aday yoksa hiçbir çıkış yolu yoktu. Boş durum mesajı bile ("isim/alias benzerliğine
+göre otomatik hesaplanır") çıkışsızlığı doğruluyordu.
+
+**Neden aday çıkmadı — ve neden bu düzeltilebilir bir eşik meselesi değil:** `dedup.py`
+skoru `name + aliases` token kümeleri üzerinden `containment_similarity` ile hesaplıyor.
+"Chaotic Eclipse" ile "INFINITE NIGHTMARE" arasında **ortak token yok**, skor 0. Bu, tehdit
+aktörü alanında yapısal bir sınır: farklı firmalar aynı gruba bilinçli olarak birbiriyle
+alakasız isimler verir (APT28 = Fancy Bear = Sofacy = Sednit = STRONTIUM). Bilgi isimlerde
+değil, **metinde** ("also known as...") yaşıyor. Eşiği düşürmek çözmez, yanlış eşleşme üretir.
+
+F23'ün lineage'da öğrettiği dersin aynısı, entity tarafında: *otomatik tespit gerçek veride
+tutmayabilir; sistemin bunu kabul edip kararı insana verebilen bir yolu olmalı.* Çözüm de
+F23b'nin aynısı.
+
+**Düzeltme:** `SameAsManualDialog` — herhangi iki entity için elle SAME_AS önerme yolu.
+Q7 korunuyor: uç yalnızca **PENDING** öneri yaratır (`suggest_same_as` skor ne olursa olsun
+asla CONFIRMED yazmaz), birleştirmeyi yine insan onaylar. Boş durum metni de artık çıkışsız
+bırakmıyor, bu yolu gösteriyor.
+
+### F30 — `aliases` API'de var, arayüzde hiç yok — tespitin alias yarısı ölü koddu  🔴 KRİTİK → ✅ kapatıldı
+
+F29'u incelerken çıktı. `aliases` şemada (`STRING[]`), `EntityCreate`'te ve `PATCH
+/entities/{id}`'de baştan beri vardı. Ama frontend hiçbir yerde **yazmıyordu**: oluşturma
+formunda alan yok (`api.entities.create` çağrısı `aliases`'ı hiç göndermiyordu), düzenleme
+yolu ise hiç yok — `api.entities` içinde `update` metodu bile tanımlı değildi. Entity sayfası
+alias'ları yalnızca *gösteriyordu*.
+
+Sonuç: alias'lar gerçek kullanımda **her zaman boş**. Ve `dedup.py` skoru `name + aliases`
+üzerinden hesapladığı için, eşleşme tespitinin alias yarısı hiç çalışmamıştı — oysa OSINT'te
+asıl sinyal tam olarak orada.
+
+**Düzeltme:** `api.entities.update` eklendi; oluşturma formuna "Alias'lar" alanı, entity
+sayfasına `EntityAliasesDialog` (alias düzenleme) geldi. Alias kaydedilince eşleşme adayları
+da yeniden yükleniyor.
+
+**Doğrulama — düzeltmenin etkisi ölçüldü:** "Chaotic Eclipse"e üç alias yazıldı; aynı
+`candidates` ucu **boş listeden** `INFINITE NIGHTMARE / benzerlik 1.0`'a geçti. Yani F30
+yalnızca eksik bir form alanı değildi: otomatik tespiti bu vakada **çalışır hale getiren**
+şeydi. F29'un elle yolu ise isimlerin hiç örtüşmediği ve alias'ın da bilinmediği durumlar
+için gerekli olmayı sürdürüyor.
+
+**Süreç notu (kendi hatam, iki kez):** bu bulguyu incelerken önce "PATCH alias'ları sessizce
+düşürüyor" diye yanlış bir sonuca vardım. Gerçekte PATCH çalışıyordu; benim curl gövdemdeki
+Türkçe karakterler (`Tehdit Aktörü`) cp1252 olarak gidip JSON'u bozmuş, 422 dönmüş, ben de
+hata gövdesinde `aliases` anahtarı olmadığı için `None` okumuştum. İzole bir KùzuDB testi ve
+ASCII-kaçışlı bir tekrar denemesi ayırt etti. Aynı gün ikinci kez: konsol çıktısındaki bozuk
+Türkçe de (F27 doğrulamasında) API değil terminal kaynaklıydı. **Ders:** bu ortamda
+Türkçe/UTF-8 içeren doğrulamalarda ham byte'lara bakmadan "veri kaybı var" denmemeli.
+
+### F31 — Onaylanan birleştirme hiçbir şey yapmıyordu (CONFIRMED yazılıyor, hiç okunmuyor)  🔴 KRİTİK → ✅ kapatıldı
+
+**Nasıl bulundu:** F29/F30 kapatıldıktan sonra kullanıcı UI'dan gerçek birleştirmeyi yaptı
+(Chaotic Eclipse = INFINITE NIGHTMARE). Graf doğru davrandı: iki entity de duruyor, hiçbiri
+silinmedi (Q7 / History Is Immutable — `confirm_same_as` bilinçli olarak node birleştirmiyor,
+yalnızca kenarı CONFIRMED'e çekiyor), pending kuyruğu boşaldı. Sonra şu soruldu: **peki bu
+onay bir işe yarıyor mu?**
+
+**Tespit:** `SAME_AS`'in `CONFIRMED` durumu **hiçbir yerde okunmuyordu.**
+
+| Yer | CONFIRMED okunuyor mu |
+| --- | --- |
+| `recall.py` (Memory Recall) | hayır — `SAME_AS` hiç geçmiyor |
+| `vault.py` (Living Brain) | hayır — hiç geçmiyor |
+| Router'lar | yalnızca `PENDING` sorgulanıyor (aday listesi + çözümleme) |
+| Frontend | hayır |
+
+Yani kullanıcı birleştirmeyi onaylıyor, "Eşleşme onaylandı" bildirimini alıyor ve sistemde
+fiilen hiçbir şey değişmiyordu: Chaotic Eclipse sayfasında INFINITE NIGHTMARE'in claim'leri
+görünmüyor, vault'ta iki ayrı not durmaya devam ediyor. Q7 gereği node'lar fiziksel olarak
+birleştirilmediğine göre, "aynılık" **okuma zamanında** çözülmek zorundaydı — ve hiç
+çözülmüyordu. Birleştirmenin tek anlamı iki kaydın bilgisinin birlikte hatırlanmasıdır;
+o olmayınca özellik bir durum alanı yazmaktan ibaret kalıyordu.
+
+Bu, oturumun desenindeki en uç örnek: F26'da yol kapalıydı, F27'de sonuç okunamıyordu,
+burada **işlem hiç gerçekleşmiyordu.**
+
+**Düzeltme:**
+- `recall.py`: `same_as_group()` — CONFIRMED kenarlar üzerinde genişlik-öncelikli gezinti.
+  Kenar tek yön saklanır ama anlamı simetrik, **ve aynılık geçişlidir** (A=B, B=C ⇒ A=C);
+  bu yüzden düz komşu sorgusu değil, gerçek bir gezinti. `entity_recall` artık grubun
+  tamamının claim/event/investigation'larını topluyor.
+- Her satırda `via_entity_name`: satır başka bir kayıttan geldiyse hangisinden. Bu olmadan
+  kullanıcı ekranda gördüğü claim'in neden orada olduğunu anlayamazdı — F27'de öğrenilen
+  ders (sonuç görünüyorsa gerekçesi de görünmeli) baştan uygulandı.
+- `vault.py`: entity notunda "Aynı kayıt (onaylanmış)" bölümü, wikilink'le ve kayıtların
+  silinmediğini açıkça söyleyen bir notla.
+- Frontend: başlıkta "Aynı kayıt: ..." (diğer kayda link) ve claim kartlarında "Aynı olduğu
+  onaylanan X kaydından geliyor" etiketi.
+
+**Doğrulama:** `recall` her iki yönden de grubu döndürüyor (Chaotic Eclipse → INFINITE
+NIGHTMARE ve tersi), vault notu bölümü render ediyor. **Eksik kalan:** iki entity'nin de
+henüz claim'i yok, dolayısıyla claim'lerin gerçekten karşı kayıttan aktığı gerçek veriyle
+henüz kanıtlanmadı — bir sonraki adımda (INFINITE NIGHTMARE'e bir claim promote edilip
+Chaotic Eclipse sayfasında aranarak) kapatılacak.
+
+### F32 — Eşiği geçmeyen promote "hiç olmamış" gibi görünüyor  🔴 KRİTİK → ✅ kapatıldı
+
+**Nasıl bulundu:** F31'in düzeltmesini gerçek veriyle kanıtlamak için kullanıcıdan bir gözlemi
+INFINITE NIGHTMARE'e promote etmesi istendi. Cevap: **"promote etmiyor."** Ama etmişti —
+API'den aynı çağrı tekrarlandığında `409 already processed` geldi, oysa gözlem listede hâlâ
+`promoted=false` görünüyordu.
+
+**Tespit:** `promoted` bayrağı yalnızca confidence **eşiğini geçen** durumu işaretler
+(`PROMOTION_THRESHOLD = 0.45`). Eşiği geçmeyen bir promote da bir Claim üretir — claim graf'a
+girer, entity sayfasında ve vault'ta görünür, `PRODUCED` kenarı kurulur — ama observation
+`promoted=false` kalır. Bu ayrım Q1'in katmanlı hafıza modeli gereği **doğru**; sorun,
+arayüzün üç durumu iki rozetle göstermesiydi:
+
+| Gerçek durum | Kullanıcının gördüğü |
+| --- | --- |
+| Hiç işlenmemiş | "bekliyor" |
+| İşlendi, claim üretildi, eşiği geçmedi | **"bekliyor"** + Promote butonu duruyor |
+| İşlendi, eşiği geçti | "promoted" |
+
+Üstüne üç mesaj birbiriyle çelişiyordu: toast "Eşik geçilmedi, **ham gözlem olarak kaldı**"
+diyordu (claim'den hiç söz etmeden), liste "bekliyor" gösteriyordu, ve tekrar denendiğinde
+409 "already processed" geliyordu. Kullanıcının "promote etmiyor" sonucuna varması bu üçünün
+doğal okuması.
+
+**Ölçek:** düzeltme sonrası tarandığında bu görünmez halde **5 observation** çıktı — dördü
+Oturum 1'den. Yani Astra vakasının claim'lerinin tamamı, listede "bekliyor" görünmeye devam
+eden gözlemlerden üretilmişti; hangi ham verinin işlendiği hiçbir yerden okunamıyordu.
+
+**Düzeltme:**
+- `Observation` modeline `produced_claim_id` (`OPTIONAL MATCH (o)-[:PRODUCED]->(c)`, liste
+  uçlarında N+1 sorgu olmasın diye aynı sorguya eklendi).
+- Liste rozeti üçe ayrıldı: `bekliyor` / `claim üretildi · eşik altı` / `promoted`.
+- Promote butonu artık claim üretilmiş HER gözlemde gizleniyor (yalnızca `promoted`
+  olanlarda değil) — tekrar denemenin 409'a çarpması bu yüzden oluyordu.
+- Toast: "Eşik geçilmedi, ham gözlem olarak kaldı" → "Claim oluşturuldu (eşik altı) — gözlem
+  ham haliyle de duruyor". Ne olduğunu söylüyor, ne olmadığını değil.
+- 409 mesajı claim id'sini ve nedenini veriyor.
+
+**Doğrulama:** `bekliyor 140 / claim üretildi·eşik altı 5 / promoted 1`; 409 mesajı claim
+id'siyle dönüyor.
+
+**Yan sonuç — F31 gerçek veriyle kanıtlandı:** kullanıcının promote'u aslında başarılı
+olduğu için, INFINITE NIGHTMARE'e bağlanan claim (`0d43b171`) **Chaotic Eclipse'in
+recall'ında `via_entity_name = "INFINITE NIGHTMARE"` ile göründü.** F31'in eksik kalan
+doğrulaması böylece kapandı: onaylanmış SAME_AS artık gerçekten okunuyor ve bilgi iki kayıt
+arasında akıyor.
+
+### F33 — Aynı claim bir sekmede açıklanıyor, diğerinde açıklanmıyor + başlık taşması  🟠 → ✅ kapatıldı
+
+**Nasıl bulundu:** kullanıcı F31'i teyit etmek için Chaotic Eclipse sayfasının ekran
+görüntüsünü gönderdi. Doğrulama başarılıydı (Alias satırı, "Aynı kayıt: INFINITE NIGHTMARE",
+Claim'ler (1) — karşı kayıttan gelen claim orada). Ama ekranda iki sorun vardı.
+
+**1. Etiket yalnızca bir sekmede.** F31'in "Aynı olduğu onaylanan X kaydından geliyor"
+etiketini **Claim'ler** sekmesine eklemiştim; kullanıcı **Timeline** sekmesindeydi ve orada
+claim hiçbir açıklama olmadan duruyordu. Timeline claim'lerini `fullClaims`'ten
+(`GET /claims/{id}`) kuruyor, `via_entity_name` ise recall'da — yani veri elde vardı,
+bağlanmamıştı. Sonuç: aynı claim bir sekmede gerekçeli, diğerinde gerekçesiz görünüyordu;
+F27'de kapattığım "sonuç görünüyorsa gerekçesi de görünmeli" ilkesinin aynı sayfada delinmiş
+hali. Düzeltme: recall'dan `claim_id → via_entity_name` eşlemesi kurulup Timeline kartına da
+basılıyor.
+
+**2. Başlık taşması — bu oturumun kendi yan hasarı.** Entity başlığındaki aksiyon satırı
+`shrink-0` ile tek satıra sabitlenmişti ve 4 buton için tasarlanmıştı. Bu oturumda ikisini
+ben ekledim (F26 "Çelişki kur", F30 "Alias'lar") → 6 buton. Sonuç: "Chaotic Eclipse" başlığı
+iki satıra kırıldı ve "Tehdit Aktörü" rozeti araya sıkıştı. Düzeltme: başlık `lg`'nin altında
+dikey yığılıyor, aksiyonlar kendi satırına sarabiliyor, rozet satırı da `flex-wrap`.
+
+**Ders:** dogfooding'de eklenen her aksiyon başlık satırına bir buton daha koyuyor. Faz 13'ün
+UI cilasında bu satırın bir taşma menüsüne ("…") dönmesi gerekecek — 6 buton sınırda, 7.'si
+taşıracak.
+
 ## Faz 13'e ertelenenler (kozmetik / nice-to-have)
+
+### F28 — Tek bir claim'in detay sayfası yok  🟡 Faz 13
+
+Frontend'de `/claims/[id]` rotası yok (`app/` altında claims klasörü hiç yok). Claim'ler
+yalnızca bağlı oldukları Entity/Event/Observation sayfalarında, liste içinde görünüyor.
+
+F27'de somut bir engel oldu: çelişen claim'i adlandırabildik ama ona **gidilemedi**, çünkü
+gidecek bir sayfa yok. Aynı sınır ileride her yerde çıkacak — çelişki, corroboration,
+supersede zinciri, evidence bağları: hepsi "şu claim" diye işaret ediyor ve işaret edilen
+şeyin adresi yok. Ayrıca claim id'leri arayüzde hiçbir yerde görünmüyor, bu yüzden dışarıdan
+(ör. API çıktısından) gelen bir id'yi kullanıcı ekranda eşleştiremiyor.
+
+Faz 13 önerisi: `/claims/[id]` — metin, kaynak, confidence dökümü (`explain`), why-matters,
+çelişki/corroboration/supersede ilişkileri ve üretildiği Observation.
 
 ### F20 — Dashboard henüz oluşmamış daily notuna link veriyor  🟡 Faz 13
 
