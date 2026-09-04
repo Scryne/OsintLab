@@ -11,6 +11,7 @@ import type {
   Hypothesis,
   InboxItem,
   Investigation,
+  InvestigationWorkspace,
   Monitor,
   Observation,
   ObservationPromoteResult,
@@ -239,12 +240,22 @@ export const api = {
     removeFinding: (id: string, claimId: string) => del(`/investigations/${id}/findings/${claimId}`),
     hypotheses: (id: string) => get<Hypothesis[]>(`/investigations/${id}/hypotheses`),
     createHypothesis: (id: string, text: string) => post<Hypothesis>(`/investigations/${id}/hypotheses`, { text }),
+    // `headline` uçta üretiliyor (F46'nın kalıcı çözümü): claim metni "başlık + özet"
+    // biçiminde tek bir string, her render eden yerin ilk satırı kendi kesmesi dördüncü kez
+    // aynı bozuk çıktıyı üretmişti.
     findings: (id: string) =>
-      get<(Pick<Claim, "id" | "text" | "knowledge_state" | "confidence"> & { validated: boolean })[]>(
-        `/investigations/${id}/findings`
-      ),
+      get<
+        (Pick<Claim, "id" | "text" | "knowledge_state" | "confidence"> & {
+          validated: boolean;
+          headline: string;
+        })[]
+      >(`/investigations/${id}/findings`),
     transition: (id: string, to_status: string) =>
       post<Investigation>(`/investigations/${id}/transition`, { to_status }),
+    // Faz 13 (madde 30): zincirin tamamı tek çağrıda — ara adımlar graf'tan türetiliyor.
+    workspace: (id: string) => get<InvestigationWorkspace>(`/investigations/${id}/workspace`),
+    updateNarrative: (id: string, payload: { analysis?: string; conclusion?: string }) =>
+      patch<Investigation>(`/investigations/${id}/narrative`, payload),
     // Faz 11 (F35): kapsam uçları backend'de vardı ama arayüzden hiç çağrılmıyordu — bir
     // investigation'a entity/event eklemek UI'dan mümkün değildi, okuma ucu ise hiç yoktu.
     scope: (id: string) =>

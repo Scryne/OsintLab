@@ -79,6 +79,11 @@ export interface Investigation {
   title: string;
   research_question: string;
   status: InvestigationStatus;
+  // Faz 13 (madde 30): zincirin son iki adımı. Bunlar olmadan bir investigation, cevabı
+  // hiçbir yere yazılmadan kapatılabiliyordu — soru vardı, karşılığı yoktu.
+  analysis: string | null;
+  conclusion: string | null;
+  concluded_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -171,6 +176,60 @@ export interface ScanRunResult {
  *
  * `linked_claims` Faz 13'te açılan bir boşluk: Evidence→Claim SUPPORTS/CONTRADICTS kenarları
  * Faz 10'dan beri yazılıyor ve confidence hesabında sayılıyordu, ama hiçbir uç listelemiyordu. */
+/** Faz 13 (madde 30) — Investigation Workspace'in tam zinciri.
+ *
+ * Ara adımlar (sources/observations/claims/evidence) SAKLANMIYOR, graf'tan TÜRETİLİYOR:
+ * kapsamdaki entity/event'lerden ve finding'lerden geriye doğru yürünüyor. Yeni ilişki
+ * tabloları eklemek, kullanıcıdan zaten grafta duran bağları elle bir kez daha kurmasını
+ * istemek olurdu — ve elle kurulan her bağ, kurulmayı unutulabilen bir bağdır. */
+export interface InvestigationWorkspace {
+  investigation: Investigation;
+  scope: {
+    entities: { id: string; name: string; entity_type: string }[];
+    events: { id: string; title: string; event_type: string }[];
+  };
+  sources: { id: string; name: string; source_type: string; reliability: number }[];
+  observations: {
+    id: string;
+    headline: string;
+    source_url: string | null;
+    observed_at: string | null;
+    promoted: boolean;
+  }[];
+  claims: {
+    id: string;
+    headline: string;
+    knowledge_state: KnowledgeState;
+    confidence: number;
+    valid_from: string;
+    valid_to: string | null;
+    is_finding: boolean;
+    superseded: boolean;
+  }[];
+  evidence: {
+    id: string;
+    evidence_type: string;
+    file_path: string | null;
+    content_hash: string | null;
+    stance: "SUPPORTS" | "CONTRADICTS";
+  }[];
+  hypotheses: Hypothesis[];
+  findings: string[];
+  steps: Record<WorkflowStep, boolean>;
+}
+
+export type WorkflowStep =
+  | "research_question"
+  | "scope"
+  | "sources"
+  | "observations"
+  | "claims"
+  | "evidence"
+  | "hypotheses"
+  | "analysis"
+  | "findings"
+  | "conclusion";
+
 export interface EvidenceVaultItem extends Evidence {
   has_file: boolean;
   linked_claims: {

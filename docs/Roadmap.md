@@ -91,7 +91,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ✅ Tamamlandı | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
 | 11 | Dogfooding / Sertleştirme Turu | ✅ Tamamlandı | 5 gerçek araştırma oturumu + 1 sistematik tarama tamamlandı; 46 bulgu listelendi, kritik olanların tamamı bu fazda kapatıldı; son oturum (temiz koşu) baştan sona engelsiz tamamlandı. |
 | 12 | Zamanlanmış Otomatik Tarama | ✅ Tamamlandı | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
-| 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | 🔄 Devam Ediyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
+| 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ✅ Tamamlandı | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
 | 14 | Deploy/Erişim Kolaylığı | ✅ Tamamlandı | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
 | 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ⏳ Bekliyor | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi; seçilen domain için ayrı bir spike (teknoloji/veri kaynağı doğrulaması) yapılıp kendi alt-roadmap'i (Faz 15.1, 15.2...) yazıldı. |
 
@@ -1008,7 +1008,66 @@ ayrı" kararıyla tutarlı).
   test verisi üretilmemeli — bu fazın görsel doğrulamaları zaten izole bir backend'de
   yapılıyordu, yükleme denemesi de orada yapılmalıydı.
 
-  **Kalan (bu fazın devamı):** Investigation Workspace'in tam akışı.
+  **Investigation Workspace (2026-09-04)** — fazın son parçası, bu fazı tamamlıyor.
+
+  **En büyük boşluk buydu ve şema düzeyindeydi:** `Investigation`'da `research_question`
+  vardı ama **cevabı yoktu**. Bir araştırma, ne bulduğu hiçbir yere yazılmadan CLOSED'a
+  geçebiliyordu — ve CLOSED, doğrulanmış bulguları Knowledge Graph'a yükselten adım. Yani
+  sistem bilgi ekliyor ama neyi neden öğrendiğini söyleyemiyordu. `analysis`, `conclusion`,
+  `concluded_at` eklendi; **sonuç yazılmadan CLOSED artık 409** (ARCHIVED bilerek serbest —
+  o "cevabı buldum" değil, "bunu bıraktım" demek).
+
+  **Şema göçü (yeni altyapı).** `CREATE NODE TABLE IF NOT EXISTS` var olan bir tabloya kolon
+  EKLEMEZ: tablo zaten varsa ifade sessizce hiçbir şey yapmaz. Yani şema tanımına yeni alan
+  yazmak boş bir veritabanında çalışır, mevcut veritabanında sessizce etkisiz kalır ve kod
+  alanı okumaya çalışınca patlar. Bu tuzak Evidence Vault'ta da karşımıza çıkmış, orada
+  kolon eklemekten kaçınılmıştı. `schema.py`'ye `COLUMN_ADDITIONS` eklendi: `ALTER TABLE ...
+  ADD IF NOT EXISTS` (gerçek KùzuDB'ye karşı idempotent olduğu doğrulandı), mevcut satırlara
+  NULL yazıyor. Gerçek veritabanında koşuldu: iki mevcut CLOSED investigation bozulmadan
+  yeni alanları NULL olarak kazandı.
+
+  **Ara adımlar TÜRETİLİYOR, ayrıca beyan edilmiyor** — bu fazın asıl tasarım kararı.
+  `GET /investigations/{id}/workspace` zinciri kapsamdaki entity/event'lerden ve
+  finding'lerden geriye doğru yürüyerek çıkarıyor:
+
+      Entity/Event (kapsam) <- ABOUT_* - Claim <- ASSERTS - Source
+                                              <- PRODUCED - Observation
+                                              <- SUPPORTS/CONTRADICTS - Evidence
+
+  Kaynak/gözlem/kanıt için yeni ilişki tabloları eklemek, kullanıcıdan zaten grafta duran
+  bağları elle bir kez daha kurmasını istemek olurdu — ve elle kurulan her bağ, kurulmayı
+  unutulabilen bir bağdır (Faz 11'in tekrar eden dersi). Bu aynı zamanda madde 33
+  (Provenance) ve 34 (Research Reproducibility) sorularının cevabı: "bu sonuca hangi ham
+  gözlemden, hangi kaynak üzerinden gelindi". Gerçek veriyle sınandı: Faz 11'in "Astra
+  güvenlik eşiği" araştırması için hiçbir ek veri girilmeden 4 kaynak, 6 gözlem, 6 claim ve
+  2 hipotez türetildi.
+
+  **Arayüz:** investigation detayı workspace'e çevrildi — üstte 10 adımlık **Araştırma
+  Akışı** şeridi (hangi adım dolu, hangisi boş; ilerleme çubuğu değil kontrol listesi, çünkü
+  gerçek araştırma sırayla ilerlemiyor), ardından zincir sırasına göre bölümler. Türetilen
+  bölümlerde bilerek "ekle" butonu YOK: kaynak eklemek için bir claim'e kaynak atfedilir,
+  aynı bağı ikinci kez elle kurmak istenmez. Analiz ve Sonuç yerinde düzenlenebiliyor
+  (`concluded_at` yalnızca sonuç İLK yazıldığında damgalanıyor; sonraki rötuşlar ilk varış
+  anını değiştirmiyor). Vault'a da "## Analiz" ve "## Sonuç" bölümleri eklendi — araştırmanın
+  cevabının yalnızca web arayüzünde kalması, Obsidian'daki beynin soruyu bilip cevabı
+  bilmemesi demek olurdu.
+
+  **Faz 13 bulgusu — F54 (F46'nın dördüncü tekrarı ve kalıcı çözümü).** Workspace'in
+  Claim'ler bölümü claim başlığını doğru kesiyordu ama **aynı sayfadaki** Findings bölümü ham
+  metni basıyordu: RSS'ten gelen "başlık + özet" tek satıra yapışık görünüyordu. `claim_
+  headline`'ın docstring'i kalıcı çözümü zaten söylüyordu ("tüm render yollarının tek bir
+  noktadan geçmesi"); `headline` artık UÇTA üretiliyor (`GET /investigations/{id}/findings`),
+  arayüzde değil. Bu, hatanın beşinci kez çıkmasını yapısal olarak engelliyor.
+
+  **Doğrulandı (izole DB, 21 kontrol):** zincirin her adımı türetiliyor (kaynak/gözlem/claim/
+  kanıt/hipotez), gözlem başlığı ilk satır, claim `is_finding` ile işaretli, adım durumları
+  doğru; sonuçsuz CLOSED 409, sonuç yazılınca geçiyor; analiz yazmak `concluded_at`
+  damgalamıyor, sonuç yazmak damgalıyor, düzeltme ilk varış anını değiştirmiyor;
+  ARCHIVED sonuçsuz serbest; boş investigation'da workspace patlamıyor. Ayrıca sayfa izole
+  seed'lenmiş backend + headless Edge ile gerçekten render edilip incelendi (F54 böyle
+  bulundu) ve gerçek veritabanında göç + workspace türetimi doğrulandı.
+
+  **Faz 13 tamamlandı.**
 
 ### Faz 14: Deploy/Erişim Kolaylığı
 

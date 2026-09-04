@@ -72,6 +72,9 @@ NODE_TABLES = [
         title STRING,
         research_question STRING,
         status STRING,
+        analysis STRING,
+        conclusion STRING,
+        concluded_at TIMESTAMP,
         created_at TIMESTAMP,
         updated_at TIMESTAMP,
         PRIMARY KEY(id)
@@ -97,6 +100,10 @@ NODE_TABLES = [
         PRIMARY KEY(id)
     )
     """,
+    # Faz 13 (madde 30): `analysis` / `conclusion` / `concluded_at` Workspace zincirinin son
+    # iki adımı. Mevcut veritabanlarına COLUMN_ADDITIONS ile ekleniyor (dosya sonuna bak) —
+    # buradaki tanım yalnızca temiz kurulumda geçerli. (KùzuDB DDL'i satır içi yorum kabul
+    # etmiyor, bu yüzden not tablonun dışında.)
     # Faz 7 — Continuous Monitoring (madde 22). target_type/target_id polimorfik referans:
     # KùzuDB'de heterojen FROM/TO tek bir rel table'da desteklenmediği için (Entity/Event/
     # Investigation'ın 3'ü de izlenebilir olduğundan), tip+id çiftini tutan bağımsız bir node
@@ -193,8 +200,29 @@ REL_TABLES = [
 ]
 
 
+# Faz 13 — şema göçü.
+#
+# `CREATE NODE TABLE IF NOT EXISTS` var olan bir tabloya kolon EKLEMEZ: tablo zaten varsa
+# ifade sessizce hiçbir şey yapmaz. Yani yukarıdaki tanıma yeni bir alan yazmak, boş bir
+# veritabanında çalışır ama mevcut veritabanında SESSİZCE etkisiz kalır — kod alanı okumaya
+# çalıştığında patlar. Bu liste o boşluğu kapatıyor: `ALTER TABLE ... ADD IF NOT EXISTS`
+# idempotent (gerçek KùzuDB'ye karşı doğrulandı) ve mevcut satırlara NULL yazar.
+#
+# Yeni bir alan eklerken: NODE_TABLES'taki tanımı da güncelle (temiz kurulum için) VE
+# buraya bir satır ekle (mevcut veritabanları için). İkisi birden gerekiyor.
+COLUMN_ADDITIONS = [
+    # Faz 13 — Investigation Workspace'in son iki adımı (madde 30). Bunlar olmadan bir
+    # investigation, "cevap neydi" hiç kaydedilmeden CLOSED'a geçebiliyordu.
+    "ALTER TABLE Investigation ADD IF NOT EXISTS analysis STRING",
+    "ALTER TABLE Investigation ADD IF NOT EXISTS conclusion STRING",
+    "ALTER TABLE Investigation ADD IF NOT EXISTS concluded_at TIMESTAMP",
+]
+
+
 def init_schema(conn) -> None:
     for stmt in NODE_TABLES:
         conn.execute(stmt)
     for stmt in REL_TABLES:
+        conn.execute(stmt)
+    for stmt in COLUMN_ADDITIONS:
         conn.execute(stmt)

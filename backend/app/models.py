@@ -175,8 +175,22 @@ class InvestigationCreate(BaseModel):
 class Investigation(InvestigationCreate):
     id: str
     status: str
+    # Faz 13 (madde 30) — Workspace zincirinin son iki adımı: "Analysis" analistin yürüttüğü
+    # muhakeme, "Conclusion" araştırmanın cevabı. Bunlar olmadan bir investigation, cevabı
+    # hiçbir yere yazılmadan kapatılabiliyordu; Research Question vardı, karşılığı yoktu.
+    analysis: str | None = None
+    conclusion: str | None = None
+    concluded_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class InvestigationNarrativeUpdate(BaseModel):
+    """Analysis ve/veya Conclusion'ı yazar. İkisi de opsiyonel — analiz araştırma sürerken
+    büyüyen bir metin, sonuç ise sonda yazılıyor."""
+
+    analysis: str | None = None
+    conclusion: str | None = None
 
 
 class InvestigationTransition(BaseModel):

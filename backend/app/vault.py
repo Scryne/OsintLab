@@ -466,6 +466,13 @@ def render_investigation_note(conn, inv: dict) -> str:
         lines.append("_Henüz event dahil edilmedi._")
     lines.append("")
 
+    # Faz 13 (madde 30): Analiz ve Sonuç. Bunları vault'a yazmamak, tam da bu projenin
+    # tekrar eden hatası olurdu — araştırmanın CEVABI yalnızca web arayüzünde kalırdı,
+    # Obsidian'daki "beyin" ise soruyu bilip cevabı bilmezdi.
+    lines.append("## Analiz")
+    lines.append(inv.get("analysis") or "_Henüz analiz yazılmadı._")
+    lines.append("")
+
     lines.append("## Findings")
     if findings:
         for f in findings:
@@ -478,6 +485,15 @@ def render_investigation_note(conn, inv: dict) -> str:
             lines.append(claim_bullet(f["text"], f"{tag}{validated}"))
     else:
         lines.append("_Henüz finding eklenmedi._")
+    lines.append("")
+
+    lines.append("## Sonuç")
+    if inv.get("conclusion"):
+        lines.append(inv["conclusion"])
+    elif inv["status"] == "ARCHIVED":
+        lines.append("_Sonuç yazılmadan arşivlendi._")
+    else:
+        lines.append("_Henüz sonuç yazılmadı._")
     lines.append("")
 
     lines.append("## Hipotezler")
@@ -724,6 +740,7 @@ def render_all(conn) -> dict:
     investigations = fetch_all(conn.execute(
         "MATCH (n:Investigation) RETURN n.id AS id, n.title AS title, "
         "n.research_question AS research_question, n.status AS status, "
+        "n.analysis AS analysis, n.conclusion AS conclusion, "
         "n.created_at AS created_at, n.updated_at AS updated_at"
     ))
     sources = fetch_all(conn.execute(

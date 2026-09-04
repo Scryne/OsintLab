@@ -11,9 +11,10 @@ from app.models import (
     HypothesisEvidenceLink,
     Investigation,
     InvestigationCreate,
+    InvestigationNarrativeUpdate,
     InvestigationTransition,
 )
-from app.monitoring import notify_if_monitored
+from app.monitoring import claim_headline, notify_if_monitored
 from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
@@ -21,7 +22,8 @@ hypotheses_router = APIRouter(prefix="/hypotheses", tags=["hypotheses"])
 
 _INV_FIELDS = (
     "i.id AS id, i.title AS title, i.research_question AS research_question, "
-    "i.status AS status, i.created_at AS created_at, i.updated_at AS updated_at"
+    "i.status AS status, i.analysis AS analysis, i.conclusion AS conclusion, "
+    "i.concluded_at AS concluded_at, i.created_at AS created_at, i.updated_at AS updated_at"
 )
 _HYP_FIELDS = "h.id AS id, h.text AS text, h.status AS status, h.created_at AS created_at"
 
@@ -78,6 +80,20 @@ def transition_investigation(investigation_id: str, payload: InvestigationTransi
             status_code=409,
             detail=f"Cannot transition from {current.status} to {payload.to_status}. Allowed: {list(allowed)}",
         )
+    # Faz 13 (madde 30): CLOSED, bulguların uzun süreli hafızaya promote edildiği adım —
+    # yani "bu araştırma bitti ve şu bilgiyi bilgi grafına ekliyorum" demek. Sonucu hiçbir
+    # yere yazmadan bunu yapmak, tam olarak bu projenin defalarca yakaladığı hatanın en
+    # pahalı hali olurdu: sistem ne öğrendiğini söyleyemez. ARCHIVED bilerek serbest —
+    # o "cevabı buldum" değil, "bunu bıraktım" demek.
+    if payload.to_status == "CLOSED" and not (current.conclusion or "").strip():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Sonuç (Conclusion) yazılmadan kapatılamaz: kapanış, doğrulanmış bulguları "
+                "Knowledge Graph'a yükselten adım. Araştırmayı cevapsız bırakmak istiyorsan "
+                "ARCHIVED kullan."
+            ),
+        )
     now = datetime.now(timezone.utc)
     conn.execute(
         "MATCH (i:Investigation {id: $id}) SET i.status = $status, i.updated_at = $now",
@@ -86,6 +102,35 @@ def transition_investigation(investigation_id: str, payload: InvestigationTransi
     if payload.to_status in CLOSING_STATUSES:
         _promote_verified_findings(conn, investigation_id)
     _notify_investigation_update(conn, investigation_id, current.status, payload.to_status)
+    safe_render_vault(conn)
+    return get_investigation(investigation_id)
+
+
+@router.patch("/{investigation_id}/narrative", response_model=Investigation)
+def update_narrative(investigation_id: str, payload: InvestigationNarrativeUpdate) -> Investigation:
+    """Analysis ve/veya Conclusion'ı yazar (madde 30'un son iki adımı).
+
+    History Is Immutable ile çelişmez: bunlar toplanan veri değil, ANALİSTİN kendi metni —
+    araştırma sürerken gelişmesi beklenen bir defter. `concluded_at` yalnızca sonuç ilk kez
+    yazıldığında damgalanıyor; sonraki düzeltmeler ilk sonuca varış anını değiştirmiyor."""
+    conn = get_connection()
+    current = get_investigation(investigation_id)
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=422, detail="Değiştirilecek bir alan verilmedi")
+
+    now = datetime.now(timezone.utc)
+    sets = ["i.updated_at = $now"]
+    params: dict = {"id": investigation_id, "now": now}
+    if "analysis" in updates:
+        sets.append("i.analysis = $analysis")
+        params["analysis"] = updates["analysis"]
+    if "conclusion" in updates:
+        sets.append("i.conclusion = $conclusion")
+        params["conclusion"] = updates["conclusion"]
+        if (updates["conclusion"] or "").strip() and current.concluded_at is None:
+            sets.append("i.concluded_at = $now")
+    conn.execute(f"MATCH (i:Investigation {{id: $id}}) SET {', '.join(sets)}", params)
     safe_render_vault(conn)
     return get_investigation(investigation_id)
 
@@ -189,6 +234,143 @@ def get_scope(investigation_id: str) -> dict:
         )
     )
     return {"entities": entities, "events": events}
+
+
+@router.get("/{investigation_id}/workspace")
+def get_workspace(investigation_id: str) -> dict:
+    """Faz 13 (madde 30) — Investigation Workspace'in tam zinciri:
+    Research Question -> Scope -> Entities -> Sources -> Observations -> Claims -> Evidence
+    -> Hypotheses -> Analysis -> Findings -> Conclusion.
+
+    **Ara adımlar TÜRETİLİYOR, ayrıca beyan edilmiyor.** Kaynak/gözlem/claim/kanıt için yeni
+    ilişki tabloları eklemek, kullanıcıdan zaten grafta duran bağları elle bir kez daha
+    kurmasını istemek olurdu — ve elle kurulan her bağ, kurulmayı unutulabilen bir bağdır
+    (Faz 11'in tekrar eden dersi). Burada zincir kapsamdaki entity/event'lerden ve
+    finding'lerden geriye doğru yürünerek çıkarılıyor:
+
+        Entity/Event (kapsam)
+          <- ABOUT_ENTITY/ABOUT_EVENT -  Claim
+          <- ASSERTS                  -  Source        (hangi kaynakları kullandık)
+          <- PRODUCED                 -  Observation   (hangi ham veriden geldi)
+          <- SUPPORTS/CONTRADICTS     -  Evidence      (neye dayanıyor)
+
+    Bu aynı zamanda madde 33 (Provenance) ve 34 (Research Reproducibility) sorularının
+    cevabı: "bu sonuca hangi ham gözlemden, hangi kaynak üzerinden gelindi".
+
+    `included` alanı bir claim'in kapsamdan mı yoksa doğrudan finding olarak mı geldiğini
+    söyler — ikisi aynı şey değil ve karıştırmak "neyi bulgu ilan ettim" sorusunu bulanıklaştırır."""
+    conn = get_connection()
+    inv = get_investigation(investigation_id)
+    scope = get_scope(investigation_id)
+    entity_ids = [e["id"] for e in scope["entities"]]
+    event_ids = [e["id"] for e in scope["events"]]
+
+    finding_rows = fetch_all(
+        conn.execute(
+            "MATCH (i:Investigation {id: $iid})-[:HAS_FINDING]->(c:Claim) RETURN c.id AS id",
+            {"iid": investigation_id},
+        )
+    )
+    finding_ids = {r["id"] for r in finding_rows}
+
+    # Kapsamdaki entity/event hakkındaki claim'ler + doğrudan finding olarak eklenmiş olanlar.
+    claims: dict[str, dict] = {}
+
+    def _collect(cypher: str, params: dict) -> None:
+        for row in fetch_all(conn.execute(cypher, params)):
+            claims.setdefault(row["id"], row)
+
+    if entity_ids:
+        _collect(
+            "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity) WHERE e.id IN $ids "
+            "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
+            "c.confidence AS confidence, c.valid_from AS valid_from, c.valid_to AS valid_to",
+            {"ids": entity_ids},
+        )
+    if event_ids:
+        _collect(
+            "MATCH (c:Claim)-[:ABOUT_EVENT]->(ev:Event) WHERE ev.id IN $ids "
+            "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
+            "c.confidence AS confidence, c.valid_from AS valid_from, c.valid_to AS valid_to",
+            {"ids": event_ids},
+        )
+    if finding_ids:
+        _collect(
+            "MATCH (c:Claim) WHERE c.id IN $ids "
+            "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
+            "c.confidence AS confidence, c.valid_from AS valid_from, c.valid_to AS valid_to",
+            {"ids": sorted(finding_ids)},
+        )
+
+    claim_ids = sorted(claims)
+    for cid, row in claims.items():
+        row["headline"] = claim_headline(row.pop("text"))
+        row["is_finding"] = cid in finding_ids
+        # F34: yerini almış bir claim, güncel olanla aynı görünmemeli.
+        row["superseded"] = row.get("valid_to") is not None
+
+    sources = fetch_all(
+        conn.execute(
+            "MATCH (s:Source)-[:ASSERTS]->(c:Claim) WHERE c.id IN $ids "
+            "RETURN DISTINCT s.id AS id, s.name AS name, s.source_type AS source_type, "
+            "s.reliability AS reliability ORDER BY name",
+            {"ids": claim_ids},
+        )
+    ) if claim_ids else []
+
+    observations = fetch_all(
+        conn.execute(
+            "MATCH (o:Observation)-[:PRODUCED]->(c:Claim) WHERE c.id IN $ids "
+            "RETURN DISTINCT o.id AS id, o.raw_content AS raw_content, "
+            "o.source_url AS source_url, o.observed_at AS observed_at, o.promoted AS promoted "
+            "ORDER BY observed_at",
+            {"ids": claim_ids},
+        )
+    ) if claim_ids else []
+    for o in observations:
+        o["headline"] = claim_headline(o.pop("raw_content"))
+
+    evidence = []
+    if claim_ids:
+        for stance in ("SUPPORTS", "CONTRADICTS"):
+            evidence += [
+                {**row, "stance": stance}
+                for row in fetch_all(
+                    conn.execute(
+                        f"MATCH (ev:Evidence)-[:{stance}]->(c:Claim) WHERE c.id IN $ids "
+                        "RETURN DISTINCT ev.id AS id, ev.evidence_type AS evidence_type, "
+                        "ev.file_path AS file_path, ev.content_hash AS content_hash",
+                        {"ids": claim_ids},
+                    )
+                )
+            ]
+
+    hypotheses = [h.model_dump(mode="json") for h in list_hypotheses(investigation_id)]
+
+    return {
+        "investigation": inv.model_dump(mode="json"),
+        "scope": scope,
+        "sources": sources,
+        "observations": observations,
+        "claims": sorted(claims.values(), key=lambda c: (not c["is_finding"], c["headline"])),
+        "evidence": evidence,
+        "hypotheses": hypotheses,
+        "findings": sorted(finding_ids),
+        # Zincirin her adımının "dolu mu" durumu — arayüz akışı adım adım gösterebilsin ve
+        # nerede durulduğu görünsün (madde 34, reproducibility).
+        "steps": {
+            "research_question": bool((inv.research_question or "").strip()),
+            "scope": bool(entity_ids or event_ids),
+            "sources": bool(sources),
+            "observations": bool(observations),
+            "claims": bool(claims),
+            "evidence": bool(evidence),
+            "hypotheses": bool(hypotheses),
+            "analysis": bool((inv.analysis or "").strip()),
+            "findings": bool(finding_ids),
+            "conclusion": bool((inv.conclusion or "").strip()),
+        },
+    }
 
 
 @router.put("/{investigation_id}/entities/{entity_id}", status_code=204)
@@ -308,6 +490,13 @@ def list_findings(investigation_id: str) -> list[dict]:
     }
     for row in rows:
         row["validated"] = row["id"] in validated_ids
+        # Faz 13: `headline` UÇTA üretiliyor, arayüzde değil. `claim_headline`'ın docstring'i
+        # (F46) kalıcı çözümü zaten söylüyordu: "tüm render yollarının tek bir noktadan
+        # geçmesi". Aynı hata dördüncü kez, aynı sayfada çıktı — Workspace'in Claim'ler
+        # bölümü başlığı doğru kesiyordu ama Findings bölümü ham metni basıyordu, yani
+        # RSS'ten gelen "başlık + özet" tek satıra yapışık görünüyordu. Ham `text` yanıtta
+        # kalıyor (tam metin gerektiğinde lazım), ama render edilecek olan bu.
+        row["headline"] = claim_headline(row["text"])
     return rows
 
 
