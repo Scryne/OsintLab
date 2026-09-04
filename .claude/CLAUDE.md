@@ -28,7 +28,21 @@ Proje kökünden:
 .\start.ps1            # backend + frontend, her biri kendi penceresinde
 .\start.ps1 -Stop      # ikisini de kapat
 .\start.ps1 -Reload    # backend --reload ile (kod düzeltirken)
+
+.\start.ps1 -InstallAutostart   # backend'i oturum açılışında servis olarak başlat
+.\start.ps1 -RemoveAutostart    # o görevi kaldır
 ```
+
+**Autostart ve Faz 12.** Zamanlanmış tarama (Faz 12) yalnızca backend ayaktayken çalışır.
+`-InstallAutostart`, `OsintLab Backend` adlı bir Windows zamanlanmış görevi kurar: oturum
+açılışından 1 dk sonra `pythonw run_service.py --port 8420` ile backend'i **pencere açmadan**
+başlatır, log `data/logs/backend.log`'a döngüsel olarak yazılır. Görev süresiz çalışır
+(varsayılan 3 günlük limit sıfırlandı — yoksa backend üç gün sonra sessizce ölürdü).
+
+Bu yüzden `start.ps1` artık dolu portta çıkmıyor: backend zaten ayaktaysa yalnızca frontend'i
+başlatır. `-Stop` ise önce `Stop-ScheduledTask` çağırır — process'i doğrudan öldürmek görevi
+"başarısız" bitirir ve yeniden-başlatma ayarı, bilerek kapattığın backend'i 5 dk sonra geri
+getirirdi.
 
 - Dashboard: http://localhost:3000
 - API dokümantasyonu: http://127.0.0.1:8420/docs
