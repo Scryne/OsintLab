@@ -853,6 +853,17 @@ ayrı" kararıyla tutarlı).
   durumunu ve hatayı yazdı. Ayrıca gerçek veriyle backend ayağa kaldırılıp mevcut 5 entity /
   8 claim / 5 inbox öğesinin F47 düzeltmesinden sonra sorunsuz okunduğu doğrulandı.
 
+  **İlk gerçek kurulum (2026-09-04):** 3 tarama kuruldu — Krebs on Security (6 sa, son 7
+  gün), Security Affairs (3 sa, son 3 gün), OpenAI duyurular (12 sa, son 14 gün). Zamanlayıcı
+  üçünü de elle tetiklemeden ~85 sn içinde çalıştırdı. İlk turda 6 yeni gözlem geldi ve
+  öncelik kuralı gerçek veriyle doğrulandı: OpenAI öğesi MEDIUM'a çıktı (içerikte grafta
+  zaten var olan `OpenAI` ve `Astra` entity'leri geçiyor), Security Affairs LOW kaldı (bilinen
+  hiçbir entity'ye değmiyor). Krebs'in 0 sonucu bug değil: feed'de 10 öğe var, `since_days=7`
+  penceresine 1'i giriyor, o da Faz 11 Oturum 5'te alınmış — `duplicates_skipped=1` bunu
+  açıkça söylüyor. TechCrunch ve The Verge bilerek kurulmadı (yüksek hacimli; önce bu üçünün
+  gerçek getirisi görülsün). Backend'in sürekli ayakta kalması için Faz 14'e autostart
+  eklendi — bkz. Faz 14 notlarındaki ek.
+
   **Sonraki faz için:** hangi kaynağın hangi sıklıkta taranacağı bilinçli olarak kuruluma
   bırakıldı (roadmap'in kendi gerekçesi: karar gerçek kullanım verisiyle alınsın). Inbox'taki
   Source hedefi şu an `/sources` listesine bağlanıyor — kaynak detay sayfası Faz 13'te
