@@ -860,9 +860,20 @@ ayrı" kararıyla tutarlı).
   zaten var olan `OpenAI` ve `Astra` entity'leri geçiyor), Security Affairs LOW kaldı (bilinen
   hiçbir entity'ye değmiyor). Krebs'in 0 sonucu bug değil: feed'de 10 öğe var, `since_days=7`
   penceresine 1'i giriyor, o da Faz 11 Oturum 5'te alınmış — `duplicates_skipped=1` bunu
-  açıkça söylüyor. TechCrunch ve The Verge bilerek kurulmadı (yüksek hacimli; önce bu üçünün
-  gerçek getirisi görülsün). Backend'in sürekli ayakta kalması için Faz 14'e autostart
-  eklendi — bkz. Faz 14 notlarındaki ek.
+  açıkça söylüyor. Backend'in sürekli ayakta kalması için Faz 14'e autostart eklendi — bkz.
+  Faz 14 notlarındaki ek.
+
+  Aynı gün, gecelik bir gözlem koşusu için TechCrunch ve The Verge de eklendi (3 sa, son 2
+  gün, koşu başına 20 öğe) — toplam 5 tarama. İlk turda 17 ve 10 yeni gözlem geldi ve
+  **öncelik kuralının en iyi kanıtı buradan çıktı:** aynı hacim sınıfındaki iki feed aynı
+  anda tarandı ve AYRI önceliklere düştü — TechCrunch MEDIUM (içerikte `Astra` ve `OpenAI`
+  entity'leri geçiyor), The Verge LOW (bilinen hiçbir entity'ye değmiyor). Kural gürültü
+  üretmiyor, ayırt ediyor. 179 gözlemde tekrarlı URL sayısı hâlâ sıfır.
+
+  **Faz 12 öncesi borç kapandı (ölçüldü):** vault index notundaki "gözlem tabanı bir kez
+  sıfırlanmalı, yoksa zamanlanmış tarama her kaydın kopyasını üretir" endişesi (F13/F21'in
+  metin çıkarımını değiştirmesinden kalma) gerçekleşmedi — aynı URL'den birden fazla kayıt
+  sıfır. Sıfırlama yapılmadı, gerekmedi.
 
   **Sonraki faz için:** hangi kaynağın hangi sıklıkta taranacağı bilinçli olarak kuruluma
   bırakıldı (roadmap'in kendi gerekçesi: karar gerçek kullanım verisiyle alınsın). Inbox'taki
