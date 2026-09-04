@@ -18,9 +18,8 @@ const TARGET_HREF: Record<string, (id: string) => string> = {
   Entity: (id) => `/entities/${id}`,
   Event: (id) => `/events/${id}`,
   Investigation: (id) => `/investigations/${id}`,
-  // Faz 12: kaynak bildirimleri (zamanlanmış tarama). Kaynak detay sayfası Faz 13'te
-  // gelecek — o zamana kadar liste sayfası, bağlantısız bırakmaktan iyi.
-  Source: () => `/sources`,
+  // Faz 12'de liste sayfasına bağlanıyordu (detay sayfası yoktu); Faz 13'te düzeltildi.
+  Source: (id) => `/sources/${id}`,
 };
 
 /** Faz 12 — NEW_OBSERVATION öğesinin detayı: hangi başlıklar geldi, bildiğimiz hangi

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -87,9 +88,16 @@ export default function SourcesPage() {
 function SourceCard({ source, allSources }: { source: Source; allSources: Source[] }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-foreground">{source.name}</span>
-        <Badge variant="secondary">{source.source_type}</Badge>
+      <div className="flex items-center justify-between gap-2">
+        {/* Faz 13: kartlar artık detay sayfasına açılıyor — lineage zinciri, kaynağın
+            claim'leri ve otomatik taraması orada. */}
+        <Link
+          href={`/sources/${source.id}`}
+          className="min-w-0 truncate font-medium text-foreground underline decoration-transparent underline-offset-4 transition-colors hover:decoration-white/40"
+        >
+          {source.name}
+        </Link>
+        <Badge variant="secondary" className="shrink-0">{source.source_type}</Badge>
       </div>
       <p className="font-mono text-xs text-text-tertiary">
         <span className="tabular-nums">güvenilirlik %{Math.round(source.reliability * 100)}</span>

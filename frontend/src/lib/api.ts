@@ -15,8 +15,10 @@ import type {
   ObservationPromoteResult,
   SameAsCandidate,
   SameAsPending,
+  LineageNode,
   ScanRunResult,
   ScanSchedule,
+  SourceClaim,
   Source,
   WhyMattersReason,
 } from "./types";
@@ -137,10 +139,17 @@ export const api = {
     get: (id: string) => get<Source>(`/sources/${id}`),
     create: (payload: { name: string; source_type: string; url?: string | null; reliability?: number }) =>
       post<Source>("/sources", payload),
+    // `depth` = kac hop uzakta (Faz 13'te eklendi; oncesinde sira tanimsizdi, zincir
+    // gosterilemiyordu — yalnizca kume).
     lineage: (id: string) =>
-      get<{ ancestors: Source[]; descendants: Source[]; independent_root_id: string }>(
-        `/sources/${id}/lineage`
-      ),
+      get<{
+        ancestors: LineageNode[];
+        descendants: LineageNode[];
+        independent_root_id: string;
+      }>(`/sources/${id}/lineage`),
+    // Faz 13: bu sorgu bugüne kadar yalnizca vault render'inda vardi; arayuz "bu kaynak neyi
+    // iddia etti" sorusunu hic soramiyordu.
+    claims: (id: string) => get<SourceClaim[]>(`/sources/${id}/claims`),
     // Faz 11 (F23): otomatik tespit yalnizca metni birebir kopyalayan yayincilarda calisiyor;
     // yeniden yazan yayincilarda karari insan veriyor (Design Principle #7).
     linkDerivedFrom: (id: string, payload: { upstream_source_id: string; note?: string | null }) =>

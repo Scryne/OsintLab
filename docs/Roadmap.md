@@ -91,7 +91,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ✅ Tamamlandı | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
 | 11 | Dogfooding / Sertleştirme Turu | ✅ Tamamlandı | 5 gerçek araştırma oturumu + 1 sistematik tarama tamamlandı; 46 bulgu listelendi, kritik olanların tamamı bu fazda kapatıldı; son oturum (temiz koşu) baştan sona engelsiz tamamlandı. |
 | 12 | Zamanlanmış Otomatik Tarama | ✅ Tamamlandı | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
-| 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ⏳ Bekliyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
+| 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | 🔄 Devam Ediyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
 | 14 | Deploy/Erişim Kolaylığı | ✅ Tamamlandı | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
 | 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ⏳ Bekliyor | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi; seçilen domain için ayrı bir spike (teknoloji/veri kaynağı doğrulaması) yapılıp kendi alt-roadmap'i (Faz 15.1, 15.2...) yazıldı. |
 
@@ -885,7 +885,59 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Bir Source'un tam lineage zinciri UI'da görülebiliyor; bir Evidence
   dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü
   UI'da adım adım takip edilebiliyor.
-- **Notlar:**
+- **Notlar:** 🔄 Devam ediyor. **Source detay sayfası (2026-09-04)** — fazın ilk parçası
+  bitti. Sıra bilinçli olarak değiştirildi ve bu madde en başa alındı, çünkü üç ayrı borç
+  aynı noktada birikmişti: (a) Faz 12'nin Inbox'taki `Source` hedefi detay sayfası olmadığı
+  için `/sources` listesine düşüyordu (ölü bağlantı), (b) Faz 6'nın lineage grafiği hiçbir
+  arayüzde görünmüyordu, (c) Faz 12'de kurulan taramaların durumu yalnızca Toplayıcılar
+  sayfasından görülebiliyordu.
+
+  `/sources/[id]` üç sekmeli: **Claim'ler** (varsayılan), **Lineage**, **Otomatik Tarama** —
+  artı kaynak-düzeyi izleme aç/kapa. Varsayılan sekme bilinçli olarak Lineage değil: gerçek
+  graftaki 5 kaynağın hiçbirinde DERIVED_FROM kenarı yok, lineage'i varsayılan yapmak
+  kullanıcıyı boş bir ekranla karşılardı.
+
+  **Yeni uç:** `GET /sources/{id}/claims`. Bu sorgu bugüne kadar yalnızca vault render'ında
+  vardı (`vault.py::_source_claims`); arayüz "bu kaynak neyi iddia etti" sorusunu hiç
+  soramıyordu. Yanıt `superseded_by_claim_id` ve `about_*_name` taşıyor — F34 (yerini almış
+  claim güncel olanla aynı görünmemeli) ve F16 (graf'ta yalıtık kalmış claim görünür olmalı)
+  derslerinin karşılığı; sayfada biri üstü çizili + soluk, diğeri "hiçbir şeye bağlı değil"
+  rozetiyle gösteriliyor.
+
+  **Faz 13 bulgusu — F48:** `GET /sources/{id}/lineage`'in docstring'i "kökten uzağa doğru
+  sıralı" diyordu ama sorguda ne `ORDER BY` ne de bir derinlik alanı vardı — değişken
+  uzunluklu bir yol üzerinde `DISTINCT`'in sırası tanımsız. Kimse fark etmemişti çünkü sonuç
+  Faz 13'e kadar hiçbir arayüzde gösterilmiyordu (F47 ile aynı kalıp: yazılan ama okunmayan
+  bir alan yanlış olduğunu belli etmiyor). `depth` olmadan "zincir" gösterilemez, yalnızca
+  sırasız bir küme gösterilebilirdi. Düzeltme: `min(length(p)) AS depth ORDER BY depth`
+  (KùzuDB'nin `length(p)` desteği önce ayrı bir deneyle doğrulandı).
+
+  **Görsel doğrulama.** Gerçek grafta hiç lineage kenarı olmadığı için, gerçek veriyi
+  kirletmeden 8421'de izole ve seed'lenmiş bir backend ayağa kaldırılıp arayüz ona
+  yönlendirildi; sayfa headless Edge ile gerçekten render edilip incelendi. Bu sayede iki
+  görsel hata yakalandı ve düzeltildi: zincirde **çift ok** (her düğüm kendi okunu çiziyordu,
+  üstüne bir tane daha ekleniyordu) ve son düğümden sonra **boşa giden bir ok**. Panel iki
+  ayrı bölüm ("türediği" / "türeyenler") yerine **tek sürekli kolona** çevrildi — ikiye
+  bölmek, okunması gereken tek hattı görünmez kılıyordu. Aynı derinlikte birden fazla kaynak
+  varsa bunun düz bir zincir değil dallanan bir ağaç olduğu açıkça yazılıyor (tek kolon onu
+  olduğundan düz gösterirdi).
+
+  Ayrıca F47'nin (Faz 12) saat dilimi düzeltmesi ilk kez gözle doğrulandı: tarama sekmesi
+  "Son koşu 23 dk önce" diyor — düzeltme olmasaydı "3 sa 23 dk önce" yazacaktı.
+
+  `ScanScheduleList` formdan ayrılıp dışa açıldı; Toplayıcılar sayfası ve kaynak detayı aynı
+  satırları render ediyor (F19/F43/F46 kalıbı: aynı bilgiyi iki ayrı yerde ayrı ayrı çizmek,
+  unutulan her yerde bozuk çıktı demek).
+
+  **Doğrulandı (izole DB, 15 kontrol):** lineage zinciri hop sırasına göre doğru (üstler
+  1→2→3, altlar 1→2→3), bağımsız kök doğru, döngü 409 ile reddediliyor; kaynak claim'leri
+  yeniden eskiye sıralı, supersede işaretli, about adı dönüyor, yalıtık claim about'suz,
+  olmayan kaynak 404. Ayrı bir deneyle Faz 6'nın asıl iddiası da doğrulandı ve arayüzdeki
+  açıklamanın doğru olduğu gösterildi: aynı kökten türemiş bir kaynağın doğrulaması
+  independence'ı **yükseltmiyor** (0.0), gerçekten bağımsız bir kaynağınki yükseltiyor (0.5).
+
+  **Kalan (bu fazın devamı):** Evidence Vault sayfası, Entity sayfasında "Known
+  Relationships", Investigation Workspace'in tam akışı.
 
 ### Faz 14: Deploy/Erişim Kolaylığı
 

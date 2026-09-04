@@ -28,7 +28,17 @@ import { useToast } from "@/components/ui/toast";
  * kendi cümleleriyle yazdığı için similarity 0.0 çıkıyor — türetme var ama tespit edilemiyor.
  * Design Principle #7 gereği son karar zaten insanda; bu ekran o kararı graf'a yazıyor.
  */
-export function LineageDialog({ source, allSources }: { source: Source; allSources: Source[] }) {
+export function LineageDialog({
+  source,
+  allSources,
+  onChanged,
+}: {
+  source: Source;
+  allSources: Source[];
+  /** Faz 13: kaynak detay sayfası lineage'i diyalogun dışında da gösteriyor — bağ kurulunca
+   * ya da kaldırılınca oradaki zincirin de tazelenmesi gerekiyor. */
+  onChanged?: () => void;
+}) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const { data: lineage, reload } = useApi(
@@ -55,6 +65,7 @@ export function LineageDialog({ source, allSources }: { source: Source; allSourc
       setUpstreamId(null);
       setNote("");
       reload();
+      onChanged?.();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Bağlanamadı", "error");
     } finally {
@@ -62,11 +73,14 @@ export function LineageDialog({ source, allSources }: { source: Source; allSourc
     }
   }
 
-  async function unlink(upstream: Source) {
+  // Faz 13: lineage ucu artık tam bir Source değil, {id, name, url, depth} döndürüyor —
+  // burada zaten yalnızca id ve name kullanılıyordu.
+  async function unlink(upstream: { id: string; name: string }) {
     try {
       await api.sources.unlinkDerivedFrom(source.id, upstream.id);
       toast("Lineage bağı kaldırıldı", "default");
       reload();
+      onChanged?.();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Kaldırılamadı", "error");
     }

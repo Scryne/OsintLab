@@ -48,10 +48,39 @@ function relativeTime(iso: string): string {
   return past ? `${text} önce` : `${text} sonra`;
 }
 
-export function ScanSchedules() {
+/** Faz 13: liste formdan ayrıldı — kaynak detay sayfası da aynı satırları (durum, hata,
+ * "şimdi tara", duraklat) göstermek zorunda. Aynı bilgiyi iki ayrı yerde ayrı ayrı render
+ * etmek, Faz 11'in F19/F43/F46 kalıbıyla aynı tuzak olurdu: unutulan her yer bozuk çıktı. */
+export function ScanScheduleList({ sourceId, emptyText }: { sourceId?: string; emptyText?: string }) {
   const toast = useToast();
-  const { data: schedules, error, loading, reload } = useApi(() => api.collectors.schedules(), []);
+  const { data: all, error, loading, reload } = useApi(() => api.collectors.schedules(), []);
+  const schedules = sourceId ? all?.filter((s) => s.source_id === sourceId) : all;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {loading && <SkeletonRows count={2} />}
+      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {!loading && !error && schedules?.length === 0 && (
+        <EmptyState
+          title="Zamanlanmış tarama yok"
+          description={
+            emptyText ??
+            "Bir kaynağı periyodik taramaya alırsan, yeni içerik için elle tarama yapmana gerek kalmaz."
+          }
+        />
+      )}
+      {schedules?.map((s) => (
+        <ScheduleRow key={s.id} schedule={s} onChanged={reload} toast={toast} />
+      ))}
+    </div>
+  );
+}
+
+export function ScanSchedules() {
   const [showForm, setShowForm] = useState(false);
+  // Liste kendi verisini çekiyor; form bir tarama kurunca `key` değiştirilerek yeniden
+  // monte ediliyor (bu kadarı için ayrı bir state paylaşımı kurmaya değmez).
+  const [listKey, setListKey] = useState(0);
 
   return (
     <section className="flex flex-col gap-3">
@@ -75,25 +104,12 @@ export function ScanSchedules() {
         <ScheduleForm
           onCreated={() => {
             setShowForm(false);
-            reload();
+            setListKey((k) => k + 1);
           }}
         />
       )}
 
-      {loading && <SkeletonRows count={2} />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
-      {!loading && !error && schedules?.length === 0 && (
-        <EmptyState
-          title="Zamanlanmış tarama yok"
-          description="Bir kaynağı periyodik taramaya alırsan, yeni içerik için elle tarama yapmana gerek kalmaz."
-        />
-      )}
-
-      <div className="flex flex-col gap-2">
-        {schedules?.map((s) => (
-          <ScheduleRow key={s.id} schedule={s} onChanged={reload} toast={toast} />
-        ))}
-      </div>
+      <ScanScheduleList key={listKey} />
     </section>
   );
 }

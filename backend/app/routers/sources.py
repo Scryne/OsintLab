@@ -185,25 +185,67 @@ def detect_lineage(payload: LineageDetectRequest) -> dict:
     return result
 
 
+@router.get("/{source_id}/claims")
+def list_source_claims(source_id: str) -> list[dict]:
+    """Bu kaynağın attığı (ASSERTS) claim'ler — Faz 13, kaynak detay sayfası için.
+
+    Bugüne kadar bu sorgu yalnızca vault render'ında vardı (`vault.py::_source_claims`);
+    arayüz "bu kaynak neyi iddia etti" sorusunu hiç soramıyordu. `superseded_by` burada
+    döndürülüyor çünkü F34'ün dersi buydu: yerini almış bir claim, güncel olanla birebir aynı
+    görünürse temporal versiyonlama kullanıcının gördüğü hiçbir şeyde yok demektir.
+
+    `about_*_name` alanları claim'in graf'ta yalıtık olup olmadığını gösterir — Faz 11'de
+    (F16) promote sırasında bu bağın atlanması sık bir hataydı, kaynak sayfasında görünür
+    olması onarılması gerekeni görünür kılar."""
+    conn = get_connection()
+    if fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": source_id})) is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    return fetch_all(
+        conn.execute(
+            "MATCH (:Source {id: $id})-[:ASSERTS]->(c:Claim) "
+            "OPTIONAL MATCH (c)-[:ABOUT_ENTITY]->(en:Entity) "
+            "OPTIONAL MATCH (c)-[:ABOUT_EVENT]->(ev:Event) "
+            "OPTIONAL MATCH (newer:Claim)-[:SUPERSEDES]->(c) "
+            "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
+            "c.confidence AS confidence, c.valid_from AS valid_from, c.valid_to AS valid_to, "
+            "c.created_at AS created_at, en.id AS about_entity_id, en.name AS about_entity_name, "
+            "ev.id AS about_event_id, ev.title AS about_event_title, "
+            "newer.id AS superseded_by_claim_id "
+            "ORDER BY c.valid_from DESC",
+            {"id": source_id},
+        )
+    )
+
+
 @router.get("/{source_id}/lineage")
 def get_lineage(source_id: str) -> dict:
-    """Bir Source'un tam lineage zincirini döner: ancestors (bu source'un türediği kaynaklar,
-    kökten uzağa doğru sıralı) ve descendants (bu source'tan türeyenler)."""
+    """Bir Source'un tam lineage zincirini döner: ancestors (bu source'un türediği kaynaklar)
+    ve descendants (bu source'tan türeyenler), her biri KAÇ HOP uzakta olduğuyla birlikte.
+
+    Faz 13 düzeltmesi: bu docstring "kökten uzağa doğru sıralı" diyordu ama sorguda ne
+    `ORDER BY` ne de bir derinlik alanı vardı — değişken uzunluklu bir yol üzerinde
+    `DISTINCT`'in sırası tanımsız. Kimse fark etmemişti çünkü sonuç Faz 13'e kadar hiçbir
+    arayüzde gösterilmiyordu. `depth` olmadan "zincir" gösterilemez, yalnızca küme
+    gösterilebilirdi (Ajans → Site A → Site B sırası kaybolurdu)."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": source_id})) is None:
         raise HTTPException(status_code=404, detail="Source not found")
 
+    # min(length(p)): iki kaynak arasında birden fazla türetme yolu varsa en kısası zincirdeki
+    # yerini belirler.
     ancestors = fetch_all(
         conn.execute(
-            "MATCH (s:Source {id: $id})-[:DERIVED_FROM*1..10]->(a:Source) "
-            "RETURN DISTINCT a.id AS id, a.name AS name, a.url AS url",
+            "MATCH p = (s:Source {id: $id})-[:DERIVED_FROM*1..10]->(a:Source) "
+            "RETURN a.id AS id, a.name AS name, a.url AS url, min(length(p)) AS depth "
+            "ORDER BY depth",
             {"id": source_id},
         )
     )
     descendants = fetch_all(
         conn.execute(
-            "MATCH (d:Source)-[:DERIVED_FROM*1..10]->(s:Source {id: $id}) "
-            "RETURN DISTINCT d.id AS id, d.name AS name, d.url AS url",
+            "MATCH p = (d:Source)-[:DERIVED_FROM*1..10]->(s:Source {id: $id}) "
+            "RETURN d.id AS id, d.name AS name, d.url AS url, min(length(p)) AS depth "
+            "ORDER BY depth",
             {"id": source_id},
         )
     )

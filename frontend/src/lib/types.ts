@@ -163,6 +163,32 @@ export interface ScanRunResult {
   notified: { id: string; priority: string } | null;
 }
 
+/** Faz 13 — lineage zincirindeki bir düğüm. `depth` kaç hop uzakta olduğunu söyler;
+ * onsuz "zincir" gösterilemez, yalnızca sırasız bir küme gösterilebilir. */
+export interface LineageNode {
+  id: string;
+  name: string;
+  url: string | null;
+  depth: number;
+}
+
+/** Faz 13 — bir kaynağın attığı claim. `superseded_by_claim_id` bilerek burada: F34'ün
+ * dersi, yerini almış bir claim'in güncel olanla birebir aynı görünmemesi gerektiğiydi. */
+export interface SourceClaim {
+  id: string;
+  text: string;
+  knowledge_state: KnowledgeState;
+  confidence: number;
+  valid_from: string;
+  valid_to: string | null;
+  created_at: string;
+  about_entity_id: string | null;
+  about_entity_name: string | null;
+  about_event_id: string | null;
+  about_event_title: string | null;
+  superseded_by_claim_id: string | null;
+}
+
 export interface WhyMattersReason {
   code: string;
   text: string;
