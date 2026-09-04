@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Eye, Flag, Star, X } from "lucide-react";
 import { api } from "@/lib/api";
@@ -85,11 +85,16 @@ const ACTIONS: { status: InboxStatus; label: string; icon: typeof Check }[] = [
   { status: "IGNORED", label: "Yoksay", icon: Flag },
 ];
 
+/** Zamanlanmış tarama (Faz 12) en sık 3 saatte bir çalışıyor; 30 sn'lik yoklama "arkada bir
+ * şey düştüyse görürüm" için fazlasıyla yeterli, üstelik sekme görünmezken duruyor. */
+const INBOX_POLL_MS = 30_000;
+
 export default function InboxPage() {
   const [minPriority, setMinPriority] = useState<string>("INFO");
-  const { data: items, error, loading, reload } = useApi(
+  const { data: items, error, loading, reload, updatedAt } = useApi(
     () => api.inbox.list({ min_priority: minPriority }),
-    [minPriority]
+    [minPriority],
+    { pollMs: INBOX_POLL_MS }
   );
 
   return (
@@ -97,7 +102,13 @@ export default function InboxPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Intelligence Inbox</h1>
-          <p className="text-sm text-text-secondary">More signal, less noise.</p>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-secondary">
+            More signal, less noise.
+            {/* Sayfanın canlı olduğunu SÖYLEMEK gerekiyor: sessizce tazelenen bir liste ile
+                donmuş bir liste ekranda birbirinin aynı görünür — kullanıcı yine elle
+                yenilemeye devam ederdi. */}
+            <LiveIndicator updatedAt={updatedAt} />
+          </p>
         </div>
         <Select value={minPriority} onValueChange={(value) => value && setMinPriority(value)}>
           <SelectTrigger className="w-40">
@@ -125,6 +136,25 @@ export default function InboxPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+function LiveIndicator({ updatedAt }: { updatedAt: Date | null }) {
+  // Saniye sayacı kendi başına ilerlemeli; veri değişmese de "kaç sn önce" tazelenmeli.
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => force((n) => n + 1), 10_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  if (!updatedAt) return null;
+  const secs = Math.max(0, Math.round((Date.now() - updatedAt.getTime()) / 1000));
+  const label = secs < 60 ? `${secs} sn önce` : `${Math.round(secs / 60)} dk önce`;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-priority-low/80" />
+      canlı · {label} güncellendi
+    </span>
   );
 }
 

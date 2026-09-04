@@ -914,6 +914,24 @@ ayrı" kararıyla tutarlı).
     kayıtlar düzelmiyor ve düzelmemeli (History Is Immutable) — doğru yer render tarafı:
     artık saklanan metnin tek satır olduğu VARSAYILMIYOR.
 
+  - **F59 — arayüz canlı değildi.** Zamanlanmış tarama arka planda Inbox'a öğe düşürüyor ama
+    açık duran sayfa bunu göstermiyordu; yeni bildirimi görmek için sayfayı ELLE yenilemek
+    gerekiyordu. Otomatik toplamanın tek amacı "sen bakmadan da haberin olsun"ken, arayüzün
+    bakılmasını beklemesi amacı boşa çıkarıyordu. `useApi`'ye `pollMs` eklendi (Inbox sayfası
+    ve kenar çubuğu rozeti, 30 sn). Üç detay bilinçli: (a) tazeleme SESSİZ — `loading`
+    kıpırdamıyor, yoksa her turda iskelet yanıp söner ve okurken içerik altından kayardı;
+    (b) sekme görünmezken yoklama DURUR, görünür olunca hemen bir kez tazeler — bu araç
+    günlerce açık bırakılıyor; (c) sessiz tazeleme başarısız olursa ekrandaki veri SİLİNMEZ,
+    geçici bir ağ hatası dolu bir Inbox'ı "bir şeyler ters gitti"ye çevirmemeli. Ayrıca
+    başlıkta "canlı · N sn önce güncellendi" göstergesi var: sessizce tazelenen bir liste ile
+    donmuş bir liste ekranda birbirinin aynı görünür, sayfanın canlı olduğunu SÖYLEMEK
+    gerekiyor.
+
+    Canlı doğrulandı: izole bir backend'e bakan gerçek bir tarayıcı penceresi açık
+    bırakıldı ("Inbox boş"), sayfaya hiç dokunulmadan arka planda bir claim oluşturuldu, 42
+    sn sonra aynı pencerede — hiç yenilenmeden — bildirim belirdi ve kenar çubuğu rozeti 1
+    oldu. Pencere öne getirilince görünürlük tetikleyicisi de anında tazeledi.
+
   **Sonraki faz için:** hangi kaynağın hangi sıklıkta taranacağı bilinçli olarak kuruluma
   bırakıldı (roadmap'in kendi gerekçesi: karar gerçek kullanım verisiyle alınsın). Inbox'taki
   Source hedefi şu an `/sources` listesine bağlanıyor — kaynak detay sayfası Faz 13'te

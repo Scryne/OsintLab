@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Compass,
   Database,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useApi } from "@/lib/use-api";
 import { IconChip } from "@/components/ui/icon-chip";
 import { WireframeGlobe } from "@/components/ui/wireframe-globe";
 
@@ -36,23 +37,13 @@ const NAV = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [inboxCount, setInboxCount] = useState<number | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    api.inbox
-      .list({ status: "NEW" })
-      .then((items) => {
-        if (!cancelled) setInboxCount(items.length);
-      })
-      .catch(() => {
-        if (!cancelled) setInboxCount(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
+  // Rozet de canlı: sayfa değişimini beklemek, "arkada bir şey düştü mü" sorusunu ancak
+  // kullanıcı gezinirse cevaplardı — oysa Inbox'a bakmayı hatırlatan şey tam da bu rozet.
+  const { data: newItems } = useApi(() => api.inbox.list({ status: "NEW" }), [pathname], {
+    pollMs: 30_000,
+  });
+  const inboxCount = newItems?.length ?? null;
 
   const navList = (
     <nav className="flex flex-col gap-1">
