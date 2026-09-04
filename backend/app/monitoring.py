@@ -7,6 +7,11 @@ investigation geçişi, entity-event ilişkilendirme) kanca atılarak REAKTİF �
 gerçekleştirilir — Observe zaten o yazma işleminin kendisi, Detect ise "bu Entity/Event/
 Investigation izleniyor mu?" kontrolü.
 
+Faz 12 güncellemesi: yukarıdaki "zamanlayıcı olmadan" cümlesi artık tek başına doğru değil.
+Reaktif kancalar hâlâ esas yol, ama zamanlanmış tarama (`app/scheduler.py`) bir yazma
+işlemine bağlı OLMAYAN tek Observe kaynağı — bu yüzden bildirimi de kendisi tetiklemek
+zorunda (`app/scanning.py::_notify_new_observations`, Monitor target_type='Source').
+
 Q24 (Intelligence Prioritization): önem değerlendirmesi confidence, çelişki, independence
 (Faz 6), aktif investigation ilişkisi ve novelty (ilk kez mi görülüyor) faktörlerine
 dayanıyor — hepsi zaten grafta hesaplı/hesaplanabilir durumda, ekstra bir sinyal
@@ -79,6 +84,9 @@ class PriorityInputs:
     active_investigation: bool = False
     independence: float | None = None
     is_novel: bool = False
+    # Faz 12: ham gözlemde (henüz claim değil) confidence yoktur — bu yüzden önemin tek
+    # ölçülebilir girdisi, içeriğin zaten bildiğimiz bir entity'ye değip değmediğidir.
+    mentions_known_entity: bool = False
 
 
 def claim_headline(text: str, limit: int = 90) -> str:
@@ -108,6 +116,22 @@ def compute_priority(inputs: PriorityInputs) -> str:
     CRITICAL (kullanıcının o an üzerinde çalıştığı bir şey aniden çelişiyor demektir)."""
     if inputs.has_contradiction:
         return "CRITICAL" if inputs.active_investigation else "HIGH"
+
+    # Faz 12 — zamanlanmış taramadan gelen yeni içerik. Confidence yok (bu henüz bir claim
+    # değil, ham gözlem), dolayısıyla kural tamamen "bildiğimiz bir şeye değiyor mu"ya
+    # dayanıyor: aktif bir investigation'daki entity'den bahseden bir haber, kullanıcının o
+    # an üzerinde çalıştığı şeye dokunuyor demektir.
+    if inputs.item_type == "NEW_OBSERVATION":
+        if inputs.active_investigation:
+            return "HIGH"
+        if inputs.mentions_known_entity:
+            return "MEDIUM"
+        return "LOW"
+
+    # Bozuk bir toplayıcı, sessiz kalması en pahalı olan şeydir (kullanıcı sistemin izlediğini
+    # sanmaya devam eder) ama acil de değildir — sabit MEDIUM.
+    if inputs.item_type == "SCAN_FAILED":
+        return "MEDIUM"
 
     # Investigation durum geçişleri confidence-tabanlı değil — kullanıcı bilinçli olarak
     # izlediği bir investigation'ın OPEN/ACTIVE/PAUSED/RESOLVED/CLOSED/ARCHIVED arasında
@@ -175,6 +199,8 @@ def notify_if_monitored(
     has_contradiction: bool = False,
     independence: float | None = None,
     is_novel: bool = False,
+    mentions_known_entity: bool = False,
+    active_investigation: bool | None = None,
 ) -> dict | None:
     """Change Detection'ın 'Detect -> Evaluate -> Notify' kısmı: hedef izleniyor mu diye
     bakar (Compare With Memory zaten çağıranın confidence/contradiction hesaplamasında
@@ -184,7 +210,10 @@ def notify_if_monitored(
     if monitor is None:
         return None
 
-    active_investigation = has_active_investigation(conn, target_type, target_id)
+    # Faz 12: hedef bir Source olduğunda "aktif investigation" o kaynağın kendisinden değil,
+    # topladığı içerikte geçen entity'lerden gelir — çağıran bunu hesaplayıp geçirir.
+    if active_investigation is None:
+        active_investigation = has_active_investigation(conn, target_type, target_id)
     priority = compute_priority(
         PriorityInputs(
             item_type=item_type,
@@ -193,6 +222,7 @@ def notify_if_monitored(
             active_investigation=active_investigation,
             independence=independence,
             is_novel=is_novel,
+            mentions_known_entity=mentions_known_entity,
         )
     )
     detail = {

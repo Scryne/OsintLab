@@ -18,7 +18,53 @@ const TARGET_HREF: Record<string, (id: string) => string> = {
   Entity: (id) => `/entities/${id}`,
   Event: (id) => `/events/${id}`,
   Investigation: (id) => `/investigations/${id}`,
+  // Faz 12: kaynak bildirimleri (zamanlanmış tarama). Kaynak detay sayfası Faz 13'te
+  // gelecek — o zamana kadar liste sayfası, bağlantısız bırakmaktan iyi.
+  Source: () => `/sources`,
 };
+
+/** Faz 12 — NEW_OBSERVATION öğesinin detayı: hangi başlıklar geldi, bildiğimiz hangi
+ * entity'lerden bahsediyor. Bunlar olmadan bildirim "3 yeni içerik" deyip kullanıcıyı
+ * Gözlemler sayfasında arama yapmaya zorlardı; öncelik gerekçesi de görünmezdi. */
+function ScanDetail({ detail }: { detail: Record<string, unknown> }) {
+  const headlines = Array.isArray(detail.headlines) ? (detail.headlines as string[]) : [];
+  const matched = Array.isArray(detail.matched_entities)
+    ? (detail.matched_entities as { id: string; name: string }[])
+    : [];
+  const total = Array.isArray(detail.observation_ids) ? detail.observation_ids.length : 0;
+  if (headlines.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      <ul className="flex flex-col gap-0.5 text-xs text-text-secondary">
+        {headlines.map((h, i) => (
+          <li key={i} className="truncate">
+            · {h}
+          </li>
+        ))}
+        {total > headlines.length && (
+          <li className="text-text-tertiary">· ve {total - headlines.length} tane daha</li>
+        )}
+      </ul>
+      {matched.length > 0 && (
+        <p className="text-[11px] text-text-tertiary">
+          Bildiğimiz entity&apos;ler:{" "}
+          {matched.map((m, i) => (
+            <span key={m.id}>
+              {i > 0 && ", "}
+              <Link
+                href={`/entities/${m.id}`}
+                className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground"
+              >
+                {m.name}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // Q14 — Ignore/Confirm/Reject/Investigate/Follow. Loglanır, v1'de algoritmayı otomatik
 // etkilemez (bkz. app/monitoring.py).
@@ -97,6 +143,7 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
             <span className="text-[11px] uppercase tracking-wide text-text-tertiary">{item.item_type}</span>
           </div>
           <p className="mt-1 text-sm text-foreground">{item.title}</p>
+          {item.item_type === "NEW_OBSERVATION" && <ScanDetail detail={item.detail} />}
           <div className="mt-1 flex items-center gap-2 text-[11px] text-text-tertiary">
             <span className="font-mono">{new Date(item.created_at).toLocaleString("tr-TR")}</span>
             {href && (

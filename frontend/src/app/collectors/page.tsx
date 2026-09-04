@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { WireframeGlobe } from "@/components/ui/wireframe-globe";
+import { ScanSchedules } from "@/components/forms/scan-schedules";
 
 export default function CollectorsPage() {
   const toast = useToast();
@@ -53,6 +54,7 @@ export default function CollectorsPage() {
         <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Toplayıcılar</h1>
         <p className="text-sm text-text-secondary">
           Allowlist&apos;teki hostname&apos;lerden RSS/web sayfası tara — sonuçlar Gözlem olarak sisteme düşer.
+          Bir kaynağı zamanlanmış taramaya alırsan bunu senin yerine arka plan yapar.
         </p>
       </div>
 
@@ -97,9 +99,11 @@ export default function CollectorsPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">URL Tara</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Tek Seferlik Tarama</h2>
         <FetchForm hostnames={allowlist?.hostnames ?? []} />
       </section>
+
+      <ScanSchedules />
     </div>
   );
 }

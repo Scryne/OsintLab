@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import scheduler
 from app.db import get_connection
 from app.routers import claims, collectors, entities, evidence, events, investigations, monitors, observations, sources, vault
 
@@ -28,10 +29,20 @@ app.include_router(vault.router)
 
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
     get_connection()  # KùzuDB bağlantısını açar, şemayı garanti eder
+    # Faz 12: zamanlanmış tarama döngüsü. Backend ayakta olduğu sürece çalışır — ayrı bir
+    # süreç değil, çünkü gömülü KùzuDB'yi aynı anda tek süreç açabiliyor (bkz. scheduler.py).
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    await scheduler.stop()
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    # Zamanlayıcının durumu health'e kondu: "otomatik tarama gerçekten çalışıyor mu"
+    # sorusunun tek satırlık cevabı olsun (Faz 11'in dersi — sessiz mekanizma kurma).
+    return {"status": "ok", "scheduler": scheduler.is_running()}

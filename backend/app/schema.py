@@ -112,6 +112,33 @@ NODE_TABLES = [
         PRIMARY KEY(id)
     )
     """,
+    # Faz 12 — Zamanlanmış Otomatik Tarama. Bir ScanSchedule her zaman bir Source'a aittir
+    # (SCANS_SOURCE): tarama sonucu Observation'ların provenance'ı o Source'tur ve Inbox
+    # bildiriminin izlenen hedefi (Monitor target_type='Source') yine odur. Kaynaksız bir
+    # zamanlanmış tarama, kimseye ait olmayan içerik üretirdi.
+    #
+    # Çalışma durumu (last_*) şemada tutuluyor, ayrı bir log dosyasında değil: "bu tarama
+    # ne zaman çalıştı, ne buldu, neden patladı" sorusu arayüzden ve vault'tan
+    # cevaplanabilir olmalı (Faz 11'in tekrar eden dersi: sistem yaptığı şeyi söyleyebilmeli).
+    """
+    CREATE NODE TABLE IF NOT EXISTS ScanSchedule(
+        id STRING,
+        url STRING,
+        mode STRING,
+        interval_minutes INT64,
+        item_limit INT64,
+        since_days INT64,
+        label STRING,
+        active BOOLEAN,
+        last_run_at TIMESTAMP,
+        last_status STRING,
+        last_error STRING,
+        last_new_count INT64,
+        consecutive_failures INT64,
+        created_at TIMESTAMP,
+        PRIMARY KEY(id)
+    )
+    """,
     # Faz 7 — Intelligence Inbox (madde 27) + Q14 davranış loglama. status: NEW (varsayılan)
     # veya kullanıcının aksiyonu (IGNORED/CONFIRMED/REJECTED/INVESTIGATING/FOLLOWED) —
     # loglanır ama v1'de prioritization'ı otomatik etkilemez (Q13/Q14 kararı).
@@ -161,6 +188,8 @@ REL_TABLES = [
     # Source, TO = türetildiği (daha önceki/upstream) Source. Zincir: Site B -[:DERIVED_FROM]->
     # Site A -[:DERIVED_FROM]-> Agency.
     "CREATE REL TABLE IF NOT EXISTS DERIVED_FROM(FROM Source TO Source, method STRING, similarity DOUBLE, shared_agencies STRING, detected_at TIMESTAMP)",
+    # Faz 12 — bir zamanlanmış taramanın hangi Source adına içerik topladığı.
+    "CREATE REL TABLE IF NOT EXISTS SCANS_SOURCE(FROM ScanSchedule TO Source)",
 ]
 
 

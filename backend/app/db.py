@@ -1,4 +1,5 @@
 """KùzuDB bağlantı yönetimi — Brain-Centric Architecture'daki Intelligence Core katmanı."""
+from datetime import datetime, timezone
 from pathlib import Path
 
 import kuzu
@@ -21,18 +22,40 @@ def get_connection() -> kuzu.Connection:
     return _connection
 
 
+def _as_utc(value):
+    """KùzuDB TIMESTAMP'ları saat dilimi bilgisi OLMADAN döndürür.
+
+    Faz 12 bulgusu (F47): grafa her zaman `datetime.now(timezone.utc)` yazılıyor, ama okurken
+    tzinfo düşüyor. Pydantic bunu `2026-09-04T07:06:01` diye (Z'siz) serialize ediyor,
+    tarayıcıda `new Date(...)` ise saat dilimi eki olmayan bir damgayı YEREL saat sayıyor —
+    yani UTC+3'te arayüzdeki her zaman damgası 3 saat geride görünüyordu. Faz 11'e kadar
+    kimse yakalamamıştı çünkü zaman damgaları o güne dek yalnızca sıralama içindi; Faz 12'de
+    ilk kez taşıyıcı bir bilgi oldular ("son koşu", "sıradaki koşu" — 3 saatlik bir aralıkta
+    3 saatlik kayma, sıradaki koşuyu daima 'geçmiş' gösterirdi).
+
+    Düzeltme okuma noktasında, tek yerde: yazılan değer zaten UTC, yalnızca etiketi geri
+    konuyor. Karşılaştırmalar (claims.py supersede, sources.py lineage yönü) iki DB değerini
+    kıyasladığı için ikisi de aware olunca bozulmuyor."""
+    if isinstance(value, datetime) and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def _row(columns, values) -> dict:
+    return {c: _as_utc(v) for c, v in zip(columns, values)}
+
+
 def fetch_all(result) -> list[dict]:
     """Bir QueryResult'ı dict listesine çevirir. Sorgularda kolonlar her zaman `AS <isim>`
     ile açıkça isimlendirilmeli — aksi halde KùzuDB `e.id` gibi prefiksli adlar döndürür."""
     columns = result.get_column_names()
     rows = []
     while result.has_next():
-        rows.append(dict(zip(columns, result.get_next())))
+        rows.append(_row(columns, result.get_next()))
     return rows
 
 
 def fetch_one(result) -> dict | None:
     if not result.has_next():
         return None
-    columns = result.get_column_names()
-    return dict(zip(columns, result.get_next()))
+    return _row(result.get_column_names(), result.get_next())

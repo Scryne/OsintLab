@@ -90,7 +90,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 9 | Living Brain — Obsidian Vault Sistemi | ✅ Tamamlandı | `data/vault/` Obsidian'da bir vault olarak açılabiliyor; en az bir Entity ve bir Investigation notu gerçek graph verisiyle (confidence, `[[wikilink]]`'ler dahil) doğru render ediliyor; bir Claude Code oturumu OsintLab'de değişiklik yapıp kapandığında `daily/` notu ve `Dashboard.md` otomatik güncelleniyor. |
 | 10 | Tam Veri Girişi + Collector Tetikleme Arayüzü | ✅ Tamamlandı | Kullanıcı hiç curl/python script'ine dokunmadan, sadece tarayıcıdan yeni bir Source+Claim+Evidence zinciri oluşturabiliyor, bir Hypothesis ekleyebiliyor ve bir RSS/web kaynağını UI'dan tarayıp Observation'a çevirebiliyor. |
 | 11 | Dogfooding / Sertleştirme Turu | ✅ Tamamlandı | 5 gerçek araştırma oturumu + 1 sistematik tarama tamamlandı; 46 bulgu listelendi, kritik olanların tamamı bu fazda kapatıldı; son oturum (temiz koşu) baştan sona engelsiz tamamlandı. |
-| 12 | Zamanlanmış Otomatik Tarama | ⏳ Bekliyor | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
+| 12 | Zamanlanmış Otomatik Tarama | ✅ Tamamlandı | İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor. |
 | 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ⏳ Bekliyor | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
 | 14 | Deploy/Erişim Kolaylığı | ✅ Tamamlandı | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
 | 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ⏳ Bekliyor | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi; seçilen domain için ayrı bir spike (teknoloji/veri kaynağı doğrulaması) yapılıp kendi alt-roadmap'i (Faz 15.1, 15.2...) yazıldı. |
@@ -791,7 +791,72 @@ ayrı" kararıyla tutarlı).
     bir entegrasyon gerekmiyor.
 - **Bitti Kriteri:** İzlenen bir RSS/web kaynağında yeni içerik çıktığında, manuel tetikleme
   olmadan birkaç saat içinde Observation'a ve (izleniyorsa) Inbox'a düşüyor.
-- **Notlar:**
+- **Notlar:** 2026-09-04 tamamlandı. Yeni `ScanSchedule` node'u (`SCANS_SOURCE` ile bir
+  Source'a bağlı) + `app/scanning.py` (bir tarama ne yapar) + `app/scheduler.py` (ne zaman
+  çalışır) + `/collectors/schedules` CRUD/run uçları + Toplayıcılar sayfasında yönetim
+  arayüzü. Elle tarama (`/collectors/fetch`) ile zamanlanmış koşu artık aynı çekirdeği
+  (`collect_from_url`) kullanıyor — güvenlik (allowlist+SSRF, Q22) ve dedup davranışı ikisinde
+  de birebir aynı, biri için yapılan düzeltme diğerini de kapsıyor.
+
+  **Roadmap'in bu fazdaki varsayımı yanlıştı ve düzeltildi.** Plan "yeni Observation'lar
+  mevcut promote/notify pipeline'ından otomatik geçer, ek bir entegrasyon gerekmiyor"
+  diyordu. Gerçek tersiydi: Faz 7'nin bildirim boru hattı `create_claim`/`promote` üzerine
+  kancalı, promote ise **elle** atılan bir adım (Design Principle #7). Yani zamanlanmış tarama
+  tek başına hiçbir bildirim üretmeyecekti — gözlemler sessizce birikecek, kullanıcı bakmayı
+  akıl edene kadar hiçbir şey söylenmeyecekti, ki otomatik taramanın tek varlık nedeni tam da
+  bunu ortadan kaldırmak. Eksik halka kapatıldı: `MONITOR_TARGET_TYPES`'a **Source** eklendi
+  ve tarama, promote'u beklemeden Inbox'a `NEW_OBSERVATION` öğesi düşürüyor.
+
+  **Kararlar ve gerekçeleri:**
+  - *Zamanlayıcı ayrı süreç değil, uvicorn içinde bir asyncio görevi.* Roadmap Windows Task
+    Scheduler'ı da açık bırakmıştı; belirleyici olan gömülü KùzuDB'nin dosyayı tek sürece
+    kilitlemesi (Faz 14/F14 bu kilidi zaten canlı bir bug olarak göstermişti). Ayrı süreç
+    grafa yazamaz, ancak HTTP'den API'yi çağırabilirdi — o da backend'in ayakta olmasını
+    gerektirdiği için hiçbir şey kazandırmayıp bir hareketli parça eklerdi. Kabul edilen
+    sınır: taramalar yalnızca backend ayaktayken çalışır; telafisi, açılışta zamanı geçmiş
+    taramaların hemen koşması.
+  - *Bildirim koşu başına tek öğe, gözlem başına değil.* Günde bir düzine öğe yayınlayan bir
+    feed'de gözlem başına bildirim Inbox'ı kullanılamaz hale getirirdi ("more signal, less
+    noise", madde 25). Öğenin detayında ilk beş başlık taşınıyor, böylece açmadan karar
+    verilebiliyor.
+  - *Öncelik ham gözlemde confidence olmadığı için "Compare With Memory"den türetiliyor.*
+    Gözlem henüz claim değil, confidence'ı yok. Kural deterministik: içerikte adı/alias'ı
+    geçen bilinen bir entity aktif bir investigation'daysa HIGH, sadece biliniyorsa MEDIUM,
+    hiçbiri değilse LOW. Eşleşme kelime sınırlı ("Meta" entity'si "metadata" içinde
+    eşleşmiyor) ve hangi ad üzerinden eşleştiği Inbox detayında saklanıyor (Auditability).
+  - *Varsayılan aralık 3 saat, alt sınır 15 dk;* koşu başına 20 öğe, son 7 gün. Faz 11'in
+    F2 dersi (limitsiz feed sistemi tek hamlede kullanılamaz hale getiriyor) zamanlanmış
+    taramada daha kritik: elle tarama bir kez patlar, zamanlanmış tarama her koşuda patlar.
+  - *Sessizce ölen tarama yasak.* Üst üste 3 hatada (yalnızca o koşuda, bir kez) Inbox'a
+    `SCAN_FAILED` düşüyor; aralık hatalarda katlanarak uzuyor (en fazla 8x); `last_error`
+    hem arayüzde hem kaynağın vault notunda görünüyor; `/health` zamanlayıcının çalışıp
+    çalışmadığını söylüyor. Monitor kapalıyken tarama "Inbox'a düşmez" rozetiyle listeleniyor —
+    çalışan ama hiçbir şey söylemeyen bir tarama kurmak sessiz bir tuzak olurdu.
+
+  **Faz 12 bulgusu — F47 (uygulama geneli, Faz 12'ye özel değil):** KùzuDB `TIMESTAMP`'ları
+  saat dilimi bilgisi olmadan döndürüyor. Grafa hep `datetime.now(timezone.utc)` yazılıyor
+  ama okurken tzinfo düşüyor, Pydantic da Z'siz serialize ediyordu; tarayıcıda `new Date()`
+  eksiz bir damgayı YEREL saat sayar — yani arayüzdeki her zaman damgası UTC+3'te 3 saat
+  geride görünüyordu. Faz 11'e kadar yakalanmamıştı çünkü damgalar o güne dek yalnızca
+  sıralama içindi; Faz 12'de ilk kez taşıyıcı bilgi oldular ("son koşu"/"sıradaki koşu" —
+  3 saatlik aralıkta 3 saatlik kayma, sıradaki koşuyu daima 'geçmiş' gösterirdi). Düzeltme
+  tek noktada, `db.py::fetch_all/fetch_one` okuma yolunda.
+
+  **Test:** izole bir KùzuDB/vault/daily dizininde, gerçek ağla (krebsonsecurity.com RSS)
+  45 kontrol — hepsi geçti. Kanıtlananlar: zamanlayıcı taramayı hiçbir uç elle çağrılmadan
+  KENDİ çalıştırdı; 5 gözlem Observation'a + daily log'a düştü, provenance korundu; izlenen
+  kaynak için tek bir `NEW_OBSERVATION` Inbox öğesi oluştu; aynı feed ikinci kez tarandığında
+  ne yeni gözlem ne yeni bildirim üretildi (dedup); kurulum hataları (olmayan Source 404,
+  allowlist dışı adres 403, aynı adrese ikinci tarama 409) koşuya değil kurulum anına düştü;
+  3 ardışık hatada tam bir SCAN_FAILED, 4.'de tekrar yok, backoff 8x; duraklatılan tarama
+  zamanlayıcıda çalışmadı ama kaydı silinmedi (audit trail); vault kaynak notu tarama
+  durumunu ve hatayı yazdı. Ayrıca gerçek veriyle backend ayağa kaldırılıp mevcut 5 entity /
+  8 claim / 5 inbox öğesinin F47 düzeltmesinden sonra sorunsuz okunduğu doğrulandı.
+
+  **Sonraki faz için:** hangi kaynağın hangi sıklıkta taranacağı bilinçli olarak kuruluma
+  bırakıldı (roadmap'in kendi gerekçesi: karar gerçek kullanım verisiyle alınsın). Inbox'taki
+  Source hedefi şu an `/sources` listesine bağlanıyor — kaynak detay sayfası Faz 13'te
+  gelince oraya bağlanmalı.
 
 ### Faz 13: Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme
 

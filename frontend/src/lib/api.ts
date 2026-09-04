@@ -15,6 +15,8 @@ import type {
   ObservationPromoteResult,
   SameAsCandidate,
   SameAsPending,
+  ScanRunResult,
+  ScanSchedule,
   Source,
   WhyMattersReason,
 } from "./types";
@@ -265,6 +267,25 @@ export const api = {
         ...(opts?.limit ? { limit: opts.limit } : {}),
         ...(opts?.since_days ? { since_days: opts.since_days } : {}),
       }),
+    // Faz 12 — zamanlanmış tarama.
+    schedules: (active?: boolean) =>
+      get<ScanSchedule[]>(`/collectors/schedules${active === undefined ? "" : `?active=${active}`}`),
+    createSchedule: (payload: {
+      source_id: string;
+      url?: string | null;
+      mode?: "rss" | "web";
+      interval_minutes?: number;
+      item_limit?: number;
+      since_days?: number | null;
+      label?: string | null;
+      watch?: boolean;
+    }) => post<ScanSchedule>("/collectors/schedules", payload),
+    updateSchedule: (
+      id: string,
+      payload: { interval_minutes?: number; item_limit?: number; since_days?: number | null; label?: string | null; active?: boolean }
+    ) => patch<ScanSchedule>(`/collectors/schedules/${id}`, payload),
+    deleteSchedule: (id: string) => del(`/collectors/schedules/${id}`),
+    runSchedule: (id: string) => post<ScanRunResult>(`/collectors/schedules/${id}/run`),
   },
 
   monitors: {

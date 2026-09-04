@@ -262,11 +262,79 @@ class CollectorFetchRequest(BaseModel):
     since_days: int | None = Field(default=None, ge=1)
 
 
+SCAN_MODES = ("rss", "web")
+
+# Varsayılan aralık: 3 saat. Faz 11'in gerçek kullanım deseni (günde bir-iki oturum, izlenen
+# feed'ler günde birkaç kez yayın yapıyor) için "birkaç saat içinde haberim olsun" ihtiyacını
+# karşılıyor; daha sık taramak yayıncıya karşı da kabalık olurdu. Alt sınır 15 dakika aynı
+# nedenle konuldu — bu bir haber okuyucusu değil, bir istihbarat defteri.
+DEFAULT_SCAN_INTERVAL_MINUTES = 180
+MIN_SCAN_INTERVAL_MINUTES = 15
+
+
+class ScanScheduleCreate(BaseModel):
+    """Faz 12 — bir kaynağın periyodik olarak taranması.
+
+    `source_id` zorunlu: toplanan Observation'ın kime ait olduğu ve Inbox bildiriminin hangi
+    hedef üzerinden gideceği (Monitor target_type='Source') buradan gelir. Kaynağı olmayan
+    bir otomatik tarama, sonradan promote edilemeyen içerik biriktirirdi."""
+
+    source_id: str
+    url: str | None = Field(
+        None, description="Taranacak adres. Verilmezse Source.url kullanılır — feed adresi çoğu zaman ondan farklıdır (ör. /feed/)"
+    )
+    mode: str = Field("rss", examples=list(SCAN_MODES))
+    interval_minutes: int = Field(DEFAULT_SCAN_INTERVAL_MINUTES, ge=MIN_SCAN_INTERVAL_MINUTES, le=10080)
+    # Faz 11 (F2)'nin dersi zamanlanmış taramada daha da kritik: elle tarama bir kez patlar,
+    # zamanlanmış tarama her koşuda patlar. Varsayılanlar bilerek dar.
+    item_limit: int = Field(20, ge=1, le=500)
+    since_days: int | None = Field(7, ge=1)
+    label: str | None = None
+    watch: bool = Field(
+        True,
+        description="Kaynak için otomatik bir Monitor aç — bu olmadan tarama sessizce çalışır, Inbox'a hiçbir şey düşmez",
+    )
+
+
+class ScanScheduleUpdate(BaseModel):
+    interval_minutes: int | None = Field(None, ge=MIN_SCAN_INTERVAL_MINUTES, le=10080)
+    item_limit: int | None = Field(None, ge=1, le=500)
+    since_days: int | None = Field(None, ge=1)
+    label: str | None = None
+    active: bool | None = None
+
+
+class ScanSchedule(BaseModel):
+    id: str
+    source_id: str
+    source_name: str | None = None
+    url: str
+    mode: str
+    interval_minutes: int
+    item_limit: int
+    since_days: int | None
+    label: str | None
+    active: bool
+    # Çalışma durumu — "bu tarama gerçekten çalışıyor mu" sorusunun arayüzden cevabı.
+    last_run_at: datetime | None
+    last_status: str | None
+    last_error: str | None
+    last_new_count: int | None
+    consecutive_failures: int
+    next_run_at: datetime | None
+    monitored: bool
+    created_at: datetime
+
+
 class InvolvedInLink(BaseModel):
     role: str = Field(..., examples=["katılımcı", "fail", "mağdur", "tanık"])
 
 
-MONITOR_TARGET_TYPES = ("Entity", "Event", "Investigation")
+# Faz 12: "Source" eklendi — zamanlanmış tarama yeni içerik bulduğunda Inbox'a düşen
+# bildirimin hedefi bir kaynaktır ("Krebs on Security'de 3 yeni içerik"), tek tek gözlemler
+# değil. Gözlem başına bildirim, günde bir düzine öğe yayınlayan bir feed'de Inbox'ı
+# kullanılamaz hale getirirdi ("more signal, less noise", madde 25).
+MONITOR_TARGET_TYPES = ("Entity", "Event", "Investigation", "Source")
 
 
 class MonitorCreate(BaseModel):
@@ -284,6 +352,9 @@ class Monitor(MonitorCreate):
 INBOX_ITEM_TYPES = (
     "NEW_EVENT", "NEW_RELATIONSHIP", "SIGNIFICANT_CHANGE",
     "INVESTIGATION_UPDATE", "CONTRADICTION", "CONFIDENCE_CHANGED",
+    # Faz 12 — zamanlanmış tarama: bir tarama koşusunda yeni içerik bulundu / tarama
+    # üst üste başarısız oldu. İkincisi olmadan ölü bir feed sessizce ölü kalırdı.
+    "NEW_OBSERVATION", "SCAN_FAILED",
 )
 PRIORITY_LEVELS = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
 # Q13: sabit sıralama — "sadece HIGH+ göster" gibi bir eşik bu sıradaki index'e göre uygulanır.

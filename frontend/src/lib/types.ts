@@ -105,7 +105,8 @@ export interface Observation {
 
 export interface Monitor {
   id: string;
-  target_type: "Entity" | "Event" | "Investigation";
+  // Faz 12: "Source" — zamanlanmış tarama bildirimleri kaynak üzerinden gider.
+  target_type: "Entity" | "Event" | "Investigation" | "Source";
   target_id: string;
   label: string | null;
   active: boolean;
@@ -124,6 +125,42 @@ export interface InboxItem {
   status: InboxStatus;
   created_at: string;
   actioned_at: string | null;
+}
+
+/** Faz 12 — bir kaynağın periyodik taranması. `next_run_at`/`last_*` alanları "bu tarama
+ * gerçekten çalışıyor mu" sorusunun arayüzdeki cevabı; `monitored` false ise tarama çalışır
+ * ama Inbox'a hiçbir şey düşmez (sessiz tuzak — UI'da uyarı gösteriliyor). */
+export interface ScanSchedule {
+  id: string;
+  source_id: string;
+  source_name: string | null;
+  url: string;
+  mode: "rss" | "web";
+  interval_minutes: number;
+  item_limit: number;
+  since_days: number | null;
+  label: string | null;
+  active: boolean;
+  last_run_at: string | null;
+  last_status: "OK" | "ERROR" | null;
+  last_error: string | null;
+  last_new_count: number | null;
+  consecutive_failures: number;
+  next_run_at: string | null;
+  monitored: boolean;
+  created_at: string;
+}
+
+export interface ScanRunResult {
+  schedule_id: string;
+  status: "OK" | "ERROR";
+  error?: string;
+  observations_created: number;
+  observation_ids?: string[];
+  duplicates_skipped?: number;
+  items_available?: number;
+  consecutive_failures?: number;
+  notified: { id: string; priority: string } | null;
 }
 
 export interface WhyMattersReason {

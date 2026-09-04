@@ -544,6 +544,38 @@ def render_source_note(conn, source: dict) -> str:
         lines.append(f"**URL:** {source['url']}")
     lines.append("")
 
+    lines.append("## Otomatik Tarama")
+    schedules = fetch_all(
+        conn.execute(
+            "MATCH (sc:ScanSchedule)-[:SCANS_SOURCE]->(src:Source {id: $id}) "
+            "RETURN sc.url AS url, sc.mode AS mode, sc.interval_minutes AS interval_minutes, "
+            "sc.active AS active, sc.last_run_at AS last_run_at, sc.last_status AS last_status, "
+            "sc.last_error AS last_error, sc.last_new_count AS last_new_count "
+            "ORDER BY sc.created_at",
+            {"id": source["id"]},
+        )
+    )
+    if schedules:
+        for sc in schedules:
+            state = "aktif" if sc["active"] else "kapalı"
+            hours = sc["interval_minutes"] / 60
+            freq = f"{hours:g} saatte bir" if hours >= 1 else f"{sc['interval_minutes']} dakikada bir"
+            line = f"- `{sc['url']}` ({sc['mode']}) — {freq}, {state}"
+            if sc["last_run_at"]:
+                line += f" · son koşu {sc['last_run_at']}"
+                if sc["last_status"] == "OK":
+                    line += f", {sc['last_new_count']} yeni gözlem"
+                else:
+                    # Hata mesajını notta göstermek şart: sessizce ölen bir tarama, hiç
+                    # kurulmamış olmaktan kötü (kullanıcı izlendiğini sanır).
+                    line += f", **HATA**: {sc['last_error']}"
+            else:
+                line += " · henüz çalışmadı"
+            lines.append(line)
+    else:
+        lines.append("_Bu kaynak için zamanlanmış tarama yok._")
+    lines.append("")
+
     lines.append("## Lineage (Source Independence)")
     if ancestors:
         lines.append("**Türediği kaynaklar (upstream):** " + ", ".join(wikilink("sources", a["id"], a["name"]) for a in ancestors))
@@ -577,7 +609,8 @@ def _inbox_new_items(conn) -> list[dict]:
     )
 
 
-_TARGET_SUBDIR = {"Entity": "entities", "Event": "events", "Investigation": "investigations"}
+# Faz 12: Source da izlenebilir bir hedef oldu (zamanlanmış tarama bildirimleri).
+_TARGET_SUBDIR = {"Entity": "entities", "Event": "events", "Investigation": "investigations", "Source": "sources"}
 _PRIORITY_ORDER = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
 
 
@@ -585,7 +618,7 @@ def _target_link(conn, target_type: str, target_id: str) -> str:
     subdir = _TARGET_SUBDIR.get(target_type)
     if not subdir:
         return target_id
-    label_field = "name" if target_type == "Entity" else "title"
+    label_field = "name" if target_type in ("Entity", "Source") else "title"
     row = fetch_one(
         conn.execute(
             f"MATCH (t:{target_type} {{id: $id}}) RETURN t.{label_field} AS label", {"id": target_id}
