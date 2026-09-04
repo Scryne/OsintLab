@@ -936,8 +936,79 @@ ayrı" kararıyla tutarlı).
   açıklamanın doğru olduğu gösterildi: aynı kökten türemiş bir kaynağın doğrulaması
   independence'ı **yükseltmiyor** (0.0), gerçekten bağımsız bir kaynağınki yükseltiyor (0.5).
 
-  **Kalan (bu fazın devamı):** Evidence Vault sayfası, Entity sayfasında "Known
-  Relationships", Investigation Workspace'in tam akışı.
+  **Evidence Vault (2026-09-04)** — fazın ikinci parçası bitti. Bu fazdan önce Evidence
+  yalnızca `file_path` METNİYLE oluşturulabiliyordu: kanıt dosyasının kendisi sisteme hiç
+  girmiyordu, sadece kullanıcının diskindeki bir yola işaret ediliyordu — dosya taşınınca ya
+  da silinince kanıt sessizce buharlaşıyordu.
+
+  Eklenenler: `POST /evidence/upload` (multipart), `GET /evidence/{id}/file` (indirme),
+  `GET /evidence/{id}/claims`, `DELETE /evidence/{id}/claims/{claim_id}`, zenginleştirilmiş
+  `GET /evidence`, ve `/evidence` sayfası (yükleme + arama + bağlı claim'ler + duruş rozetleri).
+
+  **Kararlar:**
+  - *İçerik-adresli depolama.* Dosyalar `data/evidence/<hash[:2]>/<hash[:16]>-<ad>` altında,
+    SHA-256 ile. Aynı bayt dizisi ikinci kez yüklenirse 409 dönüyor ve mevcut Evidence'ın
+    id'si söyleniyor — sessizce ikinci bir düğüm yaratmak confidence formülündeki evidence
+    sayacını da şişirirdi. Graf'ta **göreli** yol saklanıyor: mutlak yol, proje klasörü
+    taşındığında tüm kanıt bağlarını sessizce kırardı.
+  - *İndirme ucu şart.* Olmasaydı yükleme yalnızca YAZAN bir yol olurdu — bu projenin
+    defalarca yakaladığı hata sınıfı (F34-F37). Dosya her zaman `attachment` +
+    `application/octet-stream`: kanıtlar güvenilmeyen kaynaklardan geliyor, tarayıcıda
+    gömülü çalıştırılacak şeyler değil. Yol vault dışına çıkıyorsa reddediliyor (`file_path`
+    elle de doldurulabildiği için path traversal gerçek bir yol).
+  - *Şemaya `original_name` kolonu EKLENMEDİ.* KùzuDB'de var olan bir tabloya kolon eklemek
+    `CREATE TABLE IF NOT EXISTS` ile olmuyor, ayrı bir migration gerektiriyor — bu fazın
+    kapsamı değildi. Özgün ad bunun yerine dosya yolunun içinde taşınıyor. (Şema migration'ı
+    ileride gerekirse ayrı bir iş.)
+
+  **Faz 13 bulguları:**
+  - **F49:** Evidence→Claim `SUPPORTS`/`CONTRADICTS` kenarları Faz 10'dan beri yazılabiliyor
+    ve confidence hesabında SAYILIYORDU, ama hiçbir uç onları LİSTELEMİYORDU — "bu kanıt neyi
+    destekliyor" sorusu yalnızca claim'in confidence'ı üzerinden dolaylı cevaplanabiliyordu.
+    F47/F48 ile aynı kalıp.
+  - **F50:** Aynı kenar KURULABİLİYOR ama KALDIRILAMIYORDU. Yanlış bağ zararsız değil:
+    claim'in confidence'ını doğrudan değiştiriyor (CONTRADICTS ise ceza dalını tetikliyor).
+    F16/F26 ile aynı sınıf — gerçek araştırma tek geçişte doğru olmuyor. `DELETE
+    /evidence/{id}/claims/{claim_id}` eklendi, confidence yeniden hesaplanıyor.
+  - **F51 (görsel):** Dosya adı temizleyicisi ASCII beyaz listesi kullanıyordu; "İhale
+    Sonucu.pdf" → "hale_Sonucu.pdf" oluyordu. Yol güvenliği ASCII gerektirmiyor — tehlikeli
+    olan ayraçlar ve `..`, harfler değil. UNICODE `\w`'ye geçildi; ayrıca bozuk kodlamalı bir
+    istemcinin gönderebileceği eşleşmemiş surrogate'lara karşı ad önce kodlanabilir hale
+    getiriliyor.
+  - **F52 (görsel):** Vault listesi, depolanan addaki hash önekini kırpıyordu ama bu kırpmayı
+    KALIBI KONTROL ETMEDEN yapıyordu; `file_path` elle doldurulmuş bir URL olduğunda
+    "…/liman-ihalesi" adresi ekranda "ihalesi" diye görünüyordu. Yalnızca
+    `<2hex>/<16hex>-<ad>` kalıbına uyan yollar kırpılıyor artık.
+  - **F53 (erişilebilirlik):** İndir butonu `<a>` render ediyordu; Base UI bunu uyardı
+    (native buton semantiği sessizce kayboluyor). `nativeButton={false}` eklendi.
+
+  F51-F53'ün üçü de ancak sayfa GERÇEKTEN render edilerek bulundu (izole seed'lenmiş backend
+  + headless Edge) — kod incelemesiyle üçü de gözden kaçmıştı.
+
+  **Doğrulandı (izole DB, 22 kontrol):** yükleme + SHA-256 + içerik-adresli yol + göreli yol;
+  aynı içerik 409 ve mevcut id'yi söylüyor, ikinci dosya diske yazılmıyor; boş dosya 422, 50
+  MB üstü 413; indirme çalışıyor, attachment dönüyor, özgün ad geri veriliyor, path traversal
+  404; bağlı claim'ler duruş + kaynak adı + F46 başlığıyla listeleniyor; vault listesinde
+  yüklenen kanıt `has_file=True`, elle girilen yol `has_file=False`.
+
+  **"Known Relationships" maddesi zaten yapılmıştı.** Roadmap bunu Faz 13'e yazmıştı ama
+  entity detay sayfasında "İlişkiler" sekmesi Faz 10/11'de eklenmiş durumda — kod
+  doğrulandı, yeniden yazılmadı.
+
+  **Bu fazda yapılan bir hata ve telafisi (2026-09-04).** Gerçek graf üzerinde bir uçtan uca
+  yükleme denemesi yapıldıktan sonra test kanıtlarını temizlemek için yazılan filtre fazla
+  genişti ("dosya yolu olan ve hiçbir claim'e bağlı olmayan her Evidence") ve Faz 11'den
+  kalan İKİ GERÇEK kanıt kaydını da sildi (openai.com/index/path-to-astra ve securityaffairs
+  Astra haberi; ikisi de `file_path` alanında URL tutuyordu, o yüzden filtreye takıldılar).
+  Kayıtlar `evidence_type` ve `file_path` birebir korunarak geri yüklendi; **id'leri yeni**
+  (temizlik çıktısında yalnızca ilk 8 karakter yazdırılmıştı, tam UUID kaybedildi — hiçbir
+  kenar bu id'lere işaret etmiyordu, dolayısıyla graf bütünlüğü etkilenmedi) ve **zaman
+  damgaları yaklaşık** (aynı URL'e ait observation'ın daily log'daki `created_at`'i çapa
+  alındı). Claim sayısı (8) ve diğer tüm kayıtlar etkilenmedi. Ders: gerçek graf üzerinde
+  test verisi üretilmemeli — bu fazın görsel doğrulamaları zaten izole bir backend'de
+  yapılıyordu, yükleme denemesi de orada yapılmalıydı.
+
+  **Kalan (bu fazın devamı):** Investigation Workspace'in tam akışı.
 
 ### Faz 14: Deploy/Erişim Kolaylığı
 

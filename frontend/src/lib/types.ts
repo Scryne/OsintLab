@@ -163,6 +163,27 @@ export interface ScanRunResult {
   notified: { id: string; priority: string } | null;
 }
 
+/** Faz 13 — Evidence Vault satırı.
+ *
+ * `has_file` saklanan değil hesaplanan bir alan: `file_path` dolu olsa bile dosya yerinde
+ * olmayabilir (elle girilmiş yol, taşınmış dosya). İndirilemeyen bir kanıtı indirilebilir
+ * göstermemek için gerekli.
+ *
+ * `linked_claims` Faz 13'te açılan bir boşluk: Evidence→Claim SUPPORTS/CONTRADICTS kenarları
+ * Faz 10'dan beri yazılıyor ve confidence hesabında sayılıyordu, ama hiçbir uç listelemiyordu. */
+export interface EvidenceVaultItem extends Evidence {
+  has_file: boolean;
+  linked_claims: {
+    claim_id: string;
+    headline: string;
+    knowledge_state: KnowledgeState;
+    confidence: number;
+    source_id: string | null;
+    source_name: string | null;
+    stance: "SUPPORTS" | "CONTRADICTS";
+  }[];
+}
+
 /** Faz 13 — lineage zincirindeki bir düğüm. `depth` kaç hop uzakta olduğunu söyler;
  * onsuz "zincir" gösterilemez, yalnızca sırasız bir küme gösterilebilir. */
 export interface LineageNode {

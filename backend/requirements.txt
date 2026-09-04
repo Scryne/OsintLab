@@ -5,3 +5,5 @@ pydantic==2.10.4
 requests==2.32.3
 feedparser==6.0.11
 beautifulsoup4==4.12.3
+# Faz 13: Evidence Vault dosya yuklemesi (FastAPI multipart/form-data)
+python-multipart==0.0.32

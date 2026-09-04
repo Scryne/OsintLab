@@ -1,12 +1,15 @@
 import hashlib
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
 from app.db import fetch_all, fetch_one, get_connection
-from app.models import Evidence, EvidenceClaimLink, EvidenceCreate
+from app.models import Evidence, EvidenceClaimLink, EvidenceCreate, EvidenceVaultItem
+from app.monitoring import claim_headline
 from app.routers.claims import _claim_about, _node_exists, _notify_change, _recompute_and_store, get_claim
 from app.vault import safe_render_vault
 
@@ -18,6 +21,59 @@ _FIELDS = (
     "ev.id AS id, ev.evidence_type AS evidence_type, ev.file_path AS file_path, "
     "ev.content_hash AS content_hash, ev.collected_at AS collected_at, ev.created_at AS created_at"
 )
+
+# Faz 13 — Evidence Vault. Yüklenen dosyalar burada; graf'ta yalnızca göreli yol saklanıyor
+# (mutlak yol saklamak, proje klasörü taşındığında tüm kanıt bağlarını sessizce kırardı).
+EVIDENCE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "evidence"
+
+# Tek kullanıcılı yerel bir araç; sınır kötü niyete karşı değil, kazara 4 GB'lık bir dosyayı
+# belleğe okumaya karşı.
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+# Yol güvenliği ASCII gerektirmiyor: tehlikeli olan ayraçlar ve '..', harfler değil. Sadece
+# ASCII'ye indirgemek Türkçe dosya adlarını bozuyordu ("İhale Sonucu.pdf" -> "hale_Sonucu").
+# `\w` UNICODE modunda Türkçe harfleri de kapsıyor.
+_UNSAFE_NAME_CHARS = re.compile(r"[^\w.\-]+", re.UNICODE)
+
+
+def _safe_original_name(name: str | None) -> str:
+    """Yüklenen dosya adını depolamada kullanılabilir hale getirir.
+
+    Ad yalnızca insan için: asıl kimlik içerik hash'i. Yine de yol ayracı, '..' ve sürücü
+    harfi içeren bir adı olduğu gibi kullanmak klasik bir path traversal olurdu — bu yüzden
+    yalnızca son bileşen alınıp beyaz listeye indirgeniyor."""
+    base = Path(name or "").name  # dizin bileşenlerini at
+    # Kodlaması bozuk bir istemci (multipart dosya adı kodlaması standart dışı bir alan)
+    # eşleşmemiş surrogate gönderebilir; bunlar dosya sistemi yollarında hataya ya da
+    # anlamsız isimlere yol açar. Önce kodlanabilir hale getiriliyor, sonra süzülüyor.
+    base = base.encode("utf-8", "replace").decode("utf-8", "replace")
+    base = _UNSAFE_NAME_CHARS.sub("_", base).strip("._") or "dosya"
+    return base[:80]
+
+
+def _stored_path(content_hash: str, original_name: str) -> Path:
+    """İçerik-adresli depolama: `data/evidence/<hash[:2]>/<hash[:16]>-<ad>`.
+
+    Hash önekli klasör tek dizinde binlerce dosya birikmesini engelliyor. Dosya adının
+    hash'le başlaması, aynı içeriğin iki kez yüklenmesini dosya sisteminde de görünür
+    kılıyor — Evidence şemasına ayrı bir `original_name` kolonu eklemek yerine ad yolun
+    içinde taşınıyor (KùzuDB'de var olan bir tabloya kolon eklemek `CREATE TABLE IF NOT
+    EXISTS` ile OLMAZ, ayrı bir migration gerektirir — bu fazın kapsamı değil)."""
+    return EVIDENCE_DIR / content_hash[:2] / f"{content_hash[:16]}-{original_name}"
+
+
+def _resolve_stored_file(file_path: str | None) -> Path | None:
+    """Graf'taki göreli yolu gerçek dosyaya çevirir — vault dışına çıkan yolu reddederek.
+
+    `file_path` kullanıcı girdisi olabilir (`POST /evidence` alanı elle doldurulabiliyor),
+    dolayısıyla '../../etc/passwd' gibi bir değer indirme ucundan okunabilir olurdu."""
+    if not file_path:
+        return None
+    candidate = (EVIDENCE_DIR / file_path).resolve()
+    try:
+        candidate.relative_to(EVIDENCE_DIR.resolve())
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
 
 
 def _hash_file_if_present(file_path: str | None) -> str | None:
@@ -58,11 +114,193 @@ def create_evidence(payload: EvidenceCreate) -> Evidence:
     )
 
 
-@router.get("", response_model=list[Evidence])
-def list_evidence() -> list[Evidence]:
+@router.post("/upload", response_model=Evidence, status_code=201)
+async def upload_evidence(
+    file: UploadFile = File(...),
+    evidence_type: str = Form(...),
+    collected_at: datetime | None = Form(None),
+) -> Evidence:
+    """Faz 13 — Evidence Vault: bir dosyayı doğrudan arayüzden yükler.
+
+    Bu fazdan önce Evidence yalnızca `file_path` metniyle oluşturulabiliyordu; yani kanıt
+    dosyasının kendisi sisteme hiç girmiyordu, sadece kullanıcının makinesindeki bir yola
+    işaret ediliyordu — dosya taşınınca ya da silinince kanıt sessizce buharlaşıyordu.
+
+    Depolama içerik-adresli (SHA-256): aynı bayt dizisi iki kez yüklenirse ikinci çağrı 409
+    döner ve mevcut Evidence'ın id'sini söyler. Sessizce ikinci bir kayıt yaratmak, aynı
+    kanıtın grafta iki ayrı düğüm olarak durması demekti — confidence formülündeki evidence
+    sayacını da şişirirdi (Q18/bütünlük)."""
+    raw = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Dosya çok büyük (sınır {MAX_UPLOAD_BYTES // (1024 * 1024)} MB).",
+        )
+    if not raw:
+        raise HTTPException(status_code=422, detail="Dosya boş.")
+
+    content_hash = hashlib.sha256(raw).hexdigest()
+    conn = get_connection()
+    existing = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {content_hash: $h}) RETURN ev.id AS id, ev.evidence_type AS evidence_type",
+            {"h": content_hash},
+        )
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Bu dosya zaten kayıtlı: Evidence {existing['id'][:8]}… "
+                f"({existing['evidence_type']}). Yeniden yüklemek yerine mevcut kanıtı "
+                "ilgili claim'e bağlayabilirsin."
+            ),
+        )
+
+    original_name = _safe_original_name(file.filename)
+    target = _stored_path(content_hash, original_name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(raw)
+    relative = target.relative_to(EVIDENCE_DIR).as_posix()
+
+    evidence_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc)
+    conn.execute(
+        "CREATE (:Evidence {id: $id, evidence_type: $evidence_type, file_path: $file_path, "
+        "content_hash: $content_hash, collected_at: $collected_at, created_at: $created_at})",
+        {
+            "id": evidence_id,
+            "evidence_type": evidence_type,
+            "file_path": relative,
+            "content_hash": content_hash,
+            "collected_at": collected_at or created_at,
+            "created_at": created_at,
+        },
+    )
+    return Evidence(
+        id=evidence_id,
+        evidence_type=evidence_type,
+        file_path=relative,
+        content_hash=content_hash,
+        collected_at=collected_at or created_at,
+        created_at=created_at,
+    )
+
+
+@router.get("/{evidence_id}/file")
+def download_evidence_file(evidence_id: str) -> FileResponse:
+    """Yüklenen kanıt dosyasını geri verir.
+
+    Bu uç olmasaydı yükleme yalnızca YAZAN bir yol olurdu — bu projenin defalarca yakaladığı
+    hata sınıfı (F34-F37: yazılıyor ama okunmuyor). Dosya her zaman ek (attachment) olarak
+    ve `application/octet-stream` ile dönüyor: kanıt dosyaları güvenilmeyen kaynaklardan
+    geliyor, tarayıcıda gömülü çalıştırılacak bir şey değil."""
+    evidence = get_evidence(evidence_id)
+    path = _resolve_stored_file(evidence.file_path)
+    if path is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Bu kanıtın yüklenmiş bir dosyası yok. (Elle girilen `file_path` alanı, "
+                "vault'a yüklenmiş bir dosyaya işaret etmiyor olabilir.)"
+            ),
+        )
+    # Depolanan ad "<hash16>-<özgün ad>"; kullanıcıya özgün adı geri veriyoruz.
+    download_name = path.name.split("-", 1)[-1] or path.name
+    return FileResponse(
+        path,
+        media_type="application/octet-stream",
+        filename=download_name,
+        content_disposition_type="attachment",
+    )
+
+
+@router.get("/{evidence_id}/claims")
+def list_evidence_claims(evidence_id: str) -> list[dict]:
+    """Bu kanıtın bağlı olduğu claim'ler ve duruşları (SUPPORTS/CONTRADICTS).
+
+    Faz 13 bulgusu: bu iki kenar yazılabiliyordu (Faz 10) ve confidence hesabında
+    SAYILIYORDU, ama hiçbir uç onları LİSTELEMİYORDU — yani "bu kanıt neyi destekliyor"
+    sorusunun cevabı yalnızca dolaylı olarak (claim'in confidence'ı üzerinden) görülebiliyordu."""
+    conn = get_connection()
+    if not _node_exists(conn, "Evidence", evidence_id):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    rows = []
+    for stance, rel in _STANCE_TO_REL.items():
+        rows += [
+            {**row, "stance": stance}
+            for row in fetch_all(
+                conn.execute(
+                    f"MATCH (ev:Evidence {{id: $id}})-[:{rel}]->(c:Claim) "
+                    "OPTIONAL MATCH (s:Source)-[:ASSERTS]->(c) "
+                    "RETURN c.id AS claim_id, c.text AS text, "
+                    "c.knowledge_state AS knowledge_state, c.confidence AS confidence, "
+                    "s.id AS source_id, s.name AS source_name ORDER BY c.created_at",
+                    {"id": evidence_id},
+                )
+            )
+        ]
+    for row in rows:
+        row["headline"] = claim_headline(row.pop("text"))
+    return rows
+
+
+@router.delete("/{evidence_id}/claims/{claim_id}", status_code=204)
+def unlink_evidence_from_claim(evidence_id: str, claim_id: str) -> None:
+    """Yanlış claim'e bağlanmış bir kanıtın bağını kaldırır.
+
+    Faz 13 bulgusu: bağ KURULABİLİYOR ama kaldırılamıyordu — ve yanlış bağ zararsız değil,
+    claim'in confidence'ını doğrudan değiştiriyor (CONTRADICTS ise ceza dalını tetikliyor).
+    Bu, F16 (about bağı sonradan düzeltilemiyordu) ve F26 (çelişki sonradan kurulamıyordu)
+    ile aynı sınıftan: gerçek araştırma tek geçişte doğru olmuyor.
+
+    History Is Immutable ile çelişmez: ne kanıt ne claim siliniyor, yalnızca aralarındaki
+    yanlış kurulmuş ilişki kaldırılıyor ve confidence yeniden hesaplanıyor."""
+    conn = get_connection()
+    if not _node_exists(conn, "Evidence", evidence_id):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    if not _node_exists(conn, "Claim", claim_id):
+        raise HTTPException(status_code=404, detail="Claim not found")
+    removed = False
+    for rel in _STANCE_TO_REL.values():
+        existing = fetch_one(
+            conn.execute(
+                f"MATCH (ev:Evidence {{id: $eid}})-[r:{rel}]->(c:Claim {{id: $cid}}) RETURN ev.id AS id",
+                {"eid": evidence_id, "cid": claim_id},
+            )
+        )
+        if existing is not None:
+            conn.execute(
+                f"MATCH (ev:Evidence {{id: $eid}})-[r:{rel}]->(c:Claim {{id: $cid}}) DELETE r",
+                {"eid": evidence_id, "cid": claim_id},
+            )
+            removed = True
+    if not removed:
+        raise HTTPException(status_code=404, detail="Bu kanıt ile claim arasında bir bağ yok")
+    _recompute_and_store(conn, claim_id)
+    safe_render_vault(conn)
+
+
+@router.get("", response_model=list[EvidenceVaultItem])
+def list_evidence() -> list[EvidenceVaultItem]:
+    """Evidence Vault listesi: her kanıt, bağlı claim'leri ve dosyasının gerçekten var olup
+    olmadığıyla birlikte.
+
+    `has_file` hesaplanan bir alan: `file_path` dolu olsa bile dosya yerinde olmayabilir
+    (elle girilmiş bir yol, ya da taşınmış bir dosya). Bunu göstermemek, indirilemeyen bir
+    kanıtı indirilebilir gibi sunmak olurdu."""
     conn = get_connection()
     result = conn.execute(f"MATCH (ev:Evidence) RETURN {_FIELDS} ORDER BY ev.created_at")
-    return [Evidence(**row) for row in fetch_all(result)]
+    items = []
+    for row in fetch_all(result):
+        items.append(
+            EvidenceVaultItem(
+                **row,
+                has_file=_resolve_stored_file(row["file_path"]) is not None,
+                linked_claims=list_evidence_claims(row["id"]),
+            )
+        )
+    return items
 
 
 @router.get("/{evidence_id}", response_model=Evidence)

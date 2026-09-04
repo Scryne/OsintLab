@@ -5,6 +5,7 @@ import type {
   EntityRecall,
   EntityRelation,
   Evidence,
+  EvidenceVaultItem,
   EventItem,
   EventRecall,
   Hypothesis,
@@ -199,7 +200,25 @@ export const api = {
   },
 
   evidence: {
-    list: () => get<Evidence[]>("/evidence"),
+    // Faz 13: liste artık bağlı claim'leri ve dosyanın gerçekten yerinde olup olmadığını da
+    // taşıyor (Evidence Vault). Ek alanlar geriye dönük uyumlu — eski çağıranlar etkilenmiyor.
+    list: () => get<EvidenceVaultItem[]>("/evidence"),
+    claims: (id: string) =>
+      get<EvidenceVaultItem["linked_claims"]>(`/evidence/${id}/claims`),
+    // Dosya indirme bir <a href> ile yapılıyor; burada yalnızca adresi üretiyoruz.
+    fileUrl: (id: string) => `${API_BASE}/evidence/${id}/file`,
+    upload: async (payload: { file: File; evidence_type: string; collected_at?: string | null }) => {
+      const form = new FormData();
+      form.append("file", payload.file);
+      form.append("evidence_type", payload.evidence_type);
+      if (payload.collected_at) form.append("collected_at", payload.collected_at);
+      // FormData gönderirken Content-Type'ı ELLE koymuyoruz: tarayıcının multipart
+      // boundary'yi kendisi eklemesi gerekiyor. request() her zaman application/json
+      // koyduğu için burada fetch doğrudan kullanılıyor.
+      const res = await fetch(`${API_BASE}/evidence/upload`, { method: "POST", body: form });
+      if (!res.ok) throw new ApiError(res.status, errorMessage(await res.text(), res.statusText));
+      return (await res.json()) as Evidence;
+    },
     get: (id: string) => get<Evidence>(`/evidence/${id}`),
     create: (payload: { evidence_type: string; file_path?: string | null; content_hash?: string | null; collected_at?: string | null }) =>
       post<Evidence>("/evidence", payload),

@@ -65,6 +65,22 @@ class Evidence(EvidenceCreate):
     created_at: datetime
 
 
+class EvidenceVaultItem(Evidence):
+    """Faz 13 — Evidence Vault listesi için zenginleştirilmiş kanıt.
+
+    `has_file` SAKLANAN bir alan değil, her okumada hesaplanıyor: `file_path` dolu olsa bile
+    dosya yerinde olmayabilir (elle girilmiş bir yol ya da taşınmış/silinmiş bir dosya).
+    Bunu göstermemek, indirilemeyen bir kanıtı indirilebilir gibi sunmak olurdu.
+
+    `linked_claims` ise Faz 13'te ortaya çıkan bir boşluğu kapatıyor: Evidence-[:SUPPORTS|
+    CONTRADICTS]->Claim kenarları Faz 10'dan beri yazılabiliyor ve confidence hesabında
+    sayılıyordu, ama hiçbir uç onları listelemiyordu — "bu kanıt neyi destekliyor" sorusu
+    yalnızca claim'in confidence'ı üzerinden dolaylı olarak cevaplanabiliyordu."""
+
+    has_file: bool
+    linked_claims: list[dict] = Field(default_factory=list)
+
+
 class EvidenceClaimLink(BaseModel):
     stance: str = Field(..., examples=["SUPPORTS", "CONTRADICTS"])
 
