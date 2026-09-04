@@ -618,11 +618,23 @@ def _inbox_new_items(conn) -> list[dict]:
         conn.execute(
             "MATCH (n:InboxItem {status: 'NEW'}) "
             "RETURN n.id AS id, n.item_type AS item_type, n.priority AS priority, "
-            "n.title AS title, n.target_type AS target_type, n.target_id AS target_id, "
-            "n.created_at AS created_at ORDER BY n.created_at DESC",
+            "n.title AS title, n.detail AS detail, n.target_type AS target_type, "
+            "n.target_id AS target_id, n.created_at AS created_at ORDER BY n.created_at DESC",
             {},
         )
     )
+
+
+def _one_line(value: str) -> str:
+    """Saklanan bir metni tek satıra indirger.
+
+    Faz 12 sonrası bulgu (F57): `InboxItem.title` SAKLANAN bir alan ve eski kayıtlarda çok
+    satırlı olabiliyor (F46'nın düzeltilmesinden önce yazılmış "Yeni claim: <ham metin>"
+    başlıkları). İçindeki boş satır Obsidian'da Markdown listesini ortadan KIRIYORDU. Bugünkü
+    kod artık `claim_headline` kullanıyor, ama geçmiş kayıtlar düzelmiyor — ve düzelmemeli
+    (History Is Immutable). Doğru yer render tarafı: burası saklanan metnin tek satır
+    olduğunu VARSAYMAMALI."""
+    return " ".join((value or "").split())
 
 
 # Faz 12: Source da izlenebilir bir hedef oldu (zamanlanmış tarama bildirimleri).
@@ -645,6 +657,21 @@ def _target_link(conn, target_type: str, target_id: str) -> str:
     return wikilink(subdir, target_id, row["label"])
 
 
+def _inbox_headlines(item: dict, limit: int = 5) -> list[str]:
+    """Tarama bildiriminin taşıdığı başlıklar (varsa). Bunlar zaten `detail`de duruyordu ama
+    vault hiç okumuyordu — "yazılıyor ama okunmuyor" kalıbının bir örneği daha."""
+    import json as _json
+
+    try:
+        detail = _json.loads(item.get("detail") or "{}")
+    except ValueError:
+        return []
+    headlines = detail.get("headlines")
+    if not isinstance(headlines, list):
+        return []
+    return [h for h in headlines[:limit] if isinstance(h, str)]
+
+
 def render_inbox_note(conn) -> str:
     items = _inbox_new_items(conn)
     by_priority: dict[str, list[dict]] = {p: [] for p in _PRIORITY_ORDER}
@@ -659,7 +686,19 @@ def render_inbox_note(conn) -> str:
         lines.append(f"## {priority}")
         for item in bucket:
             link = _target_link(conn, item["target_type"], item["target_id"])
-            lines.append(f"- **{item['item_type']}** — {item['title']} — {link}")
+            # Faz 12 sonrası bulgu (F56): aynı kaynaktan gelen iki tarama bildirimi burada
+            # birebir aynı satır olarak görünüyordu ("Security Affairs: 2 yeni içerik" iki
+            # kez) — farklı koşular, farklı gözlemler, ama Obsidian'da ayırt edilemiyordu.
+            # Web arayüzü başlıkları satırın altında gösterdiği için orada ayrışıyordu; vault
+            # ise yalnızca başlığı basıyordu. Saat + gelen içeriğin başlıkları eklendi.
+            # Yerel saat, UTC değil: vault'u okuyan insan Obsidian'da otururken web
+            # arayüzü de yerel saat gösteriyor. Aynı olayın iki yerde farklı saatle
+            # görünmesi, F47'nin düzelttiği belirsizliğin aynısı olurdu. (Tek kullanıcılı,
+            # local-first bir araç — makinenin yerel saati kullanıcının saati.)
+            stamp = item["created_at"].astimezone().strftime("%H:%M")
+            lines.append(f"- `{stamp}` **{item['item_type']}** — {_one_line(item['title'])} — {link}")
+            for headline in _inbox_headlines(item):
+                lines.append(f"    - {_one_line(headline)}")
         lines.append("")
     if not items:
         lines.append("_Inbox boş._")

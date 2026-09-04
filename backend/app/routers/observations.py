@@ -80,18 +80,31 @@ def create_observation(payload: ObservationCreate) -> Observation:
 
 
 @router.get("", response_model=list[Observation])
-def list_observations(promoted: bool | None = None) -> list[Observation]:
+def list_observations(promoted: bool | None = None, ids: str | None = None) -> list[Observation]:
+    """`ids` (virgülle ayrılmış) — Faz 12 sonrası gerçek kullanımda çıkan bulgu (F58).
+
+    Zamanlanmış tarama Inbox'a "TechCrunch: 17 yeni içerik" diye bir bildirim düşürüyor ve
+    hangi gözlemlerden bahsettiğini `detail.observation_ids` içinde biliyor — ama o gözlemlere
+    gitmenin hiçbir yolu yoktu: 181 kayıtlık listede başlıkları tek tek aratmak gerekiyordu.
+    Bildirim geliyor, üzerine iş yapılamıyor. Bu parametre bildirimle gözlem listesi arasındaki
+    bağı kuruyor."""
     conn = get_connection()
-    if promoted is None:
-        result = conn.execute(
-            f"MATCH (o:Observation) {_PRODUCED}RETURN {_FIELDS_WITH_CLAIM} ORDER BY o.created_at"
-        )
-    else:
-        result = conn.execute(
-            f"MATCH (o:Observation {{promoted: $promoted}}) {_PRODUCED}"
-            f"RETURN {_FIELDS_WITH_CLAIM} ORDER BY o.created_at",
-            {"promoted": promoted},
-        )
+    id_list = [i.strip() for i in ids.split(",") if i.strip()] if ids else None
+
+    clauses = []
+    params: dict = {}
+    if promoted is not None:
+        clauses.append("o.promoted = $promoted")
+        params["promoted"] = promoted
+    if id_list:
+        clauses.append("o.id IN $ids")
+        params["ids"] = id_list
+    where = f"WHERE {' AND '.join(clauses)} " if clauses else ""
+
+    result = conn.execute(
+        f"MATCH (o:Observation) {where}{_PRODUCED}RETURN {_FIELDS_WITH_CLAIM} ORDER BY o.created_at",
+        params,
+    )
     return [Observation(**row) for row in fetch_all(result)]
 
 

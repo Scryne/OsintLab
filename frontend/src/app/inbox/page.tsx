@@ -45,6 +45,16 @@ function ScanDetail({ detail }: { detail: Record<string, unknown> }) {
           <li className="text-text-tertiary">· ve {total - headlines.length} tane daha</li>
         )}
       </ul>
+      {/* F58: bildirim "17 yeni içerik" diyordu ama o gözleme gitmenin yolu yoktu —
+          observation_ids zaten detayda duruyordu, eksik olan yalnızca bu bağdı. */}
+      {total > 0 && (
+        <Link
+          href={`/observations?ids=${(detail.observation_ids as string[]).join(",")}`}
+          className="w-fit text-xs text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50"
+        >
+          {total} gözlemin tümünü aç →
+        </Link>
+      )}
       {matched.length > 0 && (
         <p className="text-[11px] text-text-tertiary">
           Bildiğimiz entity&apos;ler:{" "}

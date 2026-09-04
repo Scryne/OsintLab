@@ -274,8 +274,15 @@ export const api = {
   },
 
   observations: {
-    list: (promoted?: boolean) =>
-      get<Observation[]>(`/observations${promoted === undefined ? "" : `?promoted=${promoted}`}`),
+    // `ids` — F58: Inbox bildirimi "17 yeni içerik" diyor ve hangi gözlemler olduğunu
+    // biliyor; bu parametre olmadan o gözlemlere gitmenin yolu yoktu.
+    list: (opts?: { promoted?: boolean; ids?: string[] }) => {
+      const qs = new URLSearchParams();
+      if (opts?.promoted !== undefined) qs.set("promoted", String(opts.promoted));
+      if (opts?.ids?.length) qs.set("ids", opts.ids.join(","));
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return get<Observation[]>(`/observations${suffix}`);
+    },
     create: (payload: { raw_content: string; observed_at?: string | null; source_url?: string | null }) =>
       post<Observation>("/observations", payload),
     promote: (

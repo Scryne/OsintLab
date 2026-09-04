@@ -875,6 +875,45 @@ ayrı" kararıyla tutarlı).
   metin çıkarımını değiştirmesinden kalma) gerçekleşmedi — aynı URL'den birden fazla kayıt
   sıfır. Sıfırlama yapılmadı, gerekmedi.
 
+  **Gerçek kullanım turu (2026-09-04, ~4 saat, 5 tarama).** Zamanlanmış tarama açık bırakılıp
+  sonuçlara bakıldı. **Mekanizma kusursuz çalıştı:** 0 başarısız tarama, 0 zamanlayıcı
+  çökmesi, aralıklar doğru, 185 gözlemde tekrarlı URL sıfır (The Verge'in ikinci koşusu 10
+  değil 4 yeni getirdi — dedup canlı doğrulandı). Öncelik kuralı gerçek veriyle ayırt etti:
+  TechCrunch ve The Verge aynı anda tarandı, TechCrunch MEDIUM (içerikte `Astra`/`OpenAI`),
+  The Verge LOW; The Verge ikinci koşuda "Sam Altman… GPT-6 Astra" içerdiği için MEDIUM'a
+  çıktı. Ama **dört bulgu** çıktı ve dördü de aynı aileden: kod doğru çalışıyor, sistem
+  yaptığını söyleyemiyor / söylediğinin üzerine iş yapılamıyor.
+
+  - **F58 (en önemlisi) — bildirim geliyor, üzerine iş yapılamıyor.** Inbox "TechCrunch: 17
+    yeni içerik" diyor ve hangi gözlemlerden bahsettiğini `detail.observation_ids` içinde
+    zaten BİLİYORDU; ama o gözlemlere gitmenin hiçbir yolu yoktu — 185 kayıtlık listede
+    başlıkları tek tek aratmak gerekiyordu. Otomatik tarama açılınca oluşan asıl tıkanıklık
+    buydu (gözlemlerin 180'i promote edilmemiş durumda — tasarım gereği, ama işlenemeyen bir
+    yığına dönüşüyordu). `GET /observations?ids=` eklendi, Inbox öğesine "N gözlemin tümünü
+    aç →" bağlantısı kondu, Gözlemler sayfası filtreyi bir şerit + "filtreyi kaldır" ile
+    gösteriyor. (`useSearchParams` statik ön-render'ı bozduğu için sayfa bir Suspense
+    sınırına alındı.)
+  - **F55 — log kullanılamaz durumdaydı.** 4 saatte 187 adet `ConnectionResetError:
+    [WinError 10054]` traceback'i (1537 satırın büyük kısmı) ve yalnızca 3 gerçek tarama
+    satırı. Bu istisna, bir istemci keep-alive bağlantısını sertçe kapattığında Windows
+    ProactorEventLoop'un ürettiği bilinen ve zararsız bir davranış — ama `data/logs/
+    backend.log`'un tek varlık nedeni "otomatik tarama neden çalışmadı" sorusuydu ve
+    okunamayan bir log, olmayan logla aynı şey. `main.py`'de dar kapsamlı bir asyncio
+    exception handler eklendi (yalnızca bu istisna susturuluyor, geri kalanı varsayılan
+    işleyiciye gidiyor). Düzeltme sonrası: 12 satır, 0 gürültü.
+  - **F56 — vault'ta iki bildirim ayırt edilemiyordu.** Obsidian'daki Inbox notunda
+    "Security Affairs: 2 yeni içerik" satırı iki kez vardı; farklı koşular, farklı gözlemler,
+    ama satırlar birebir aynıydı. Web arayüzü başlıkları satırın altında gösterdiği için
+    orada ayrışıyordu, vault yalnızca başlığı basıyordu — `detail.headlines` zaten
+    yazılıyordu ama vault hiç okumuyordu ("yazılıyor ama okunmuyor" kalıbı). Saat + ilk beş
+    başlık eklendi. Saat **yerel**, UTC değil: web arayüzü de yerel gösteriyor, aynı olayın
+    iki yerde farklı saatle görünmesi F47'nin düzelttiği belirsizliğin aynısı olurdu.
+  - **F57 — saklanan başlık vault'un Markdown listesini kırıyordu.** `InboxItem.title`
+    SAKLANAN bir alan ve F46 düzeltilmeden önce yazılmış bir kayıt çok satırlıydı; içindeki
+    boş satır listeyi ortadan bölüyordu. Bugünkü kod `claim_headline` kullanıyor, geçmiş
+    kayıtlar düzelmiyor ve düzelmemeli (History Is Immutable) — doğru yer render tarafı:
+    artık saklanan metnin tek satır olduğu VARSAYILMIYOR.
+
   **Sonraki faz için:** hangi kaynağın hangi sıklıkta taranacağı bilinçli olarak kuruluma
   bırakıldı (roadmap'in kendi gerekçesi: karar gerçek kullanım verisiyle alınsın). Inbox'taki
   Source hedefi şu an `/sources` listesine bağlanıyor — kaynak detay sayfası Faz 13'te

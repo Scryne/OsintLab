@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,8 +31,29 @@ app.include_router(monitors.router)
 app.include_router(vault.router)
 
 
+def _quiet_connection_reset(loop, context: dict) -> None:
+    """Windows asyncio'nun `ConnectionResetError` gürültüsünü loga basmaz, diğer her şeyi basar.
+
+    Faz 12 sonrası gerçek kullanımda bulundu (F55): 4 saatlik bir koşuda log'da **186 adet**
+    `ConnectionResetError: [WinError 10054]` traceback'i (582 satır) ve yalnızca **3** gerçek
+    tarama satırı vardı. Bu istisna, bir istemci (tarayıcı, curl) keep-alive bağlantısını
+    sertçe kapattığında ProactorEventLoop'un ürettiği bilinen ve zararsız bir Windows
+    davranışı — sunucuyu etkilemiyor, ama `data/logs/backend.log`'u %99 gürültüye çeviriyordu.
+    Oysa o dosyanın tek varlık nedeni "otomatik tarama neden çalışmadı" sorusuna bakılacak bir
+    yer olmasıydı; okunamayan bir log, olmayan logla aynı şey.
+
+    Kapsam bilerek DAR: yalnızca bu istisna türü susturuluyor, geri kalan her şey asyncio'nun
+    kendi varsayılan işleyicisine gidiyor. Tümünü susturmak (asyncio logger'ını kapatmak)
+    gerçek bir hatayı da gizlerdi."""
+    if isinstance(context.get("exception"), ConnectionResetError):
+        logging.getLogger("app.net").debug("İstemci bağlantıyı sertçe kapattı (WinError 10054)")
+        return
+    loop.default_exception_handler(context)
+
+
 @app.on_event("startup")
 async def startup() -> None:
+    asyncio.get_running_loop().set_exception_handler(_quiet_connection_reset)
     get_connection()  # KùzuDB bağlantısını açar, şemayı garanti eder
     # Faz 12: zamanlanmış tarama döngüsü. Backend ayakta olduğu sürece çalışır — ayrı bir
     # süreç değil, çünkü gömülü KùzuDB'yi aynı anda tek süreç açabiliyor (bkz. scheduler.py).

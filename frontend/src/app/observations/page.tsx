@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Plus } from "lucide-react";
+import { Suspense, useState, useMemo } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Inbox as InboxIcon, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type { Observation, ObservationPromoteResult } from "@/lib/types";
@@ -29,11 +31,30 @@ import { useToast } from "@/components/ui/toast";
 
 type Filter = "all" | "promoted" | "pending";
 
+/** `useSearchParams` (F58'in ids filtresi) statik ön-render'ı bozuyor; Next.js bunun bir
+ * Suspense sınırı içinde olmasını istiyor. Sayfa kabuğu dışarıda, arama parametresini okuyan
+ * gövde içeride. */
 export default function ObservationsPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-3xl"><SkeletonRows /></div>}>
+      <ObservationsView />
+    </Suspense>
+  );
+}
+
+function ObservationsView() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const promoted = filter === "all" ? undefined : filter === "promoted";
-  const { data: observations, error, loading, reload } = useApi(() => api.observations.list(promoted), [promoted]);
+  // F58: Inbox'taki bir tarama bildiriminden "bu 17 gözlemi göster" diye gelinebiliyor.
+  // Bildirim hangi gözlemlerden bahsettiğini zaten biliyordu; eksik olan aradaki bağdı.
+  const searchParams = useSearchParams();
+  const idsParam = searchParams.get("ids");
+  const ids = useMemo(() => (idsParam ? idsParam.split(",").filter(Boolean) : []), [idsParam]);
+  const { data: observations, error, loading, reload } = useApi(
+    () => api.observations.list({ promoted, ids: ids.length ? ids : undefined }),
+    [promoted, idsParam]
+  );
 
   // Faz 11 (dogfooding F10): tek bir collector taraması bile onlarca gözlem üretiyor
   // (gerçek bir feed'de yüzlerce). Metin araması olmadan belirli bir gözlemi bulmak
@@ -60,6 +81,23 @@ export default function ObservationsPage() {
         </div>
         <NewObservationDialog onCreated={reload} />
       </div>
+
+      {ids.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+          <p className="flex items-center gap-2 text-sm text-text-secondary">
+            <InboxIcon aria-hidden className="h-4 w-4 shrink-0 text-text-tertiary" />
+            Bir Inbox bildiriminden gelen <strong className="text-foreground">{ids.length}</strong> gözlem
+            gösteriliyor.
+          </p>
+          <Link
+            href="/observations"
+            className="inline-flex items-center gap-1 text-xs text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50"
+          >
+            <X aria-hidden className="h-3 w-3" />
+            Filtreyi kaldır
+          </Link>
+        </div>
+      )}
 
       <Tabs value={filter} onValueChange={(v) => v && setFilter(v as Filter)}>
         <TabsList>
