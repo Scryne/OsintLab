@@ -906,6 +906,31 @@ ayrı" kararıyla tutarlı).
   Düzeltme: alt process'ler ebeveynden ÖNCE toplanıyor + proje yolundan çalışan artakalan
   python/node komut satırından taranıyor. Masaüstü kısayolu yapılmadı (opsiyoneldi).
 
+  **Ek (2026-09-04, Faz 12 sonrası): autostart.** Faz 12 bitince ortaya çıktı ki zamanlanmış
+  tarama yalnızca backend ayaktayken çalışıyor — `start.ps1`'i yalnızca oturum açacağı zaman
+  çalıştıran bir kullanıcı için Faz 12 fiilen "sen zaten uygulamanın başındayken tarayan" bir
+  özelliğe düşüyordu, yani elle tarama butonundan az fazlası. `-InstallAutostart` /
+  `-RemoveAutostart` eklendi: `OsintLab Backend` adlı bir Windows görevi, oturum açılışından
+  1 dk sonra `pythonw run_service.py` ile backend'i pencere açmadan başlatıyor.
+  `backend/run_service.py` ayrı bir giriş noktası olarak eklendi çünkü `pythonw`'nun konsolu
+  yok — logu açıkça `data/logs/backend.log`'a bağlamasaydık, tam da bu projenin defalarca
+  yakaladığı "sessizce ölen mekanizma" sınıfına girerdi. Görevin varsayılan 3 günlük
+  `ExecutionTimeLimit`'i sıfırlandı (yoksa backend üç gün sonra sessizce ölürdü).
+
+  Bu değişiklik `start.ps1`'de iki gerçek davranış hatasını da açığa çıkardı ve düzeltti:
+  1. *Dolu port scriptin tamamını durduruyordu.* Backend artık kendiliğinden kalkabildiği
+     için bu "dashboard'ı açmak istedim, hiçbir şey olmadı" demek olurdu. Artık dolu portun
+     servisi atlanıyor, eksik olan başlatılıyor; yabancı bir process portu tutuyorsa (isim
+     eşleşmiyorsa) hâlâ uyarıp duruluyor.
+  2. *`-Stop` görevi "başarısız" bitiriyordu.* Process doğrudan öldürülünce Task Scheduler'ın
+     `RestartCount 3` ayarı devreye girip kullanıcının bilerek kapattığı backend'i 5 dk sonra
+     geri getirirdi (ve `-Reload` ile açmaya çalışılırsa port/KùzuDB kilidi çakışırdı).
+     `-Stop` artık önce `Stop-ScheduledTask` çağırıyor — sonuç kodu 0x41306 ("kullanıcı
+     durdurdu"), yeniden başlatma tetiklenmiyor. Gerçek görevle doğrulandı.
+
+  Ayrıca `-Stop` ve normal koşu otomatik taramanın durumunu artık açıkça söylüyor (backend'i
+  kapatmak = taramayı da kapatmak; autostart görevi yoksa nasıl kurulacağı yazılıyor).
+
 ### Faz 15: Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT)
 
 - **İşler:**
