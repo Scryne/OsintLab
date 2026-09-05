@@ -61,11 +61,26 @@ tekrar edilmez.
   - Google Fonts: `Inter:wght@400;500;600;700`, `JetBrains+Mono:wght@400;500`.
 
 - **Farklılaştırıcı Detay (imza öğe):** **Confidence Spectrum'un kendisi arayüzün omurgası
-  olması** — süsleme değil, mekanizmanın görselleşmesi. Her Claim/Entity/Event kartının sol
-  kenar rengi doğrudan `knowledge_state`'ten geliyor; Entity/Investigation sayfalarında bu
-  6 durumu gösteren ince bir dikey "spectrum rail" gerçek bir lejant olarak duruyor (dekoratif
-  gradient değil, tıklanabilir filtre). Kullanıcı renk okumasını öğrendikçe, grafiği/timeline'ı
-  taramadan "bu bilgi ne kadar sağlam" sorusunu göz ucuyla cevaplayabiliyor.
+  olması** — süsleme değil, mekanizmanın görselleşmesi. Entity ve Investigation sayfalarında
+  6 durumu gösteren dikey "spectrum rail" gerçek bir lejant olarak duruyor (dekoratif gradient
+  değil, tıklanabilir filtre). Durum her claim'de `ConfidenceBadge` ile de okunuyor: renkli
+  nokta + Türkçe etiket + yüzde.
+
+  > **2026-09-06 — kart kenarı denendi ve REDDEDİLDİ.** Bu madde daha önce "her kartın sol
+  > kenar rengi doğrudan `knowledge_state`'ten gelir" diyordu. Uygulandı, canlı veriyle
+  > bakıldı, geri alındı. **Neden:** gerçek dağılım tek renkli — 44 claim'in 29'u REPORTED,
+  > 11'i SUPPORTED. Bir entity sayfasındaki claim'lerin neredeyse hepsi aynı durumda
+  > olduğu için kenar aynı rengi tekrarlıyor ve **hiçbir ayrım üretmiyor**; badge zaten
+  > durumu yazıyla, noktayla ve yüzdeyle söylüyor, kenar rengin üçüncü tekrarı oluyor.
+  > Bilgi taşımayan renk dekorasyondur, ve koyu monokrom bir arayüzde doygun renk şeritleri
+  > "şablon" hissi veriyor. Scryne'ın değerlendirmesi: "çok kötü duruyor, AI slop olduğu
+  > belli oluyor."
+  >
+  > **Çıkarılan kural:** durum başına renk ancak **karışık** bir kümede ayırt edici olur.
+  > Bu projede claim listeleri neredeyse hep tek durumda; o yüzden confidence rengi
+  > *nokta/badge/rail* ölçeğinde kalır, yüzey ölçeğine (kenar, zemin, şerit) çıkmaz.
+  > Faz 18-20 grafı çeşitlendirdikten sonra dağılım gerçekten karışırsa bu yeniden
+  > değerlendirilebilir — ama o zaman da önce canlı veriyle bakılarak.
 
 ## Kontrast Sözleşmesi (2026-09-06)
 

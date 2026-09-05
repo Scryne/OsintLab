@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState, EmptyState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ConfidenceBadge, ConfidenceEdge } from "@/components/provenance/confidence";
+import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 
@@ -370,10 +370,7 @@ function PairCard({
 function ClaimSide({ claim, projected }: { claim: CandidateClaim; projected: number | null }) {
   const crosses = projected !== null && claim.confidence < SUPPORTED_THRESHOLD && projected >= SUPPORTED_THRESHOLD;
   return (
-    <ConfidenceEdge
-      state={claim.knowledge_state}
-      className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-black/20 p-3 pl-4"
-    >
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-black/20 p-3">
       <p className="text-sm text-pretty text-foreground">{firstLine(claim.text)}</p>
       <p className="font-mono text-[11px] text-text-tertiary">
         {claim.source_name} · {new Date(claim.valid_from).toLocaleDateString("tr-TR")}
@@ -392,7 +389,7 @@ function ClaimSide({ claim, projected }: { claim: CandidateClaim; projected: num
           </span>
         )}
       </div>
-    </ConfidenceEdge>
+    </div>
   );
 }
 

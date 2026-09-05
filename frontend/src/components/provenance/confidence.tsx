@@ -77,38 +77,6 @@ export function ConfidenceBadge({
   );
 }
 
-/**
- * İmza öğe (Design.md "Farklılaştırıcı Detay"): bir Claim/Entity/Event kartının sol kenarı
- * doğrudan `knowledge_state`'ten renk alır. Amaç, kullanıcının rengi öğrendikten sonra
- * "bu bilgi ne kadar sağlam" sorusunu badge'i okumadan, göz ucuyla cevaplayabilmesi.
- *
- * Renk burada TEK BAŞINA sinyal taşıdığı için ham rampa değeri kullanılır (metin varyantı
- * değil) ve o değerlerin 3:1 eşiğini geçmesi bir kısıttır — bkz. Design.md Kontrast
- * Sözleşmesi. Ayrıca renk tek dayanak kalmasın diye kenar `title` ile de adlandırılıyor;
- * kartın içindeki `ConfidenceBadge` zaten metin karşılığını veriyor, o yüzden kenarın
- * kendisi ekran okuyucuya `aria-hidden`.
- */
-export function ConfidenceEdge({
-  state,
-  className,
-  children,
-  ...rest
-}: {
-  state: KnowledgeState;
-  className?: string;
-  children: React.ReactNode;
-} & Omit<React.ComponentProps<"div">, "style">) {
-  return (
-    <div
-      className={cn("confidence-edge", className)}
-      style={{ "--edge": CONFIDENCE_COLOR_VAR[state] } as React.CSSProperties}
-      {...rest}
-    >
-      {children}
-    </div>
-  );
-}
-
 /** İmza öğe: Confidence Spectrum'u gerçek, tıklanabilir bir lejant/filtre olarak gösterir. */
 export function ConfidenceRail({
   active,

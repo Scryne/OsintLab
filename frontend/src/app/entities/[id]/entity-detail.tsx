@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
-import { ConfidenceBadge, ConfidenceEdge, ConfidenceRail } from "@/components/provenance/confidence";
+import { ConfidenceBadge, ConfidenceRail } from "@/components/provenance/confidence";
 import { ProvenanceBlock } from "@/components/provenance/provenance-label";
 import { WhyMattersDisclosure } from "@/components/provenance/why-matters-disclosure";
 import type { KnowledgeState } from "@/lib/types";
@@ -271,16 +271,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 const full = fullClaims?.find((c) => c.id === claim.id);
                 const source = full ? sources[full.source_id] : undefined;
                 return (
-                  // İki kenar burada yan yana geliyor ve bu bilinçli: DIŞTA confidence
-                  // (3px düz, kartın sınırında, "ne kadar sağlam"), İÇERİDE provenance
-                  // (2px, stili kategoriye göre değişen, "bu bilgi nereden geliyor").
-                  // Farklı sorular, farklı genişlik ve konum — bu yüzden karışmıyorlar.
-                  <ConfidenceEdge
-                    key={claim.id}
-                    state={claim.knowledge_state}
-                    className="rounded-lg border border-border bg-surface py-1 pr-2 pl-2"
-                  >
-                  <ProvenanceBlock type="SOURCE_FACT">
+                  <ProvenanceBlock key={claim.id} type="SOURCE_FACT">
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-pretty text-foreground">{claim.text}</p>
                       <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} className="shrink-0" />
@@ -317,7 +308,6 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                       <EvidenceLinkDialog claimId={claim.id} onLinked={reloadRecall} />
                     </div>
                   </ProvenanceBlock>
-                  </ConfidenceEdge>
                 );
               })}
             </div>

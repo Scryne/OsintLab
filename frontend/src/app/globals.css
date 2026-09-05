@@ -35,10 +35,10 @@
      --brand-accent kullanılır (orada metin üstüne gelen renk foreground'dan gelir). */
   --brand-accent-text: #956af7;
 
-  /* #4b5768 idi. Nokta/kenarlık olarak cam üstünde 2.32 veriyordu — WCAG'ın UI-bileşeni
-     eşiği 3:1'i bile geçmiyordu, yani rampanın en sönük ucu fiilen görünmezdi. Badge
-     içinde metin de olduğu için teknik olarak muaftı, ama confidence rengi kart
-     kenarında TEK BAŞINA sinyal olarak kullanılıyor; orada muafiyet yok. Ton ve
+  /* #4b5768 idi. Nokta ve `ConfidenceRail`'in renk bloğu olarak cam üstünde 2.32
+     veriyordu — WCAG'ın UI-bileşeni eşiği 3:1'i bile geçmiyordu. Yanında metin
+     etiketi olduğu için teknik olarak muaf, ama görülmeyen bir lejant girdisi bozuk
+     bir lejanttır: rail'in tüm işlevi altı durumu yan yana ayırt edebilmek. Ton ve
      doygunluk sabit, açıklık 3.05'e yetecek en az miktarda yükseltildi; rampanın
      luminans sırası (UNKNOWN hâlâ en sönük) korunuyor. */
   --confidence-unknown: #5b697d;
@@ -323,36 +323,6 @@
     .glass-panel {
       background: var(--glass-bg-fallback);
     }
-  }
-
-  /* İmza öğe — Confidence Spectrum'un kartın sol kenarı olarak görünmesi (Design.md
-     "Farklılaştırıcı Detay"). Rengi `--edge` custom property'sinden okur, onu da
-     `ConfidenceEdge` component'i satır içi verir.
-
-     Neden `border-left` DEĞİL: Q15 provenance bloğu zaten `border-l-2` kullanıyor
-     (solid/dashed/dotted, farklı bir sistem). İkisi aynı property üzerinden yarışırsa
-     hangi çizginin hangi anlamı taşıdığı belirsizleşir. Bu yüzden confidence kenarı
-     ayrı bir taşıyıcıda: kartın DIŞ sınırında, 3px, her zaman düz — provenance ise
-     içerideki metin bloğunda, 2px, stili değişken. Genişlik ve konum farkı ikisini
-     yan yana geldiklerinde de ayırt edilebilir tutuyor.
-
-     Neden `::before`: `::after` glass-ring tarafından kullanılıyor, `box-shadow` ise
-     .bg-surface'in kendi gölgesini ezerdi. Pseudo-element köşe yarıçapını da
-     doğru takip ediyor. */
-  .confidence-edge {
-    position: relative;
-  }
-  .confidence-edge::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: var(--edge, transparent);
-    border-top-left-radius: inherit;
-    border-bottom-left-radius: inherit;
-    pointer-events: none;
   }
 
   /* Opak yüzeyler (kart, satır — bkz. Design.md "CAM DEĞİL") blur almıyor ama artık

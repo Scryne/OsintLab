@@ -14,7 +14,7 @@ import type { InvestigationStatus, InvestigationWorkspace, KnowledgeState } from
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
-import { ConfidenceBadge, ConfidenceEdge, ConfidenceRail } from "@/components/provenance/confidence";
+import { ConfidenceBadge, ConfidenceRail } from "@/components/provenance/confidence";
 import {
   Dialog,
   DialogContent,
@@ -184,10 +184,9 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
                 />
               ) : null}
               {visibleClaims.map((c) => (
-              <ConfidenceEdge
+              <div
                 key={c.id}
-                state={c.knowledge_state}
-                className={`rounded-lg border border-border bg-surface p-3 pl-4 ${c.superseded ? "opacity-60" : ""}`}
+                className={`rounded-lg border border-border bg-surface p-3 ${c.superseded ? "opacity-60" : ""}`}
               >
                 <div className="flex flex-wrap items-center gap-1.5">
                   <ConfidenceBadge state={c.knowledge_state} confidence={c.confidence} />
@@ -199,7 +198,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
                 <p className={`mt-1 text-sm text-foreground ${c.superseded ? "line-through decoration-white/30" : ""}`}>
                   {c.headline}
                 </p>
-              </ConfidenceEdge>
+              </div>
               ))}
             </div>
           </div>
@@ -274,17 +273,13 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         ) : (
           <div className="flex flex-col gap-2">
             {findings.map((f) => (
-              <ConfidenceEdge
-                key={f.id}
-                state={f.knowledge_state}
-                className="flex items-start justify-between gap-3 rounded-lg border border-border bg-surface p-3 pl-4"
-              >
+              <div key={f.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-surface p-3">
                 <p className="text-sm text-foreground">{f.headline}</p>
                 <div className="flex shrink-0 items-center gap-2">
                   {f.validated && <Badge variant="secondary">validated</Badge>}
                   <ConfidenceBadge state={f.knowledge_state} confidence={f.confidence} />
                 </div>
-              </ConfidenceEdge>
+              </div>
             ))}
           </div>
         )}
