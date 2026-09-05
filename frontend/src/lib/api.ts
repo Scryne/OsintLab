@@ -5,6 +5,7 @@ import type {
   EntityRecall,
   EntityRelation,
   Evidence,
+  EvidenceExtraction,
   EvidenceVaultItem,
   EventItem,
   EventRecall,
@@ -208,6 +209,17 @@ export const api = {
       get<EvidenceVaultItem["linked_claims"]>(`/evidence/${id}/claims`),
     // Dosya indirme bir <a href> ile yapılıyor; burada yalnızca adresi üretiyoruz.
     fileUrl: (id: string) => `${API_BASE}/evidence/${id}/file`,
+    // Faz 15.1 (DOCINT): belgeden ne çıkarıldığı — durum, metadata, önizleme.
+    extraction: (id: string) => get<EvidenceExtraction>(`/evidence/${id}/extraction`),
+    // Tam metin ayrı bir adres: tek bir belge milyonlarca karakter olabiliyor, liste
+    // yanıtına konamaz. Yeni sekmede açılıyor, indirilmiyor.
+    textUrl: (id: string) => `${API_BASE}/evidence/${id}/text`,
+    // Yeniden çıkarma kuyruğuna alır. İki gerçek ihtiyaç: 15.1'den önce yüklenmiş kanıtlar
+    // hiç işlenmemiş durumda, ve başarısız bir belge için tekrar denemek gerekebiliyor.
+    extract: (id: string) => post<{ status: string; status_label: string; queue_depth: number }>(
+      `/evidence/${id}/extract`,
+      {}
+    ),
     upload: async (payload: { file: File; evidence_type: string; collected_at?: string | null }) => {
       const form = new FormData();
       form.append("file", payload.file);

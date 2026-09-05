@@ -1,11 +1,22 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Download, FileWarning, Fingerprint, Search, Upload } from "lucide-react";
+import {
+  Download,
+  FileScan,
+  FileText,
+  FileWarning,
+  Fingerprint,
+  Loader2,
+  Lock,
+  RefreshCw,
+  Search,
+  Upload,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
-import type { EvidenceVaultItem } from "@/lib/types";
+import type { EvidenceVaultItem, ExtractionStatus } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +33,27 @@ const EVIDENCE_TYPE_SUGGESTIONS = [
   "fotoğraf", "video", "belge", "uydu görüntüsü", "ekran görüntüsü", "arşiv kaydı", "veri seti",
 ];
 
+/** Faz 15.1 — çıkarma bitmemiş durumlar. Bunlardan biri varsa sayfa canlı yoklamaya geçer. */
+const ISLENIYOR: ExtractionStatus[] = ["PENDING", "RUNNING"];
+
 export default function EvidencePage() {
-  const { data: items, error, loading, reload } = useApi(() => api.evidence.list(), []);
+  // Yoklama yalnızca gerçekten işlenen bir belge varken açık. Faz 15 spike'ı 492 sayfalık
+  // bir belgenin ~16 sn sürdüğünü ölçtü; bu süre boyunca kullanıcının sayfayı elle
+  // yenilemesini beklemek, F59'da Inbox için kapatılan boşluğun aynısını burada açmak olurdu.
+  // İş bitince yoklama kendiliğinden duruyor — boşuna istek atılmıyor.
+  const [live, setLive] = useState(false);
+  const { data: items, error, loading, reload } = useApi(() => api.evidence.list(), [], {
+    pollMs: live ? 1500 : undefined,
+  });
   const [query, setQuery] = useState("");
+
+  const bekleyen = useMemo(
+    () => (items ?? []).filter((e) => e.extraction_status && ISLENIYOR.includes(e.extraction_status)).length,
+    [items]
+  );
+  useEffect(() => {
+    setLive(bekleyen > 0);
+  }, [bekleyen]);
 
   const filtered = useMemo(() => {
     if (!items) return [];
@@ -50,6 +79,15 @@ export default function EvidencePage() {
       </div>
 
       <UploadPanel onUploaded={reload} existingTypes={items?.map((e) => e.evidence_type) ?? []} />
+
+      {bekleyen > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-secondary">
+          <Loader2 aria-hidden className="h-4 w-4 animate-spin text-text-tertiary" />
+          <span>
+            {bekleyen} belge işleniyor — sayfa kendiliğinden güncelleniyor.
+          </span>
+        </div>
+      )}
 
       <div className="relative">
         <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
@@ -167,6 +205,7 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
                 dosya yok
               </Badge>
             )}
+            <ExtractionBadge item={item} />
           </div>
           <p className="mt-1 break-all text-sm text-foreground">
             {displayName ?? <span className="text-text-tertiary">(dosya adı yok)</span>}
@@ -200,6 +239,23 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
               }
             />
           )}
+          {item.extraction_status === "DONE" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              nativeButton={false}
+              render={
+                <a href={api.evidence.textUrl(item.id)} target="_blank" rel="noopener noreferrer">
+                  <FileText aria-hidden className="h-3.5 w-3.5" />
+                  Metin
+                </a>
+              }
+            />
+          )}
+          {item.has_file && CIKARILABILIR_DEGIL.includes(item.extraction_status ?? "PENDING") && (
+            <ReextractButton evidenceId={item.id} onDone={onChanged} />
+          )}
           <EvidenceClaimLinkDialog evidenceId={item.id} onLinked={onChanged} />
         </div>
       </div>
@@ -232,5 +288,94 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
         )}
       </div>
     </div>
+  );
+}
+
+/** Faz 15.1 — çıkarma başarısızsa/hiç yapılmamışsa yeniden denenebilir olmalı. Bu fazdan
+ * ÖNCE yüklenmiş kanıtlar da burada: onların `extraction_status` alanı NULL. */
+const CIKARILABILIR_DEGIL: (ExtractionStatus | "PENDING")[] = ["CORRUPT", "FAILED"];
+
+/** Faz 15.1 — belgenin içine bakmanın sonucu, kanıt satırında.
+ *
+ * Tasarımın tek kuralı var: **hiçbir durum sessiz olmayacak.** Bu fazın varlık sebebi,
+ * taranmış bir PDF'in hata vermeden 0 karakter döndürmesiydi — arayüzde de hiçbir şey
+ * göstermeseydik, belge "yüklendi ve işlendi" gibi durur, içindeki bilgi hiçbir yere
+ * ulaşmaz, ve kimse fark etmezdi. */
+function ExtractionBadge({ item }: { item: EvidenceVaultItem }) {
+  const st = item.extraction_status;
+  if (!st) return null; // 15.1 öncesi yüklenmiş kanıt — uydurma bir durum göstermiyoruz
+
+  if (st === "PENDING" || st === "RUNNING") {
+    const toplam = item.page_count ?? 0;
+    const yapilan = item.pages_done ?? 0;
+    return (
+      <Badge variant="secondary" className="text-text-secondary">
+        <Loader2 aria-hidden className="h-3 w-3 animate-spin" />
+        {st === "PENDING" || toplam === 0
+          ? "işleniyor…"
+          : `işleniyor ${yapilan}/${toplam} sayfa`}
+      </Badge>
+    );
+  }
+
+  if (st === "DONE") {
+    return (
+      <Badge variant="outline" className="text-text-secondary">
+        <FileScan aria-hidden className="h-3 w-3" />
+        {item.page_count ? `${item.page_count} sayfa okundu` : "metin çıkarıldı"}
+      </Badge>
+    );
+  }
+
+  // Kalan dört durum: hiçbiri "hata" değil ama hepsi kullanıcının BİLMESİ gereken bir sınır.
+  const uyari: Record<string, { icon: typeof Lock; text: string; tone: string }> = {
+    NO_TEXT_LAYER: {
+      icon: FileWarning,
+      text: "taranmış — metin yok",
+      tone: "text-priority-medium",
+    },
+    ENCRYPTED: { icon: Lock, text: "parola korumalı", tone: "text-priority-medium" },
+    CORRUPT: { icon: FileWarning, text: "okunamadı", tone: "text-priority-high" },
+    FAILED: { icon: FileWarning, text: "çıkarma başarısız", tone: "text-priority-high" },
+    // PDF olmayan bir kanıt (fotoğraf, video) için metin çıkarma anlamsız — bu bir eksiklik
+    // değil, o yüzden sessiz gri.
+    UNSUPPORTED: { icon: FileScan, text: "metin çıkarılmadı", tone: "text-text-tertiary" },
+  };
+  const u = uyari[st];
+  if (!u) return null;
+  const Icon = u.icon;
+  return (
+    <Badge variant="secondary" className={u.tone} title={item.extraction_error ?? undefined}>
+      <Icon aria-hidden className="h-3 w-3" />
+      {u.text}
+    </Badge>
+  );
+}
+
+function ReextractButton({ evidenceId, onDone }: { evidenceId: string; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 px-2 text-xs"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await api.evidence.extract(evidenceId);
+          toast("Belge yeniden kuyruğa alındı", "success");
+          onDone();
+        } catch (err) {
+          toast(err instanceof Error ? err.message : "Kuyruğa alınamadı", "error");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <RefreshCw aria-hidden className="h-3.5 w-3.5" />
+      Yeniden dene
+    </Button>
   );
 }

@@ -94,7 +94,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 13 | Source Intelligence + Evidence Vault + Investigation Workspace derinleştirme | ✅ Tamamlandı | Bir Source'un tam DERIVED_FROM lineage zinciri UI'da görülebiliyor; bir Evidence dosyası UI'dan yüklenip bir Claim'e bağlanabiliyor; bir Investigation'ın tam yaşam döngüsü (Proje-Fikri.md madde 30: Research Question→Scope→...→Conclusion) UI'da adım adım takip edilebiliyor. |
 | 14 | Deploy/Erişim Kolaylığı | ✅ Tamamlandı | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
 | 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ✅ Tamamlandı | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi (**DOCINT**); spike yapıldı (2026-09-05, gerçek PDF'lerle) ve alt-roadmap'i (15.1–15.4) yazıldı. |
-| 15.1 | DOCINT: metin + metadata çıkarma | ⏳ Bekliyor | Evidence Vault'a yüklenen bir PDF'in metni ve metadata'sı çıkarılıp saklanıyor; 492 sayfalık belge API'yi bloklamıyor (arka plan işi); metin katmanı olmayan (taranmış) belge sessizce boş geçmiyor, açıkça işaretleniyor. |
+| 15.1 | DOCINT: metin + metadata çıkarma | ✅ Tamamlandı | Evidence Vault'a yüklenen bir PDF'in metni ve metadata'sı çıkarılıp saklanıyor; 492 sayfalık belge API'yi bloklamıyor (arka plan işi); metin katmanı olmayan (taranmış) belge sessizce boş geçmiyor, açıkça işaretleniyor. |
 | 15.2 | DOCINT: belge → Observation → Claim hattı | ⏳ Bekliyor | Belgeden çıkan metin Observation olarak sisteme giriyor ve mevcut promote akışına katılıyor; belge metni/metadata'sı Q22 güvenilmeyen-veri sınırı içinde sunuluyor, talimat-görünümlü ifade kullanıcıya bildiriliyor. |
 | 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ⏳ Bekliyor | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
 | 15.4 | DOCINT: OCR (koşullu) | ⏳ Bekliyor | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
@@ -1275,6 +1275,64 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Evidence Vault'a yüklenen bir PDF'in metni ve metadata'sı çıkarılıp
   saklanıyor; 492 sayfalık belge işlenirken API yanıt vermeye devam ediyor; taranmış bir
   belge yüklendiğinde sessizce boş geçmiyor, açıkça işaretleniyor.
+
+- **Notlar:** 2026-09-05 tamamlandı. `pypdf==6.17.0` eklendi (saf Python, sistem bağımlılığı yok).
+
+  **Yapı — Faz 12'nin ayrımı tekrarlandı.** `app/docint.py` (bir belgeden ne çıkar) DB'ye ve
+  FastAPI'ye hiç dokunmuyor, yalnızca bir yol alıp sonuç sözlüğü döndürüyor; `app/doc_worker.py`
+  (ne zaman çalışır) kuyruğu, DB yazmalarını ve yol çözümlemesini üstleniyor. Aynısı
+  `scanning.py`/`scheduler.py`'de yapılmıştı. Faydası hemen görüldü: çıkarmanın altı durumu
+  backend hiç ayağa kalkmadan sınandı.
+
+  **Çıkarma tek bir "başarılı/başarısız" değil, bir DURUM alanı.** Altı bitiş durumu:
+  `DONE` / `NO_TEXT_LAYER` / `ENCRYPTED` / `CORRUPT` / `UNSUPPORTED` / `FAILED` (artı kuyruk
+  durumları `PENDING` / `RUNNING`). Ayrımın sebebi spike bulgu 5: taranmış PDF hata vermeden
+  0 karakter döndürüyor. Tek bir boolean'la böyle bir belge "işlendi, metni boş" diye
+  kaydedilirdi — sisteme girmiş görünür, içeriği hiçbir yere ulaşmaz, kimse fark etmezdi.
+  `UNSUPPORTED` bilerek ayrı ve **hata değil**: bir fotoğraf kanıtı için metin çıkarma
+  anlamsızdır, eksiklik değildir.
+
+  **PDF olup olmadığına uzantıdan değil sihirli bayttan (`%PDF`) bakılıyor** — spike sırasında
+  `sec.gov`'daki bir `.pdf` adresinin 200 döndürüp HTML verdiği gerçek vakası yaşanmıştı.
+  Faz 11/F25'in "200 döndü" ≠ "beklediğim şey geldi" disiplininin belge tarafı.
+
+  **Doğrulama (izole backend, 8421).** Altı belge tipi de doğru duruma gitti (6/6). Fazın asıl
+  sınavı olan blokla(ma)ma testi: NIST SP 800-53r5 (492 sayfa) yüklenirken **yükleme yanıtı
+  0,04 sn** döndü, çıkarma arka planda 16,4 sn sürdü, bu sırada `/health`'e atılan **50
+  isteğin 50'si** başarılı (ortalama 81 ms, en kötü 180 ms) — API bloklanmadı. Canlı ilerleme
+  gerçek arayüz yolundan doğrulandı (rozet 75/492 → 492/492 sayarak ilerledi). Yeniden
+  başlatmaya dayanıklılık da sınandı: çıkarma 75/492'deyken backend sertçe öldürüldü, yeniden
+  açılışta yarım kalan iş kendiliğinden kuyruğa alınıp 492/492 tamamlandı.
+
+  **Uygulama sırasında bulunan iki gerçek hata.** (1) pypdf 6'da hata sınıfının adı `PdfError`
+  değil `PyPdfError`; ilk koşuda `ImportError` verdi. (2) `page_count` yalnızca ilk ilerleme
+  geri çağrısında (25. sayfa) yazılıyordu, dolayısıyla ilk yarım saniyede arayüz
+  "işleniyor 0/bilinmiyor" gösteriyordu — sayfa sayısı artık bilinir bilinmez bildiriliyor.
+
+  **`OSINTLAB_DATA_DIR` eklendi (`db.py`).** Faz 13'ün canlı dersi ("gerçek graf üzerinde test
+  verisi üretilmemeli") o turda not düşülmüştü ama izolasyon her seferinde elle kurulduğu için
+  kolay olan hep yanlış olan kaldı. Artık tek bir ortam değişkeni hem grafı hem Evidence
+  vault'unu başka bir köke taşıyor; testin gerçek veriye dokunması kaza değil, bilinçli bir
+  tercih olmak zorunda. Bu fazın tüm testleri izole kökte koştu; gerçek graf hiç açılmadı ve
+  göç sonrası sayımlar birebir aynı kaldı (evidence 3, observation 222, claim 8, entity 5).
+
+  **Arayüz.** Kanıt Kasası'nda her satır artık bir durum rozeti taşıyor; tasarımın tek kuralı
+  "hiçbir durum sessiz olmayacak" — çünkü fazın varlık sebebi sessiz kayıptı. `DONE` için
+  "N sayfa okundu" ve tam metni yeni sekmede açan **Metin** butonu; `NO_TEXT_LAYER` /
+  `ENCRYPTED` uyarı renginde; `CORRUPT` / `FAILED` yüksek öncelik renginde ve **Yeniden dene**
+  butonuyla; `UNSUPPORTED` sessiz gri (eksiklik değil). Bir belge işlenirken sayfa canlı
+  yokluyor (F59'daki Inbox deseni) ve iş bitince yoklama kendiliğinden duruyor.
+
+  **Yöntem notu — izole backend + ekran görüntüsü yönteminin iki tuzağı.** Faz 13'te kurulan
+  bu yöntem yine işe yaradı ama iki engelle karşılaşıldı; sonraki fazlar için: (1) backend'in
+  CORS'u yalnızca `:3000`'e izin veriyor, arayüzü `:3001`'de servis etmek isteği tarayıcıda
+  sessizce blokluyor; (2) arka planda başlatılan `next dev`'in HMR websocket'i kırılıyor ve
+  istemci JS hiç boot etmiyor — sayfa sonsuza kadar iskelet gösteriyor, konsolda gerçek hata
+  yok. İkincisi özellikle yanıltıcı, çünkü kodda bir sorun varmış gibi görünüyor (iki ayrı
+  sayfada aynı belirtiyi görmek yanlış teşhisi engelledi). Çözüm: `next build` + `next start`
+  kullan — HMR yok, üstelik production derlemesi de doğrulanmış olur. Ekran görüntüsü için
+  `msedge --headless --screenshot` yetmiyor (`--virtual-time-budget` ağ isteğini beklemiyor);
+  Playwright + `channel="msedge"` gerekiyor (tarayıcı indirmeden mevcut Edge'i kullanır).
 
 ### Faz 15.2: DOCINT — belge → Observation → Claim hattı
 - **İşler:**

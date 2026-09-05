@@ -64,6 +64,40 @@ class Evidence(EvidenceCreate):
     id: str
     created_at: datetime
 
+    # Faz 15.1 (DOCINT) — belgenin İÇİNE bakmanın sonucu. Hepsi opsiyonel: bir kanıt PDF
+    # olmak zorunda değil ve Faz 15.1'den önce yüklenmiş kayıtlarda bu alanlar NULL.
+    #
+    # `extracted_text` bilerek BURADA YOK: spike'ta tek bir belge 1,65 milyon karakter verdi,
+    # bunu her liste yanıtına koymak Evidence Vault sayfasını kullanılamaz hale getirirdi.
+    # Tam metin `GET /evidence/{id}/text` ucundan alınıyor.
+    extraction_status: str | None = None
+    extraction_status_label: str | None = None
+    page_count: int | None = None
+    pages_done: int | None = None
+    extraction_error: str | None = None
+    extracted_at: datetime | None = None
+
+
+class EvidenceExtraction(BaseModel):
+    """Faz 15.1 — bir belgenin çıkarma sonucunun tam hali (`GET /evidence/{id}/extraction`).
+
+    `status` ve `status_label` birlikte dönüyor: kod makine için, etiket insan için. Faz 11'in
+    tekrar eden dersi, sistemin yaptığı şeyi söyleyebilmesiydi — arayüze ham `NO_TEXT_LAYER`
+    göndermek o dersi unutmak olurdu."""
+
+    evidence_id: str
+    status: str | None = None
+    status_label: str | None = None
+    page_count: int | None = None
+    pages_done: int | None = None
+    error: str | None = None
+    extracted_at: datetime | None = None
+    # Belge metadata'sı — Q22: bu alanlar GÜVENİLMEYEN VERİ. Faz 15 spike'ı `/Subject`
+    # alanına gömülmüş talimat-görünümlü bir ifadenin buraya aynen geldiğini doğruladı.
+    metadata: dict[str, str] = Field(default_factory=dict)
+    text_chars: int = 0
+    text_preview: str = ""
+
 
 class EvidenceVaultItem(Evidence):
     """Faz 13 — Evidence Vault listesi için zenginleştirilmiş kanıt.

@@ -4,7 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import scheduler
+from app import doc_worker, scheduler
 from app.db import get_connection
 from app.routers import claims, collectors, entities, evidence, events, investigations, monitors, observations, sources, vault
 
@@ -58,15 +58,25 @@ async def startup() -> None:
     # Faz 12: zamanlanmış tarama döngüsü. Backend ayakta olduğu sürece çalışır — ayrı bir
     # süreç değil, çünkü gömülü KùzuDB'yi aynı anda tek süreç açabiliyor (bkz. scheduler.py).
     scheduler.start()
+    # Faz 15.1: DOCINT belge işleyicisi. Yükleme ucunda senkron çıkarma yapılamaz —
+    # spike 492 sayfalık bir belgeyi 29,9 sn'de çıkardı (bkz. doc_worker.py).
+    doc_worker.start()
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
     await scheduler.stop()
+    await doc_worker.stop()
 
 
 @app.get("/health")
 def health() -> dict:
     # Zamanlayıcının durumu health'e kondu: "otomatik tarama gerçekten çalışıyor mu"
     # sorusunun tek satırlık cevabı olsun (Faz 11'in dersi — sessiz mekanizma kurma).
-    return {"status": "ok", "scheduler": scheduler.is_running()}
+    return {
+        "status": "ok",
+        "scheduler": scheduler.is_running(),
+        # Faz 15.1: belge işleyicisi de sessiz bir mekanizma — durumu görünür olmalı.
+        "docint_worker": doc_worker.is_running(),
+        "docint_queue": doc_worker.queue_depth(),
+    }

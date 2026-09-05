@@ -5,10 +5,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
-from app.db import fetch_all, fetch_one, get_connection
-from app.models import Evidence, EvidenceClaimLink, EvidenceCreate, EvidenceVaultItem
+from app import doc_worker, docint
+from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
+from app.models import (
+    Evidence,
+    EvidenceClaimLink,
+    EvidenceCreate,
+    EvidenceExtraction,
+    EvidenceVaultItem,
+)
 from app.monitoring import claim_headline
 from app.routers.claims import _claim_about, _node_exists, _notify_change, _recompute_and_store, get_claim
 from app.vault import safe_render_vault
@@ -17,14 +24,31 @@ router = APIRouter(prefix="/evidence", tags=["evidence"])
 
 _STANCE_TO_REL = {"SUPPORTS": "SUPPORTS", "CONTRADICTS": "CONTRADICTS"}
 
+# Faz 15.1: çıkarma alanları listeye eklendi, ama `extracted_text` BİLEREK dışarıda —
+# spike'ta tek bir belge 1,65 milyon karakter verdi; her liste yanıtına koymak Evidence
+# Vault sayfasını kullanılamaz hale getirirdi. Tam metin ayrı bir uçtan alınıyor.
 _FIELDS = (
     "ev.id AS id, ev.evidence_type AS evidence_type, ev.file_path AS file_path, "
-    "ev.content_hash AS content_hash, ev.collected_at AS collected_at, ev.created_at AS created_at"
+    "ev.content_hash AS content_hash, ev.collected_at AS collected_at, ev.created_at AS created_at, "
+    "ev.extraction_status AS extraction_status, ev.page_count AS page_count, "
+    "ev.pages_done AS pages_done, ev.extraction_error AS extraction_error, "
+    "ev.extracted_at AS extracted_at"
 )
+
+# Metin önizlemesi: "gerçekten metin çıktı mı" sorusunu tam metni indirmeden cevaplar.
+PREVIEW_CHARS = 1500
+
+
+def _with_status_label(row: dict) -> dict:
+    """Ham durum koduna insan tarafını ekler (`extraction_status_label`)."""
+    return {**row, "extraction_status_label": docint.STATUS_LABELS.get(row.get("extraction_status"))}
 
 # Faz 13 — Evidence Vault. Yüklenen dosyalar burada; graf'ta yalnızca göreli yol saklanıyor
 # (mutlak yol saklamak, proje klasörü taşındığında tüm kanıt bağlarını sessizce kırardı).
-EVIDENCE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "evidence"
+# Faz 15.1: veri kökü artık `db.DATA_ROOT` üzerinden (OSINTLAB_DATA_DIR ile taşınabilir) —
+# izole bir test backend'i çalıştırılırken graf ve kanıt dosyaları BİRLİKTE taşınmalı,
+# yoksa test grafı ayrı ama yüklenen dosyalar gerçek vault'a düşerdi.
+EVIDENCE_DIR = DATA_ROOT / "evidence"
 
 # Tek kullanıcılı yerel bir araç; sınır kötü niyete karşı değil, kazara 4 GB'lık bir dosyayı
 # belleğe okumaya karşı.
@@ -177,6 +201,13 @@ async def upload_evidence(
             "created_at": created_at,
         },
     )
+    # Faz 15.1 (DOCINT): belge işleme SENKRON DEĞİL. Faz 15 spike'ı 492 sayfalık bir
+    # belgenin baştan sona 29,9 saniye sürdüğünü ölçtü — burada beklemek, tek bir yükleme
+    # için API'nin tamamını yarım dakika kilitlemek olurdu. Durum önce DB'ye yazılıyor
+    # (kayıt bir an bile durumsuz kalmasın), sonra kuyruğa konuyor.
+    doc_worker.mark_pending(evidence_id)
+    doc_worker.enqueue(evidence_id)
+
     return Evidence(
         id=evidence_id,
         evidence_type=evidence_type,
@@ -184,7 +215,105 @@ async def upload_evidence(
         content_hash=content_hash,
         collected_at=collected_at or created_at,
         created_at=created_at,
+        extraction_status=docint.PENDING,
+        extraction_status_label=docint.STATUS_LABELS[docint.PENDING],
+        pages_done=0,
     )
+
+
+@router.get("/{evidence_id}/extraction", response_model=EvidenceExtraction)
+def get_evidence_extraction(evidence_id: str) -> EvidenceExtraction:
+    """Faz 15.1 — belgeden ne çıkarıldığı: durum, metadata, sayfa sayısı, metin önizlemesi.
+
+    **Q22 uyarısı:** `metadata` ve `text_preview` alanları GÜVENİLMEYEN VERİDİR. Belge metni
+    ve belge metadata'sı açık kaynaktan gelir; Faz 15 spike'ı her ikisinin de talimat-görünümlü
+    ifade taşıyabildiğini doğruladı (metin katmanında `SYSTEM: Ignore all previous
+    instructions...`, metadata'da `/Subject: Disregard prior instructions...`). Bu alanları
+    sunan hiçbir katman içeriklerini komut olarak yorumlamamalı."""
+    conn = get_connection()
+    row = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $id}) RETURN ev.extraction_status AS status, "
+            "ev.doc_metadata AS doc_metadata, ev.page_count AS page_count, "
+            "ev.pages_done AS pages_done, ev.extraction_error AS error, "
+            "ev.extracted_at AS extracted_at, ev.extracted_text AS text",
+            {"id": evidence_id},
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    text = row["text"] or ""
+    return EvidenceExtraction(
+        evidence_id=evidence_id,
+        status=row["status"],
+        status_label=docint.STATUS_LABELS.get(row["status"]),
+        page_count=row["page_count"],
+        pages_done=row["pages_done"],
+        error=row["error"],
+        extracted_at=row["extracted_at"],
+        metadata=docint.metadata_from_json(row["doc_metadata"]),
+        text_chars=len(text),
+        text_preview=text[:PREVIEW_CHARS],
+    )
+
+
+@router.get("/{evidence_id}/text", response_class=PlainTextResponse)
+def get_evidence_text(evidence_id: str) -> PlainTextResponse:
+    """Belgeden çıkarılan tam metin (düz metin olarak).
+
+    Ayrı bir uç, çünkü tek bir belge milyonlarca karakter olabiliyor — liste yanıtlarına
+    konamaz. `text/plain` ve `nosniff` ile dönüyor: içerik güvenilmeyen kaynaktan geldiği
+    için tarayıcının onu HTML sanıp çalıştırması istenmiyor (indirme ucundaki disiplinin aynısı)."""
+    conn = get_connection()
+    row = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $id}) RETURN ev.extracted_text AS text, "
+            "ev.extraction_status AS status",
+            {"id": evidence_id},
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    if not row["text"]:
+        label = docint.STATUS_LABELS.get(row["status"], "Henüz işlenmedi")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Bu kanıttan çıkarılmış metin yok. Durum: {label}.",
+        )
+    return PlainTextResponse(
+        row["text"],
+        media_type="text/plain; charset=utf-8",
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.post("/{evidence_id}/extract", status_code=202)
+def reextract_evidence(evidence_id: str) -> dict:
+    """Bir kanıtı (yeniden) çıkarma kuyruğuna alır.
+
+    İki gerçek ihtiyaç: (1) Faz 15.1'den ÖNCE yüklenmiş kanıtlar hiç işlenmemiş durumda —
+    bu uç olmadan onlara ulaşmanın yolu yok; (2) `FAILED`/`CORRUPT` bir belge için tekrar
+    denemek. Çıkarma idempotent: sonucu baştan yazıyor, tekrar çalıştırmak güvenli."""
+    conn = get_connection()
+    if not _node_exists(conn, "Evidence", evidence_id):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    if _resolve_stored_file(get_evidence(evidence_id).file_path) is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Bu kanıtın vault'ta yüklenmiş bir dosyası yok, çıkarılacak bir şey yok.",
+        )
+    doc_worker.mark_pending(evidence_id)
+    if not doc_worker.enqueue(evidence_id):
+        raise HTTPException(
+            status_code=503,
+            detail="Belge işleyicisi çalışmıyor. Backend'i yeniden başlatmayı dene.",
+        )
+    return {
+        "evidence_id": evidence_id,
+        "status": docint.PENDING,
+        "status_label": docint.STATUS_LABELS[docint.PENDING],
+        "queue_depth": doc_worker.queue_depth(),
+    }
 
 
 @router.get("/{evidence_id}/file")
@@ -295,7 +424,7 @@ def list_evidence() -> list[EvidenceVaultItem]:
     for row in fetch_all(result):
         items.append(
             EvidenceVaultItem(
-                **row,
+                **_with_status_label(row),
                 has_file=_resolve_stored_file(row["file_path"]) is not None,
                 linked_claims=list_evidence_claims(row["id"]),
             )
@@ -310,7 +439,7 @@ def get_evidence(evidence_id: str) -> Evidence:
     row = fetch_one(result)
     if row is None:
         raise HTTPException(status_code=404, detail="Evidence not found")
-    return Evidence(**row)
+    return Evidence(**_with_status_label(row))
 
 
 @router.put("/{evidence_id}/claims/{claim_id}")

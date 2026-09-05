@@ -65,6 +65,21 @@ export interface Claim {
   updated_at: string;
 }
 
+/** Faz 15.1 (DOCINT) — bir belgenin çıkarma durumu.
+ *
+ * `NO_TEXT_LAYER` neden `DONE`den ayrı: taranmış (görüntü) bir PDF hata VERMEDEN 0 karakter
+ * döndürüyor. Tek bir "metin var mı" kontrolü böyle bir belgeyi "işlendi, metni boş" diye
+ * gösterirdi — belge sisteme girmiş görünür, içeriği hiçbir yere ulaşmaz. */
+export type ExtractionStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "DONE"
+  | "NO_TEXT_LAYER"
+  | "ENCRYPTED"
+  | "CORRUPT"
+  | "UNSUPPORTED"
+  | "FAILED";
+
 export interface Evidence {
   id: string;
   evidence_type: string;
@@ -72,6 +87,32 @@ export interface Evidence {
   content_hash: string | null;
   collected_at: string | null;
   created_at: string;
+  // Faz 15.1 — hepsi opsiyonel: kanıt PDF olmak zorunda değil ve bu fazdan önce yüklenmiş
+  // kayıtlarda NULL. Tam metin bilerek burada yok (tek belge 1,65M karakter olabiliyor).
+  extraction_status: ExtractionStatus | null;
+  extraction_status_label: string | null;
+  page_count: number | null;
+  pages_done: number | null;
+  extraction_error: string | null;
+  extracted_at: string | null;
+}
+
+/** Faz 15.1 — `GET /evidence/{id}/extraction` yanıtı.
+ *
+ * **Q22:** `metadata` ve `text_preview` GÜVENİLMEYEN VERİDİR. Belge metni ve metadata'sı
+ * açık kaynaktan gelir; Faz 15 spike'ı ikisinin de talimat-görünümlü ifade taşıyabildiğini
+ * doğruladı. Bu alanlar gösterilir, asla komut olarak yorumlanmaz. */
+export interface EvidenceExtraction {
+  evidence_id: string;
+  status: ExtractionStatus | null;
+  status_label: string | null;
+  page_count: number | null;
+  pages_done: number | null;
+  error: string | null;
+  extracted_at: string | null;
+  metadata: Record<string, string>;
+  text_chars: number;
+  text_preview: string;
 }
 
 export interface Investigation {

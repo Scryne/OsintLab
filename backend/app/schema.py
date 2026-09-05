@@ -55,6 +55,18 @@ NODE_TABLES = [
         PRIMARY KEY(id)
     )
     """,
+    # Faz 15.1 (DOCINT): extraction_* alanlari belgenin ICINE bakmanin sonucu. Faz 13'te
+    # Evidence yalnizca hash + yol tutuyordu, yani dosya sisteme giriyor ama icindeki bilgi
+    # grafa hic ulasmiyordu.
+    #
+    # `extraction_status` neden ayri bir alan: Faz 15 spike'inin en onemli bulgusu, taranmis
+    # (goruntu-only) bir PDF'in HATA VERMEDEN 0 karakter dondurmesiydi. Tek bir "metin var mi"
+    # kontrolu, boyle bir belgeyi "islendi, metni bos" diye kaydederdi -- sessiz veri kaybi.
+    # Durumlar `app/docint.py`de: DONE / NO_TEXT_LAYER / ENCRYPTED / CORRUPT / UNSUPPORTED /
+    # FAILED, arti kuyruk durumlari PENDING / RUNNING.
+    #
+    # `pages_done` + `page_count` ilerleme icin: spike 492 sayfalik bir belgenin 29,9 sn
+    # surdugunu olctu, bu sure boyunca kullanici nerede olundugunu gorebilmeli.
     """
     CREATE NODE TABLE IF NOT EXISTS Evidence(
         id STRING,
@@ -63,6 +75,13 @@ NODE_TABLES = [
         content_hash STRING,
         collected_at TIMESTAMP,
         created_at TIMESTAMP,
+        extraction_status STRING,
+        extracted_text STRING,
+        doc_metadata STRING,
+        page_count INT64,
+        pages_done INT64,
+        extraction_error STRING,
+        extracted_at TIMESTAMP,
         PRIMARY KEY(id)
     )
     """,
@@ -216,6 +235,14 @@ COLUMN_ADDITIONS = [
     "ALTER TABLE Investigation ADD IF NOT EXISTS analysis STRING",
     "ALTER TABLE Investigation ADD IF NOT EXISTS conclusion STRING",
     "ALTER TABLE Investigation ADD IF NOT EXISTS concluded_at TIMESTAMP",
+    # Faz 15.1 (DOCINT) -- belgeden cikarilan metin/metadata ve cikarma durumu.
+    "ALTER TABLE Evidence ADD IF NOT EXISTS extraction_status STRING",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS extracted_text STRING",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS doc_metadata STRING",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS page_count INT64",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS pages_done INT64",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS extraction_error STRING",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS extracted_at TIMESTAMP",
 ]
 
 

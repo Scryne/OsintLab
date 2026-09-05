@@ -1,4 +1,5 @@
 """KùzuDB bağlantı yönetimi — Brain-Centric Architecture'daki Intelligence Core katmanı."""
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -6,7 +7,17 @@ import kuzu
 
 from app.schema import init_schema
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "graph" / "osintlab.kuzu"
+# Veri kökü ortam değişkeniyle taşınabilir. Varsayılan proje içindeki `data/`.
+#
+# Faz 15.1'de eklendi, gerekçesi Faz 13'ün canlı dersi: gerçek graf üzerinde test verisi
+# üretilirken yazılan bir temizlik filtresi fazla geniş kaldı ve iki gerçek Evidence kaydını
+# sildi. O turda "izole bir backend kurulmalıydı" diye not düşülmüştü, ama izolasyon her
+# seferinde elle kurulduğu için kolay olan hep yanlış olan kaldı. `OSINTLAB_DATA_DIR=...`
+# ile hem graf hem evidence vault tek hamlede başka bir köke taşınıyor; testin gerçek
+# veriye dokunması artık kaza değil, bilinçli bir tercih olmak zorunda.
+DATA_ROOT = Path(os.environ.get("OSINTLAB_DATA_DIR") or
+                 (Path(__file__).resolve().parent.parent.parent / "data"))
+DATA_DIR = DATA_ROOT / "graph" / "osintlab.kuzu"
 
 _database: kuzu.Database | None = None
 _connection: kuzu.Connection | None = None

@@ -7,3 +7,7 @@ feedparser==6.0.11
 beautifulsoup4==4.12.3
 # Faz 13: Evidence Vault dosya yuklemesi (FastAPI multipart/form-data)
 python-multipart==0.0.32
+
+# Faz 15.1 (DOCINT): PDF metin + metadata cikarma. Saf Python, sistem bagimliligi yok.
+# Faz 15 spike'inda 6.17.0 ile gercek belgelerle dogrulandi (NIST SP 800-53r5, 492 sayfa).
+pypdf==6.17.0
