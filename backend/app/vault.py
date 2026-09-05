@@ -18,10 +18,14 @@ import shutil
 import sys
 from pathlib import Path
 
-from app.db import fetch_all, fetch_one
+from app.db import DATA_ROOT, fetch_all, fetch_one
 from app.recall import same_as_group
 
-VAULT_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "vault"
+# `OSINTLAB_DATA_DIR` ile taşınabilir (db.py'deki DATA_ROOT). Faz 16'da düzeltildi: sabit
+# proje yolu, izole bir veri köküyle çalıştırılan bir test koşusunun GERÇEK vault'u baştan
+# yazmasına yol açtı — ki DATA_ROOT tam olarak bunu önlemek için (Faz 13'ün canlı dersiyle)
+# eklenmişti, ama vault ve daily/ kapsam dışında kalmıştı.
+VAULT_DIR = DATA_ROOT / "vault"
 
 _ACTIVE_INVESTIGATION_STATUSES = ("OPEN", "ACTIVE", "PAUSED")
 
@@ -730,6 +734,8 @@ def render_dashboard_note(conn) -> str:
         )
     )
 
+    queue_stats = _queue_stats(conn)
+
     lines = ["# OsintLab — Dashboard", ""]
     lines.append(f"_Son render: {datetime.now(timezone.utc).isoformat()}_")
     lines.append("")
@@ -739,6 +745,21 @@ def render_dashboard_note(conn) -> str:
         f"{counts['Claim']} Claim · {counts['Investigation']} Investigation "
         f"({len(active_investigations)} aktif)"
     )
+    lines.append("")
+    # Faz 16 — kuyruk derinliği Obsidian'da da görünsün. Vault, grafın deterministik
+    # render'ı; "sistem bir şey biriktiriyor ama kimse değerlendirmiyor" hâlini burada da
+    # görebilmek, kuyruğun tekrar sessizce şişmesini önleyen ikinci gözdür.
+    lines.append("## Değerlendirme Kuyruğu")
+    if queue_stats["pending"]:
+        # "0 gündür bekliyor" bir bilgi değil gürültü; ibare ancak gerçekten günler geçmişse anlamlı.
+        days = queue_stats["oldest_days"]
+        oldest = f", en eskisi {days} gündür bekliyor" if days else ""
+        lines.append(
+            f"- **{queue_stats['pending']}** gözlem promote kararı bekliyor{oldest}."
+        )
+        lines.append(f"- {queue_stats['dismissed']} gözlem değerlendirilip elendi (silinmedi).")
+    else:
+        lines.append("_Bekleyen gözlem yok — biriken her kayıt değerlendirilmiş._")
     lines.append("")
     lines.append("## Açık Investigation'lar")
     if active_investigations:
@@ -759,6 +780,32 @@ def render_dashboard_note(conn) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+def _queue_stats(conn) -> dict:
+    """Dashboard notu için kuyruk derinliği. `triage.build_queue`'nun tamamını çağırmıyoruz:
+    orası her gözlemi entity tablosuna karşı eşleştiriyor ve vault her yazma ucundan sonra
+    yeniden render ediliyor — sayaç için o maliyet gereksiz."""
+    from datetime import datetime, timezone
+
+    pending = fetch_all(
+        conn.execute(
+            "MATCH (o:Observation) WHERE o.promoted = false "
+            "AND (o.dismissed IS NULL OR o.dismissed = false) "
+            "OPTIONAL MATCH (o)-[:PRODUCED]->(c:Claim) "
+            "RETURN o.created_at AS created_at, c.id AS claim_id"
+        )
+    )
+    waiting = [row["created_at"] for row in pending if not row["claim_id"]]
+    dismissed = fetch_one(
+        conn.execute("MATCH (o:Observation) WHERE o.dismissed = true RETURN count(o) AS n")
+    )["n"]
+    oldest = min(waiting, default=None)
+    return {
+        "pending": len(waiting),
+        "dismissed": dismissed,
+        "oldest_days": (datetime.now(timezone.utc) - oldest).days if oldest else None,
+    }
 
 
 def render_all(conn) -> dict:

@@ -162,20 +162,26 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
 
 # ---- Bildirim (Faz 7 boru hattına zamanlanmış taramanın bağlanması) -------
 
-def _matching_entities(conn, texts: list[str]) -> list[dict]:
-    """Toplanan metinlerde adı/alias'ı geçen, halihazırda bildiğimiz entity'ler.
+def load_entity_rows(conn) -> list[dict]:
+    """Eşleştirme için gereken minimum entity alanları. Faz 16'da ayrıldı: kuyruk 200+
+    gözlemi tek tek eşleştiriyor, her biri için entity tablosunu yeniden okumak N+1 olurdu."""
+    return fetch_all(
+        conn.execute("MATCH (e:Entity) RETURN e.id AS id, e.name AS name, e.aliases AS aliases")
+    )
+
+
+def match_entities_in_text(entity_rows: list[dict], text: str) -> list[dict]:
+    """Bir metinde adı/alias'ı geçen, halihazırda bildiğimiz entity'ler.
 
     Bu, Faz 7'nin "Compare With Memory" adımının ham gözlem için yapılabilen halidir: gözlemin
     henüz confidence'ı yok (claim değil), dolayısıyla önemi ancak "bildiğimiz bir şeye
     değiyor mu" sorusundan türetilebilir. Deterministik ve açıklanabilir — LLM yok, eşik yok,
     sadece isim eşleşmesi; hangi ad üzerinden eşleştiği Inbox öğesinin detayında saklanıyor
-    (Auditability)."""
-    rows = fetch_all(
-        conn.execute("MATCH (e:Entity) RETURN e.id AS id, e.name AS name, e.aliases AS aliases")
-    )
-    blob = "\n".join(texts).lower()
+    (Auditability). Faz 16'da kuyruğun sinyal skoru da aynı fonksiyonu kullanıyor — iki farklı
+    "bu önemli mi" tanımı olsaydı Inbox ile kuyruk aynı gözleme ters cevap verirdi."""
+    blob = text.lower()
     matched: list[dict] = []
-    for row in rows:
+    for row in entity_rows:
         for name in [row["name"], *(row["aliases"] or [])]:
             needle = (name or "").strip().lower()
             if len(needle) < MIN_ENTITY_MATCH_LENGTH:
@@ -188,6 +194,11 @@ def _matching_entities(conn, texts: list[str]) -> list[dict]:
                 matched.append({"id": row["id"], "name": row["name"], "matched_on": name})
                 break
     return matched
+
+
+def _matching_entities(conn, texts: list[str]) -> list[dict]:
+    """Bir tarama koşusunun TÜM metinlerinde geçen entity'ler (bildirim başlığı için)."""
+    return match_entities_in_text(load_entity_rows(conn), "\n".join(texts))
 
 
 def _notify_new_observations(conn, schedule: dict, observations: list[Observation]) -> dict | None:

@@ -275,6 +275,14 @@ COLUMN_ADDITIONS = [
     "ALTER TABLE Evidence ADD IF NOT EXISTS ocr_confidence DOUBLE",
     "ALTER TABLE Evidence ADD IF NOT EXISTS ocr_lang STRING",
     "ALTER TABLE Observation ADD IF NOT EXISTS text_source STRING",
+    # Faz 16 (Promote Kuyrugu): "degerlendirildi, bilgiye donusturulmedi". Elenen gozlem
+    # SILINMEZ -- Faz 3'un Q17 disiplini (yukselmeyen sey de kaybolmaz) ve History Is
+    # Immutable ilkesi geregi. Bu isaret ayrica elenmis gozlemin kuyruga geri dusmemesi
+    # icin gerekli: promoted=false tek basina "henuz bakilmadi" demek zorundaydi, artik
+    # "bakildi, gecmedi" ondan ayrilabiliyor.
+    "ALTER TABLE Observation ADD IF NOT EXISTS dismissed BOOLEAN",
+    "ALTER TABLE Observation ADD IF NOT EXISTS dismissed_at TIMESTAMP",
+    "ALTER TABLE Observation ADD IF NOT EXISTS dismiss_reason STRING",
 ]
 
 

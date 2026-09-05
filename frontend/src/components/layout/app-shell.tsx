@@ -11,6 +11,7 @@ import {
   FolderSearch,
   GitMerge,
   Inbox as InboxIcon,
+  ListChecks,
   Menu,
   Radar,
   Rss,
@@ -29,6 +30,9 @@ const NAV = [
   { href: "/sources", label: "Kaynaklar", icon: Database },
   { href: "/investigations", label: "Investigation'lar", icon: FolderSearch },
   { href: "/observations", label: "Gözlemler", icon: Eye },
+  // Faz 16: kuyruk kendi nav satırında, çünkü rozet olmadan "kaç gözlem bekliyor" sorusunun
+  // cevabı hiçbir yerde görünmüyordu — 221 rakamı ancak API'ye elle sorulunca çıkmıştı.
+  { href: "/observations/queue", label: "Promote Kuyruğu", icon: ListChecks },
   { href: "/evidence", label: "Kanıt Kasası", icon: FileCheck },
   { href: "/collectors", label: "Toplayıcılar", icon: Rss },
   { href: "/entities/same-as", label: "Olası Eşleşmeler", icon: GitMerge },
@@ -44,6 +48,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pollMs: 30_000,
   });
   const inboxCount = newItems?.length ?? null;
+  // Kuyruk derinliği de canlı: biriken gözlem, kullanıcı o sayfaya gitmeyi akıl edene kadar
+  // görünmezse Faz 16'dan önceki duruma geri dönerdi. Sadece sayaç için `limit: 1` — 223
+  // satırlık gövdeyi her 60 saniyede bir taşımanın anlamı yok.
+  const { data: queue } = useApi(() => api.observations.queue({ limit: 1 }), [pathname], {
+    pollMs: 60_000,
+  });
+  const queueCount = queue?.stats.pending ?? null;
 
   const navList = (
     <nav className="flex flex-col gap-1">
@@ -75,6 +86,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {href === "/inbox" && !!inboxCount && (
               <span className="rounded-full bg-priority-critical/25 px-1.5 py-0.5 text-[10px] font-semibold text-priority-critical shadow-[0_0_8px_rgba(226,58,107,0.5)]">
                 {inboxCount}
+              </span>
+            )}
+            {/* Kuyruk rozeti bilinçli olarak alarm renginde DEĞİL: bekleyen gözlem bir
+                arıza değil, normal bir iş yükü. Inbox'ın kırmızısıyla aynı olsaydı ikisi de
+                anlamını yitirirdi. */}
+            {href === "/observations/queue" && !!queueCount && (
+              <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-text-secondary">
+                {queueCount}
               </span>
             )}
           </Link>

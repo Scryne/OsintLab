@@ -280,6 +280,13 @@ class Observation(ObservationCreate):
     # (görüntüden tahmin). İşaret metinle BİRLİKTE seyahat ediyor, çünkü promote kararı bu
     # gözlem üzerinde veriliyor — 15.2'de injection uyarısı için öğrenilen dersin aynısı.
     text_source: str | None = None
+    # Faz 16 — "değerlendirildi, bilgiye dönüştürülmedi". `promoted=false` tek başına iki
+    # ayrı hâli anlatmak zorundaydı: "henüz bakılmadı" ve "bakıldı, yükseltilmedi". 223
+    # kayıtlık bir kuyrukta bu ayrım olmadan ilerleme ölçülemiyor — elenen gözlem ertesi gün
+    # yine kuyruğun içinde duruyor. Kayıt SİLİNMEZ (Q17: yükselmeyen şey de kaybolmaz).
+    dismissed: bool = False
+    dismissed_at: datetime | None = None
+    dismiss_reason: str | None = None
 
 
 INVESTIGATION_STATUSES = ("OPEN", "ACTIVE", "PAUSED", "RESOLVED", "CLOSED", "ARCHIVED")
@@ -338,6 +345,130 @@ class Hypothesis(HypothesisCreate):
 class HypothesisEvidenceLink(BaseModel):
     evidence_id: str
     stance: str = Field(..., examples=["SUPPORTS", "WEAKENS", "REFUTES"])
+
+
+class SignalReason(BaseModel):
+    """Bir gözlemin kuyrukta neden yukarıda/aşağıda olduğunun tek bir gerekçesi.
+
+    Skor tek bir sayı olarak dönseydi kuyruk bir kara kutu olurdu: kullanıcı 180 kaydı
+    toplu elerken neye güvendiğini bilemezdi. Faz 12'nin `_matching_entities` kararındaki
+    aynı disiplin — deterministik, LLM'siz, ve hangi ad üzerinden eşleştiği görünür."""
+
+    code: str
+    text: str
+    weight: float
+
+
+class QueueItem(Observation):
+    """Kuyruk satırı: gözlemin kendisi + neden bu sırada olduğu + kısa yol için öneriler."""
+
+    signal_score: float
+    signal_reasons: list[SignalReason] = Field(default_factory=list)
+    matched_entities: list[dict] = Field(default_factory=list)
+    # Hızlı promote'un "önerilir, kullanıcı onaylar" tarafı (Design Principle #7): sistem
+    # kaynağı ve entity bağını ÖNERİR, kararı vermez.
+    suggested_source_id: str | None = None
+    suggested_source_name: str | None = None
+    suggested_entity_id: str | None = None
+    host: str | None = None
+    age_days: int = 0
+
+
+class QueueHostBucket(BaseModel):
+    """Kuyruğun kaynak-adresine göre dağılımı — toplu eleme kararı pratikte bu eksende
+    veriliyor ("bu feed'in tamamı ilgisiz")."""
+
+    host: str
+    count: int
+    high_signal: int
+
+
+class QueueStats(BaseModel):
+    """Kuyruk sağlığı. Roadmap'in Faz 16 maddesi: '221 rakamı ancak API'ye elle sorulunca
+    çıktı' — bu sayıların arayüzde görünür olması fazın bitti kriterinin bir parçası."""
+
+    pending: int
+    dismissed: int
+    evaluated: int
+    total: int
+    high_signal: int
+    noise: int
+    oldest_pending_at: datetime | None = None
+    oldest_pending_age_days: int | None = None
+    hosts: list[QueueHostBucket] = Field(default_factory=list)
+
+
+class ObservationQueue(BaseModel):
+    stats: QueueStats
+    items: list[QueueItem] = Field(default_factory=list)
+    matched: int = Field(
+        0, description="Filtreden geçen toplam gözlem sayısı (items sayfalanmış olabilir)"
+    )
+    high_signal_threshold: float
+
+
+class ObservationDismiss(BaseModel):
+    """Toplu eleme. Tekil bir uç değil, çünkü darboğazın kendisi tekillikti."""
+
+    observation_ids: list[str]
+    reason: str | None = None
+
+
+class ObservationDismissResult(BaseModel):
+    dismissed: int
+    # Zaten claim üretmiş ya da bulunamamış gözlemler sessizce yutulmaz.
+    skipped: list[str] = Field(default_factory=list)
+
+
+class ObservationPromoteBatch(BaseModel):
+    """Faz 16 (ikinci tur) — seçilen gözlemleri TEK kararla promote eder.
+
+    **Neden var.** İlk turda kuyruk toplu ELEMEYİ ucuzlattı ama promote kayıt başına kaldı:
+    gerçek kuyrukta 21 tanesi aynı kaynağa (`openai.com` resmi duyuruları) ve aynı entity'ye
+    (OpenAI) bağlanacaktı, yani aynı iki alan 21 kez onaylanacaktı. Bu, kapatılmaya çalışılan
+    darboğazın küçültülmüş hali — kullanıcının ilk kullanımda söylediği de tam olarak buydu.
+
+    **Design Principle #7 ile çelişmiyor.** Bu otomatik bir kural değil: kullanıcı kümeyi
+    kendisi seçiyor, gördüğü kayıtlar için bir kez karar veriyor. Roadmap'in Faz 16 maddesinin
+    kendi argümanı — "bir kuralı bir kez tanımlamak da insanın kontrolüdür, 221 kez tıklamak
+    da" — burada kural yazmadan, doğrudan seçime uygulanıyor."""
+
+    observation_ids: list[str]
+    source_id: str | None = Field(
+        None,
+        description="Tüm kümeye uygulanacak kaynak. None ise her gözlem KENDİ önerisini kullanır "
+        "(adresi hangi Source'un adresiyle aynı host'ta).",
+    )
+    about_entity_id: str | None = Field(
+        None, description="Tüm kümeye uygulanacak entity. None ise her gözlem kendi önerisini kullanır."
+    )
+    require_entity: bool = Field(
+        True,
+        description="Entity bağı çözülemeyen gözlemi promote ETME, atla. Faz 11'in F15/F16 dersi: "
+        "bağsız claim yalıtık kalır (Memory Recall bulamaz, vault notunda görünmez) ve bu, "
+        "toplu bir işlemde sessizce onlarca kayda birden olur.",
+    )
+
+
+class ObservationPromoteBatchItem(BaseModel):
+    observation_id: str
+    # PROMOTED (eşiği geçti) / BELOW_THRESHOLD (claim üretildi, eşiğin altında) / SKIPPED.
+    # Üçü ayrı, çünkü ikincisi bir hata değil — Q1'in katmanlı hafıza modelinin normal sonucu.
+    status: str
+    headline: str
+    claim_id: str | None = None
+    confidence: float | None = None
+    message: str | None = None
+
+
+class ObservationPromoteBatchResult(BaseModel):
+    """Toplu işlemin sonucu kayıt kayıt dönüyor: 21 kaydın 3'ü atlandıysa hangileri olduğu
+    söylenmezse kullanıcı kuyruğa dönüp aradaki farkı kendi bulmak zorunda kalırdı."""
+
+    promoted: int
+    below_threshold: int
+    skipped: int
+    items: list[ObservationPromoteBatchItem] = Field(default_factory=list)
 
 
 class ObservationPromote(BaseModel):

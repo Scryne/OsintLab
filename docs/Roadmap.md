@@ -98,7 +98,8 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 15.2 | DOCINT: belge → Observation → Claim hattı | ✅ Tamamlandı | Belgeden çıkan metin Observation olarak sisteme giriyor ve mevcut promote akışına katılıyor; belge metni/metadata'sı Q22 güvenilmeyen-veri sınırı içinde sunuluyor, talimat-görünümlü ifade kullanıcıya bildiriliyor. |
 | 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ✅ Tamamlandı | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
 | 15.4 | DOCINT: OCR | ✅ Tamamlandı | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
-| 16 | Promote Kuyruğu (değerlendirme darboğazı) | ⏳ Bekliyor | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
+| 16 | Promote Kuyruğu (değerlendirme darboğazı) | ✅ Tamamlandı | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
+| 17 | Corroboration Çalışma Ekranı | ⏳ Bekliyor | Bir claim'i doğrulayabilecek diğer claim'ler gerekçeleriyle öneriliyor; türetilmiş kaynak bağımsız doğrulamadan ayrılıyor; adaylar toplu olarak CORROBORATES/CONTRADICTS ile bağlanabiliyor ve confidence değişimi gösteriliyor. Bitti sayılması için Faz 16'dan kalan 42 REPORTED claim üzerinde fiilen çalıştırılmış ve en az bir küme SUPPORTED'a yükselmiş olması gerekir. |
 
 ## Faz Detayları
 
@@ -1624,3 +1625,220 @@ ayrı" kararıyla tutarlı).
   üretecek, yani kuyruğu BESLEYEN bir faz. Kuyruk mekanizmasını DOCINT'ten sonra kurmak,
   onu iki farklı gözlem kaynağıyla (collector + belge) birlikte tasarlamayı sağlar; önce
   kurulsaydı DOCINT geldiğinde yeniden ele alınması gerekirdi.
+
+- **Notlar (2026-09-05) — birinci tur: kuyruğun kurulması.**
+
+  **Yapılanlar.** Backend'de `app/triage.py`: bekleyen gözlemleri deterministik bir sinyal
+  puanıyla sıralayan kuyruk, toplu eleme ve elemenin geri alınması. Puan, Faz 12'nin zaten
+  kullandığı kuralın (`scanning.match_entities_in_text`) aynısı üzerine kuruldu — iki farklı
+  "bu önemli mi" tanımı olsaydı Inbox ile kuyruk aynı gözleme ters cevap verirdi; o fonksiyon
+  bu yüzden `_matching_entities`'ten ayrıştırılıp paylaşılır hale getirildi. Ağırlıklar:
+  `KNOWN_ENTITY 0.40` · `ACTIVE_INVESTIGATION 0.25` · `FROM_DOCUMENT 0.20` · `MONITORED_ENTITY
+  0.15` · `MANUAL_ENTRY 0.15` · `SOURCE_RELIABILITY 0.10×güvenilirlik`. Eşik (`HIGH_SIGNAL_
+  THRESHOLD`) tam olarak `KNOWN_ENTITY`'ye eşit: eşiği geçmenin tek yolu bildiğimiz bir şeye
+  değmek, çünkü güvenilir bir feed'in ilgisiz haberi hâlâ ilgisizdir.
+
+  **Puan tek bir sayı olarak dönmüyor.** Her satır kendi gerekçe listesini taşıyor
+  (`signal_reasons`, ağırlığıyla birlikte) ve arayüzde açılabiliyor — 168 kaydı toplu elerken
+  kullanıcının neye güvendiğini bilmesi gerekiyordu (Auditability, confidence.py ile aynı
+  disiplin).
+
+  **Injection uyarısının ağırlığı bilerek 0.** Q22 gereği: puanı yükseltseydi bir prompt
+  injection denemesi kendini kuyruğun tepesine taşıyabilirdi. Uyarı görünür, sıralamayı
+  etkilemez. OCR işareti de aynı şekilde (0 ağırlık, görünür).
+
+  **Eleme silme değil.** `Observation.dismissed/dismissed_at/dismiss_reason` eklendi. Q17'nin
+  aynısı (yükselmeyen şey de kaybolmaz) ve ayrıca teknik bir zorunluluk: `promoted=false` tek
+  başına iki ayrı hâli anlatmak zorundaydı — "henüz bakılmadı" ve "bakıldı, yükseltilmedi".
+  Bu ayrım olmadan elenen gözlem ertesi gün yine kuyruğun içinde durur. Promote, eleme
+  işaretini temizliyor: bir gözlem hem "bilgiye dönüştürülmedi" hem "claim üretti" olamaz.
+
+  **Geri alınabilirlik bir süs değil.** Toplu bir işlemin geri dönüşü yoksa kullanıcı onu
+  kullanmaz; kuyruğu eritmenin önündeki asıl engel "yanlış seçersem ne olur" tereddüdü olurdu.
+  Kuyrukta oturum içi "son elemeyi geri al", Gözlemler sayfasının yeni "Elendi" sekmesinde
+  ise kayıt başına "kuyruğa geri al" var.
+
+  **Bant sınırı: `min_score` kapsayıcı, `max_score` dışlayıcı.** Simetrik olmamaları bilinçli
+  — kuyruğun iki yakası tam olarak eşikte ayrılıyor, ikisi de kapsayıcı olsaydı eşiğe tam
+  oturan bir gözlem hem "yüksek sinyal" hem "gürültü" listesinde çıkardı ve toplu elemede
+  bakılması gereken bir kayıt yanlışlıkla elenirdi. Test bunu doğruluyor (iki bandın toplamı
+  = bekleyen sayısı).
+
+  **Kuyruk sağlığı üç yerde görünür oldu.** Sayfanın üstündeki şerit (bekleyen / yüksek
+  sinyal / gürültü / en eski bekleyen / eritilme yüzdesi), nav'daki sayaç rozeti (60 sn'de bir
+  yenilenir; Inbox'ın alarm kırmızısıyla BİLEREK aynı değil — bekleyen gözlem bir arıza değil,
+  normal bir iş yükü) ve Obsidian `Dashboard.md`'de "Değerlendirme Kuyruğu" bölümü. Fazın
+  başındaki şikâyet buydu: "221 rakamı ancak API'ye elle sorulunca çıktı."
+
+  **Hızlı promote.** Faz 10'un promote diyaloğunda sekiz alan var ve hiçbiri kaldırılmadı —
+  ama kuyruktaki tipik karar ikisiyle veriliyor: hangi kaynaktan geldi, hangi entity hakkında.
+  İkisi de ÖNERİLİYOR (kaynak: gözlemin adresi hangi Source'un adresiyle aynı host'ta; entity:
+  metinde adı geçen bilinen entity), kullanıcı onaylıyor. Gerçek kuyrukta 36 kaydın 35'inde
+  kaynak önerisi çıktı. Kalan 1'i için (bleepingcomputer.com'un hiç Source kaydı yoktu) diyalog
+  içinden kaynak oluşturma eklendi — yoksa o kayıtlar kısa yola tamamen kapalı kalırdı; ilk
+  ölçümde bu boşluk 45 kaydı (cisa.gov 30 + bleepingcomputer 15) etkiliyordu.
+
+  **Yan bulgu ve düzeltme: `VAULT_DIR` ve `DAILY_LOG_DIR` `OSINTLAB_DATA_DIR`'ı görmüyordu.**
+  Bu fazın testleri izole bir veri köküyle çalıştırıldı ama vault ve append-only günlük sabit
+  proje yoluna yazılı olduğu için test koşusu GERÇEK vault'u baştan yazdı ve gerçek günlüğe 11
+  test kaydı ekledi (ikisi de geri alındı: vault yeniden render edildi, test satırları
+  günlükten temizlendi). `DATA_ROOT` tam olarak bunu önlemek için (Faz 13'ün canlı dersiyle,
+  bkz. `db.py`) eklenmişti ama kapsamı graf + evidence ile sınırlı kalmıştı. İkisi de artık
+  `DATA_ROOT` altında.
+
+  **Kuyruk eritme (asıl sınav) — kısmen.** Başlangıç: 216 bekleyen (48 yüksek sinyalli, 168
+  gürültü). Elenen 180: gürültü bandının tamamı (168 — hiçbir izlenen entity'ye değmiyor;
+  `cisa.gov` 30, `techcrunch` 43, `theverge` 36, `securityaffairs` 16, `bleepingcomputer` 14,
+  `krebs` 9 ve diğerleri) + yüksek sinyalli banttan 12 kurumsal pazarlama/deneme yazısı
+  (müşteri başarı hikâyeleri, "nasıl yapılır" yazıları). Tereddüt edilen kayıtlar (politika
+  önerileri, program duyuruları) BİLEREK kuyrukta bırakıldı — yanlış eleme, fazladan bir
+  satırdan pahalı. Kalan 36 kayıt aynı gün kullanıcı tarafından promote edildi (19'u elle,
+  17'si toplu promote eklendikten sonra tek hamlede) — sonuç için aşağıdaki bulgu notuna bak.
+
+- **İkinci tur (2026-09-05, ilk gerçek kullanımdan gelen bulgu): toplu promote.**
+  Kullanıcı kuyruğu ilk kez kullandığında söylediği şuydu: *"tek tek hızlı promote'ye basmak
+  çok zaman alıcı ve çok sıkıcı."* Doğru bir teşhis — ilk tur toplu ELEMEYİ ucuzlattı ama
+  promote kayıt başına kaldı, oysa kalan 36 kaydın 21'i aynı kaynağa (`openai.com` resmi
+  duyuruları) ve aynı entity'ye bağlanacaktı. Yani aynı iki alan 21 kez onaylanacaktı:
+  kapatılmaya çalışılan darboğazın küçültülmüş hali. Faz 11'in dersi burada tekrarlandı —
+  bir mekanizmanın işe yarayıp yaramadığı ancak gerçek yükle kullanılınca belli oluyor.
+
+  `POST /observations/promote-batch` eklendi. Tasarım kararları:
+  - **Varsayılan "her kayıt kendi önerisini kullansın".** Küme homojen olmak zorunda değil:
+    36 kaydın kaynağı 5 farklı Source, entity'si 3 farklı entity. Kümeye tek bir kaynak
+    dayatmak (`source_id`/`about_entity_id` alanları) mümkün ama varsayılan değil, çünkü
+    öneriler zaten kuyrukta kayıt kayıt görünüyor.
+  - **Kısmi başarısızlık normal ve görünür.** Bir kaydın atlanması (zaten claim üretmiş /
+    kaynağı çözülememiş / entity bağı yok) diğerlerini durdurmuyor; her kaydın ne olduğu
+    sebebiyle birlikte dönüyor ve arayüzde listeleniyor. Sessizce yutulsaydı kullanıcı
+    kuyruğa dönüp aradaki farkı kendi bulmak zorunda kalırdı.
+  - **`require_entity` varsayılan açık.** Bağsız claim yalıtık kalır (F15/F16); toplu bir
+    işlemde bu, onlarca kayda birden ve sessizce olurdu.
+  - **Vault bir kez, sonda render ediliyor.** Tekil promote'un `safe_render_vault` çağrısı
+    çekirdeğin dışına alındı — kayıt başına render 36 kayıtta 36 tam re-render demekti.
+  - **Claim üretimi tek noktada (`_create_claim_from_observation`).** Tekil ve toplu promote
+    aynı çekirdeği kullanıyor. İki kopya olsaydı biri sessizce geride kalırdı — bu dosyanın
+    geçmişi tam olarak o hatanın kaydı (F26: `contradicts`/`supersedes` promote'a hiç
+    geçirilmiyordu, dolayısıyla confidence formülünün çelişki dalı bu boru hattında ölü koddu).
+  - **Arayüzde önizleme.** Diyalog, çalıştırmadan önce "kaç kayıt hangi kaynak → hangi entity
+    ile gidecek" gruplamasını ve atlanacakların listesini gösteriyor. Toplu bir işlemde asıl
+    risk yanlış karar vermek değil, verdiğin kararın kaç kaydı etkilediğini bilmemek.
+
+  **Design Principle #7 çiğnenmiyor ve bu otomatik promote kuralı DEĞİL.** Kümeyi kullanıcı
+  seçiyor, ne olacağını önceden görüyor, kararı bir kez veriyor. Roadmap'in kendi argümanı
+  ("bir kuralı bir kez tanımlamak da insanın kontrolüdür") burada kural yazmadan, doğrudan
+  seçime uygulanıyor — otomatik kural kararı hâlâ eritme deneyiminden sonraya bırakılmış
+  durumda.
+
+- **Eritme sonucu ve ondan çıkan yapısal bulgu (2026-09-05).** Kuyruk 224 gözlemden **0'a**
+  indi: **180 elendi** (168 gürültü bandı + 12 kurumsal pazarlama), **44 claim üretti**.
+  Son kayıt `bleepingcomputer.com`'dan geliyordu ve o adres için kayıtlı bir Source olmadığı
+  için toplu işlemde atlanmıştı; kısa yoldaki "bu adres için kaynak oluştur" adımıyla kaynak
+  kurulup (güvenilirlik 0.75) kapatıldı — yani o adım gerçek kullanımda karşılığını buldu,
+  onsuz bu kayıt kısa yola tamamen kapalı kalacaktı.
+
+  Ama asıl bulgu sayıların içinde: **44 claim'in 43'ü `REPORTED`/`CONTRADICTED` kaldı, yalnızca 1'i `SUPPORTED`**, confidence
+  dağılımı iki noktada toplandı — 0.28 (16 claim) ve 0.30 (24 claim). Sebep `confidence.py`
+  matematiği: tek kaynaklı, doğrulanmamış, kanıtsız bir claim'in confidence'ı
+  `SOURCE_QUALITY_WEIGHT (0.40) × kaynak_güvenilirliği`. TechCrunch/Verge (0.70) → 0.28,
+  OpenAI resmi duyuru (0.75) → 0.30. **Mükemmel bir kaynak bile (1.0) yalnızca 0.40 verir,
+  yani promote eşiği (0.45 = `SUPPORTED_THRESHOLD`) TEK KAYNAKLA yapısal olarak
+  erişilemez** — `Observation.promoted` bayrağı collector boru hattının tamamı için ölü.
+
+  Kuyruk bundan etkilenmedi ve bu bir şans değil: kayıtların kuyruktan çıkması `promoted`
+  bayrağına değil, `PRODUCED` kenarının varlığına bakıyor (aynı ayrım F32'de öğrenilmişti).
+  Etkilenen şey ARAYÜZDÜ: 42 kayıtta üst üste "Eşik (%45) geçilmedi" yazıyordu — beklenen
+  sonucu bir başarısızlık gibi anlatan bir metin, üst üste okununca sistemin çalışmadığı
+  izlenimini veriyor.
+
+  **Karar (kullanıcı, 2026-09-05): formüle DOKUNULMADI, dil düzeltildi.** Matematik doğru ve
+  bilinçli bir epistemik karar (Q4/Q5: tek bir kaynak, tek başına "desteklenmiş" değildir);
+  eşiği düşürmek confidence semantiğini bozardı. Bunun yerine tekil promote, toplu promote ve
+  tam formdaki üç ayrı "eşik geçilmedi" metni tek bir bileşene indirildi
+  (`components/provenance/single-source-note.tsx`) ve mesaj iki parçalı hale getirildi: bunun
+  beklenen sonuç olduğu, VE onu neyin yükselttiği (ikinci bağımsız kaynak +%25/+%15, kanıt
+  dosyası +%20). Toplu promote sonuç ekranındaki "Eşik altı"/"Yükseltildi" etiketleri de
+  durum adlarıyla (`REPORTED`/`SUPPORTED`) değiştirildi — durum adı bir yargı değil, bir
+  konum bildiriyor.
+
+  **Bu bulgu Faz 17'yi doğurdu.** Confidence'ın kalan %60'ı (independence + evidence +
+  corroboration) 43 claim'de sıfır kez açıldı; mekanizma var (promote formundaki "Doğruladığı
+  claim'ler", `CORROBORATES` kenarı, Faz 6 lineage indirgemesi) ama onu tetikleyecek iş akışı
+  yok — Faz 2'nin çelişki motorunun Faz 11'e kadar hiç çalışmamış olmasıyla (F26) aynı desen.
+
+- **Otomatik promote kuralı — karar: HAYIR (2026-09-05, eritme deneyiminden sonra).**
+  Roadmap bu kararın deneyimden SONRA verilmesini şart koşuyordu; deneyim şunu gösterdi:
+  1. **Gürültü tarafı için kural gereksiz.** Eşik altı bandın tamamı (168 kayıt) tek bir
+     toplu işlemle elendi. Kural yazmanın kazandıracağı bir şey yok.
+  2. **Sinyal tarafı için kural güvenli değil.** Yüksek sinyalli 48 kaydın 12'si "bilinen bir
+     entity'ye değiyor ama bir olay taşımıyor" çıktı (müşteri başarı hikâyeleri, düşünce
+     liderliği yazıları). Yani saf entity eşleşmesi — kuyruğun sıralama sinyali — otomatik
+     promote için tek başına dayanak DEĞİL. Sıralamada yanılması ucuz (kayıt bir satır aşağı
+     iner), promote'ta yanılması pahalı (graf'a bir iddia girer).
+  3. **Asıl darboğaz kuralla değil, toplu işlemle çözüldü.** Kullanıcının ilk kullanımdaki
+     şikâyeti ("tek tek basmak sıkıcı") bir otomasyon talebi değil, bir toplu-işlem talebiydi;
+     toplu promote eklendikten sonra kalan 17 kayıt tek hamlede geçildi. Design Principle #7
+     hiç zorlanmadan darboğaz açıldı.
+
+### Faz 17: Corroboration Çalışma Ekranı (confidence'ın açılmayan %60'ı)
+
+- **Neden bu faz var (ölçüm, 2026-09-05).** Faz 16'da kuyruk eritildi: 224 gözlemin 180'i
+  elendi, 43'ü claim üretti. Ama o 43 claim'in **42'si `REPORTED` durumunda kaldı** ve
+  confidence dağılımı iki noktada toplandı: 0.28 (16 claim) ve 0.30 (24 claim).
+
+  Bu bir bug değil, `confidence.py`'nin matematiği. Tek kaynaklı, doğrulanmamış, kanıtsız bir
+  claim'in confidence'ı `SOURCE_QUALITY_WEIGHT (0.40) × kaynak_güvenilirliği`:
+  TechCrunch/Verge (0.70) → 0.28, OpenAI resmi duyuru (0.75) → 0.30, Krebs (0.80) → 0.32.
+  **Mükemmel bir kaynak bile (1.0) yalnızca 0.40 verir**, yani `SUPPORTED` eşiği (0.45) TEK
+  KAYNAKLA yapısal olarak erişilemez — ve bu bilinçli bir epistemik karar (Q4/Q5: tek bir
+  kaynak, tek başına "desteklenmiş" değildir).
+
+  Sonuç şu: confidence'ın kalan %60'ı (independence 0.25 + evidence 0.20 + corroboration 0.15)
+  **hiç açılmadı**. Faz 2'nin çelişki/temporal motorunun Faz 11'e kadar hiç çalışmamış olması
+  (F26) ile aynı desen — mekanizma var, onu tetikleyecek iş akışı yok.
+
+- **Eksik olan tek adım: "bu iki claim aynı olayı anlatıyor".** Gerçek veride örneği duruyor:
+  "rogue OpenAI agents / German wiki" olayı hem The Verge'de hem TechCrunch'ta ayrı ayrı
+  claim olarak kayıtlı, iki bağımsız kaynak. Birbirini doğrular olarak bağlansalardı
+  `0.28 + 0.25×0.5 + 0.15×0.33 ≈ 0.46` — eşiği geçer, `SUPPORTED` olurlardı. Sistem bunu
+  ZATEN destekliyor (promote formundaki "Doğruladığı claim'ler" alanı, `CORROBORATES` kenarı,
+  Faz 6'nın `DERIVED_FROM` lineage indirgemesi) ama hiçbir şey bu eşleşmeleri kullanıcının
+  önüne getirmiyor, o yüzden 43 claim'de sıfır kez kullanıldı.
+
+- **Faz 16'nın dersi burada birebir geçerli.** Sorun "insan karar veriyor" değil, kararın
+  pahalı olması: bir claim'i doğrulayan diğerini bulmak için 43 kaydı gözle taramak gerekiyor.
+  Faz 16 bunu gözlem tarafında çözdü (sinyale göre sıralı kuyruk + toplu işlem); bu faz aynı
+  şeyi claim tarafında yapıyor.
+
+- **İşler:**
+  - **Aday eşleştirme (deterministik).** "Aynı olayı anlatan claim'ler" önerisi. Faz 13'te
+    `sources/lineage/detect` için yazılan benzerlik ölçümü ve Faz 6'nın ajans-tespiti zaten
+    var; bu faz onları claim-claim ekseninde çalıştırır. **LLM yok** — Faz 16'nın sinyal
+    puanındaki disiplinin aynısı: her aday, neden aday olduğunu (ortak isim/tarih, metin
+    benzerliği, ortak ajans) gerekçesiyle taşır.
+  - **Ayrım şart: doğrulama mı, türetme mi?** İki haber aynı ajanstan (Reuters/AP) türemişse
+    bu bağımsız doğrulama DEĞİLDİR ve confidence'ı yükseltmemelidir. Faz 6'nın lineage
+    graph'ı bunu zaten hesaplıyor (`independence` skoru ham Source sayısını değil bağımsız
+    kök sayısını kullanıyor); ekran bu ayrımı görünür kılmalı, yoksa kullanıcı türetilmiş iki
+    kopyayı "iki kaynak" sanıp confidence'ı sahte olarak şişirir.
+  - **Toplu bağlama.** Faz 16'daki toplu promote'un karşılığı: bir olay kümesi seçilip tek
+    kararla birbirini doğrular olarak bağlanabilmeli. Aksi halde bu fazın kendisi yeni bir
+    darboğaz olur.
+  - **Çelişki de aynı ekrandan.** Aynı olayı anlatan iki claim birbirini doğrulayabileceği
+    gibi ÇELİŞEBİLİR de. `CONTRADICTS` bağı (Faz 2/F26) aynı aday listesinden kurulabilmeli —
+    ayrı bir ekran olsaydı kullanıcı aynı iki claim'i iki kez bulmak zorunda kalırdı.
+  - **Etkinin görünmesi.** Bağlantı kurulduğunda ilgili claim'lerin confidence'ının nereden
+    nereye gittiği söylenmeli (0.28 → 0.46, `REPORTED` → `SUPPORTED`). Bu fazın var olma
+    sebebi tam olarak o hareket; görünmezse kullanıcı neden uğraştığını bilemez.
+
+- **Bitti Kriteri:** Bir claim için "bunu doğrulayabilecek diğer claim'ler" listesi
+  gerekçeleriyle birlikte üretiliyor; türetilmiş kaynaklar bağımsız doğrulamadan ayırt edilip
+  işaretleniyor; seçilen adaylar toplu olarak `CORROBORATES`/`CONTRADICTS` ile bağlanabiliyor
+  ve bağlantı sonrası confidence değişimi kullanıcıya gösteriliyor. **Fazın sınavı:** Faz
+  16'dan kalan 42 `REPORTED` claim üzerinde fiilen çalıştırılmış ve gerçekten aynı olayı
+  anlatan claim'lerden en az bir küme `SUPPORTED`'a yükselmiş olmalı — Faz 16'daki gibi,
+  bitti kriteri özelliğin varlığı değil, tıkanıklığın açılması.
+
+- **Sıra notu:** Faz 16'dan sonra ve doğrudan onun ölçümünden doğdu. Faz 16 gözlemi bilgiye
+  çeviren adımı ucuzlattı; bu faz bilginin güvenilirlik kazanmasını sağlayan adımı ucuzlatıyor.
+  İkisi olmadan sistem gözlem biriktiriyordu; Faz 16'dan sonra `REPORTED` claim biriktiriyor.

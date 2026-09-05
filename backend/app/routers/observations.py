@@ -1,20 +1,26 @@
 import json
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from app import docint
-from app.db import fetch_all, fetch_one, get_connection
+from app import docint, triage
+from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
 from app.models import (
     Claim,
     ClaimCreate,
     Observation,
     ObservationCreate,
+    ObservationDismiss,
+    ObservationDismissResult,
     ObservationFromEvidence,
     ObservationPromote,
+    ObservationPromoteBatch,
+    ObservationPromoteBatchItem,
+    ObservationPromoteBatchResult,
+    ObservationQueue,
 )
+from app.monitoring import claim_headline
 from app.recall import entity_recall, event_recall
 from app.recall import why_matters as compute_why_matters
 from app.routers.claims import _claim_about, _gather_confidence_inputs, create_claim, get_claim
@@ -25,7 +31,12 @@ router = APIRouter(prefix="/observations", tags=["observations"])
 _FIELDS = (
     "o.id AS id, o.raw_content AS raw_content, o.observed_at AS observed_at, "
     "o.promoted AS promoted, o.source_url AS source_url, o.created_at AS created_at, "
-    "o.injection_hits AS injection_hits, o.text_source AS text_source"
+    "o.injection_hits AS injection_hits, o.text_source AS text_source, "
+    # Faz 16 — "degerlendirildi, bilgiye donusturulmedi" isareti. `promoted=false` tek basina
+    # iki ayri hali anlatmak zorundaydi; bu alan olmadan elenen gozlem ertesi gun yine
+    # kuyrugun icinde durur.
+    "o.dismissed AS dismissed, o.dismissed_at AS dismissed_at, "
+    "o.dismiss_reason AS dismiss_reason"
 )
 
 # F32: OPTIONAL MATCH ile üretilmiş claim'in id'si. Ayrı bir sorgu yerine aynı sorguya
@@ -58,9 +69,14 @@ def _observation_from_row(row: dict) -> Observation:
         )
     plain = {k: v for k, v in row.items() if not k.startswith("ev_")}
     plain["injection_hits"] = docint.hits_from_json(plain.get("injection_hits"))
+    # ALTER TABLE ile eklenen kolon, Faz 16'dan onceki kayitlarda NULL gelir — model bool
+    # bekliyor. Varsayilan "elenmemis": eski kayitlarin hepsi hala degerlendirilmeyi bekliyor.
+    plain["dismissed"] = bool(plain.get("dismissed"))
     return Observation(**plain, from_evidence=from_evidence)
 
-DAILY_LOG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "daily"
+# vault.VAULT_DIR ile aynı düzeltme (Faz 16): sabit proje yolu, izole veri köküyle çalışan
+# bir test koşusunun append-only GERÇEK günlüğüne yazmasına yol açıyordu.
+DAILY_LOG_DIR = DATA_ROOT / "daily"
 
 # Q1/Q8: Knowledge Graph'a promote edilmek için bir observation'dan türeyen claim'in
 # ulaşması gereken minimum confidence eşiği. Altında kalan bilgi silinmez, sadece
@@ -118,7 +134,7 @@ def create_observation_record(
     conn.execute(
         "CREATE (:Observation {id: $id, raw_content: $raw_content, observed_at: $observed_at, "
         "promoted: false, source_url: $source_url, created_at: $created_at, "
-        "injection_hits: $injection_hits, text_source: $text_source})",
+        "injection_hits: $injection_hits, text_source: $text_source, dismissed: false})",
         {
             "id": observation_id,
             "raw_content": raw_content,
@@ -143,7 +159,9 @@ def create_observation(payload: ObservationCreate) -> Observation:
 
 
 @router.get("", response_model=list[Observation])
-def list_observations(promoted: bool | None = None, ids: str | None = None) -> list[Observation]:
+def list_observations(
+    promoted: bool | None = None, ids: str | None = None, dismissed: bool | None = None
+) -> list[Observation]:
     """`ids` (virgülle ayrılmış) — Faz 12 sonrası gerçek kullanımda çıkan bulgu (F58).
 
     Zamanlanmış tarama Inbox'a "TechCrunch: 17 yeni içerik" diye bir bildirim düşürüyor ve
@@ -162,6 +180,12 @@ def list_observations(promoted: bool | None = None, ids: str | None = None) -> l
     if id_list:
         clauses.append("o.id IN $ids")
         params["ids"] = id_list
+    if dismissed is not None:
+        # Faz 16: kolon ALTER ile eklendi, eski kayitlarda NULL. NULL = "elenmemis" —
+        # `o.dismissed = false` tek basina o kayitlari disarida birakirdi.
+        clauses.append(
+            "o.dismissed = true" if dismissed else "(o.dismissed IS NULL OR o.dismissed = false)"
+        )
     where = f"WHERE {' AND '.join(clauses)} " if clauses else ""
 
     result = conn.execute(
@@ -170,6 +194,231 @@ def list_observations(promoted: bool | None = None, ids: str | None = None) -> l
         params,
     )
     return [_observation_from_row(row) for row in fetch_all(result)]
+
+
+@router.get("/queue", response_model=ObservationQueue)
+def observation_queue(
+    limit: int = 200,
+    offset: int = 0,
+    host: str | None = None,
+    max_score: float | None = None,
+    min_score: float | None = None,
+) -> ObservationQueue:
+    """Faz 16 — degerlendirmeyi bekleyen gozlemler, sinyale gore sirali.
+
+    Yol sirasi onemli: bu ucun `/observations/{observation_id}`DAN ONCE tanimlanmasi gerekiyor,
+    yoksa FastAPI "queue" kelimesini bir gozlem id'si sanar."""
+    return triage.build_queue(
+        get_connection(), limit=limit, offset=offset, host=host,
+        max_score=max_score, min_score=min_score,
+    )
+
+
+@router.post("/dismiss", response_model=ObservationDismissResult)
+def dismiss_observations(payload: ObservationDismiss) -> ObservationDismissResult:
+    """Faz 16 — toplu eleme: "degerlendirildi, bilgiye donusturulmedi".
+
+    Kayit SILINMEZ (Q17). Claim uretmis bir gozlem elenmez; `skipped` icinde doner."""
+    return triage.dismiss(get_connection(), payload)
+
+
+@router.post("/undismiss", response_model=ObservationDismissResult)
+def undismiss_observations(payload: ObservationDismiss) -> ObservationDismissResult:
+    """Elemeyi geri alir. Geri donusu olmayan bir toplu islem kullanilmaz."""
+    return triage.undismiss(get_connection(), payload.observation_ids)
+
+
+def _create_claim_from_observation(
+    conn, observation: Observation, payload: ObservationPromote
+) -> Claim:
+    """promote'un çekirdeği: gözlem metninden claim üretir ve PRODUCED kenarını kurar.
+
+    `safe_render_vault` BİLEREK burada değil — toplu promote 36 kaydı işlerken vault'u 36 kez
+    yeniden yazardı. Çağıran katman render'ı bir kez, sonda tetikliyor."""
+    claim = create_claim(
+        ClaimCreate(
+            text=observation.raw_content,
+            source_id=payload.source_id,
+            # F12: gözlemin yayın tarihi claim'in valid_from'u olur.
+            valid_from=observation.observed_at,
+            about_entity_id=payload.about_entity_id,
+            about_event_id=payload.about_event_id,
+            evidence_ids=payload.evidence_ids,
+            contradicting_evidence_ids=payload.contradicting_evidence_ids,
+            corroborates=payload.corroborates,
+            # F26: promote bu ikisini geçirmiyordu, dolayısıyla toplanan veriden gelen bir
+            # claim ne çelişkili işaretlenebiliyor ne de eski bir claim'in yerini alabiliyordu.
+            contradicts=payload.contradicts,
+            supersedes=payload.supersedes,
+        )
+    )
+
+    # Faz 16: eleme işareti her iki dalda da temizleniyor. "Değerlendirildi, bilgiye
+    # DÖNÜŞTÜRÜLMEDİ" artık doğru değil — gözlem bir claim üretti. Elenmiş bir gözlem
+    # sonradan promote edilebiliyor (kuyrukta değil ama Gözlemler sayfasında duruyor);
+    # işaret kalsaydı kayıt kendi geçmişini yanlış anlatırdı.
+    clear = "o.dismissed = false, o.dismissed_at = NULL, o.dismiss_reason = NULL"
+    if claim.confidence >= PROMOTION_THRESHOLD:
+        conn.execute(
+            "MATCH (o:Observation {id: $oid}), (c:Claim {id: $cid}) "
+            f"SET o.promoted = true, {clear} CREATE (o)-[:PRODUCED]->(c)",
+            {"oid": observation.id, "cid": claim.id},
+        )
+    else:
+        # Eşiği geçmedi: Claim yine de oluşturuldu (REPORTED gibi düşük bir state'te,
+        # denetim/gelecekteki corroboration için erişilebilir) ama Observation
+        # promoted=false kalır — Q1 katmanlı hafıza modeli.
+        conn.execute(
+            "MATCH (o:Observation {id: $oid}), (c:Claim {id: $cid}) "
+            f"SET {clear} CREATE (o)-[:PRODUCED]->(c)",
+            {"oid": observation.id, "cid": claim.id},
+        )
+    return claim
+
+
+def _existing_claim_id(conn, observation_id: str) -> str | None:
+    """observation.promoted sadece eşiği GEÇEN durumu işaretliyor — eşiği geçmeyen bir
+    observation'ı tekrar promote etmeye çalışmak (promoted hâlâ false) bu kontrolü atlayıp
+    ikinci bir Claim daha üretebilirdi (idempotent değildi). Asıl garanti bu observation'ın
+    zaten bir PRODUCED ilişkisi olup olmadığı — eşiği geçse de geçmese de."""
+    row = fetch_one(
+        conn.execute(
+            "MATCH (:Observation {id: $oid})-[:PRODUCED]->(c:Claim) RETURN c.id AS id",
+            {"oid": observation_id},
+        )
+    )
+    return row["id"] if row else None
+
+
+@router.post("/promote-batch", response_model=ObservationPromoteBatchResult)
+def promote_observations_batch(payload: ObservationPromoteBatch) -> ObservationPromoteBatchResult:
+    """Faz 16 (ikinci tur) — seçilen gözlemleri tek kararla promote eder.
+
+    Kuyruğun ilk turu toplu ELEMEYİ ucuzlattı, promote kayıt başına kaldı: gerçek kuyrukta
+    21 kayıt aynı kaynağa ve aynı entity'ye bağlanacaktı, yani aynı iki alan 21 kez
+    onaylanacaktı — kapatılmaya çalışılan darboğazın küçültülmüş hali.
+
+    **Kısmi başarısızlık normal ve görünür.** Bir kaydın atlanması (zaten claim üretmiş,
+    kaynağı çözülememiş, entity bağı yok) diğerlerini durdurmuyor; her kaydın ne olduğu
+    `items` içinde tek tek dönüyor. Sessizce yutulsaydı kullanıcı kuyruğa dönüp aradaki
+    farkı kendi bulmak zorunda kalırdı."""
+    conn = get_connection()
+    ids = [i for i in dict.fromkeys(payload.observation_ids) if i]
+    if not ids:
+        return ObservationPromoteBatchResult(promoted=0, below_threshold=0, skipped=0)
+
+    rows = fetch_all(
+        conn.execute(
+            f"MATCH (o:Observation) WHERE o.id IN $ids {_PRODUCED}{_FROM_EVIDENCE}"
+            f"RETURN {_FIELDS_FULL}",
+            {"ids": ids},
+        )
+    )
+    found = {row["id"]: _observation_from_row(row) for row in rows}
+    # Öneriler bağlam bir kez yüklenerek hesaplanıyor; kayıt başına graf sorgusu N+1 olurdu.
+    suggestions = triage.suggestions_for(conn, list(found.values()))
+
+    items: list[ObservationPromoteBatchItem] = []
+    produced_any = False
+    for observation_id in ids:
+        observation = found.get(observation_id)
+        if observation is None:
+            items.append(
+                ObservationPromoteBatchItem(
+                    observation_id=observation_id, status="SKIPPED", headline="(bulunamadı)",
+                    message="Gözlem bulunamadı.",
+                )
+            )
+            continue
+
+        head = claim_headline(observation.raw_content)
+        existing = _existing_claim_id(conn, observation_id)
+        if existing:
+            items.append(
+                ObservationPromoteBatchItem(
+                    observation_id=observation_id, status="SKIPPED", headline=head,
+                    claim_id=existing,
+                    message=f"Bu gözlemden zaten bir claim üretilmiş ({existing[:8]}…).",
+                )
+            )
+            continue
+
+        suggestion = suggestions.get(observation_id, {})
+        source_id = payload.source_id or suggestion.get("suggested_source_id")
+        entity_id = payload.about_entity_id or suggestion.get("suggested_entity_id")
+
+        if not source_id:
+            items.append(
+                ObservationPromoteBatchItem(
+                    observation_id=observation_id, status="SKIPPED", headline=head,
+                    message=(
+                        "Kaynak çözülemedi: bu adres için kayıtlı bir Source yok "
+                        f"({observation.source_url or 'adressiz'}). Kümeye tek bir kaynak seç "
+                        "ya da kaynağı oluştur."
+                    ),
+                )
+            )
+            continue
+        if payload.require_entity and not entity_id:
+            items.append(
+                ObservationPromoteBatchItem(
+                    observation_id=observation_id, status="SKIPPED", headline=head,
+                    message=(
+                        "Entity bağı yok — bağlanmazsa claim yalıtık kalır (Memory Recall "
+                        "bulamaz, vault notunda görünmez). Kümeye tek bir entity seç ya da bu "
+                        "kaydı tek tek promote et."
+                    ),
+                )
+            )
+            continue
+
+        try:
+            claim = _create_claim_from_observation(
+                conn,
+                observation,
+                ObservationPromote(source_id=source_id, about_entity_id=entity_id),
+            )
+        except HTTPException as exc:
+            # Bir kaydın reddi (ör. geçersiz kaynak id'si) kümenin geri kalanını durdurmamalı.
+            items.append(
+                ObservationPromoteBatchItem(
+                    observation_id=observation_id, status="SKIPPED", headline=head,
+                    message=str(exc.detail),
+                )
+            )
+            continue
+
+        produced_any = True
+        above = claim.confidence >= PROMOTION_THRESHOLD
+        items.append(
+            ObservationPromoteBatchItem(
+                observation_id=observation_id,
+                status="PROMOTED" if above else "BELOW_THRESHOLD",
+                headline=head,
+                claim_id=claim.id,
+                confidence=claim.confidence,
+                # Eşik altı bir HATA değil: tek kaynaklı, doğrulanmamış bir claim'in
+                # confidence'ı `0.40 × kaynak_güvenilirliği` olduğu için eşik (0.45) TEK
+                # KAYNAKLA yapısal olarak erişilemez (mükemmel bir kaynak bile 0.40 verir).
+                # Faz 16 ölçümü: 43 claim'in 42'si böyle. Mesaj bunu bir kayıp gibi
+                # anlatmıyor, olması gereken durumu söylüyor.
+                message=None if above else (
+                    f"REPORTED olarak girdi (confidence {claim.confidence:.2f}) — tek kaynaklı "
+                    "bir iddianın beklenen sonucu; ikinci bağımsız bir kaynak doğrulayınca yükselir."
+                ),
+            )
+        )
+
+    # Vault BİR kez, sonda. Kayıt başına render 36 kayıtta 36 tam re-render demekti.
+    if produced_any:
+        safe_render_vault(conn)
+
+    return ObservationPromoteBatchResult(
+        promoted=sum(1 for i in items if i.status == "PROMOTED"),
+        below_threshold=sum(1 for i in items if i.status == "BELOW_THRESHOLD"),
+        skipped=sum(1 for i in items if i.status == "SKIPPED"),
+        items=items,
+    )
 
 
 @router.get("/{observation_id}", response_model=Observation)
@@ -195,19 +444,14 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
     oluşturulmadan ÖNCEKİ bilgi durumu ('daha önce ne biliyorduk') otomatik olarak dönülür,
     böylece kullanıcı/agent ayrı bir çağrı yapmak zorunda kalmadan geçmiş investigation/claim
     bağlamını görür (Research Relevance Recall dahil — investigation status'u ne olursa olsun
-    listelenir)."""
+    listelenir).
+
+    Faz 16: claim üretimi `_create_claim_from_observation`'a taşındı — toplu promote ile
+    ORTAK. İki ayrı kopya olsaydı biri (ör. F26'daki contradicts/supersedes eksiği gibi)
+    sessizce geride kalırdı; bu dosyanın geçmişi tam olarak o hatanın kaydı."""
     conn = get_connection()
     observation = get_observation(observation_id)
-    # observation.promoted sadece eşiği GEÇEN durumu işaretliyor — eşiği geçmeyen bir
-    # observation'ı tekrar promote etmeye çalışmak (promoted hâlâ false) bu kontrolü
-    # atlayıp ikinci bir Claim daha üretebilirdi (idempotent değildi). Asıl garanti bu
-    # observation'ın zaten bir PRODUCED ilişkisi olup olmadığı — eşiği geçse de geçmese de.
-    already_produced = fetch_one(
-        conn.execute(
-            "MATCH (:Observation {id: $oid})-[:PRODUCED]->(c:Claim) RETURN c.id AS id",
-            {"oid": observation_id},
-        )
-    )
+    already_produced = _existing_claim_id(conn, observation_id)
     if already_produced:
         # F32: eski mesaj ("already processed") kullanıcıya hiçbir şey söylemiyordu — özellikle
         # eşiği geçmemiş bir promote sonrası, arayüz gözlemi hâlâ "işlenmemiş" gösterdiği için
@@ -216,7 +460,7 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
             status_code=409,
             detail=(
                 "Bu gözlemden zaten bir claim üretilmiş "
-                f"(claim {already_produced['id'][:8]}…). Confidence eşiği geçilmemiş olsa bile "
+                f"(claim {already_produced[:8]}…). Confidence eşiği geçilmemiş olsa bile "
                 "claim graf'ta duruyor — aynı gözlemden ikinci bir claim üretilmez."
             ),
         )
@@ -227,38 +471,7 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
     elif payload.about_event_id:
         recall_before = {"about": "event", "id": payload.about_event_id, **event_recall(conn, payload.about_event_id)}
 
-    claim = create_claim(
-        ClaimCreate(
-            text=observation.raw_content,
-            source_id=payload.source_id,
-            # F12: gözlemin yayın tarihi claim'in valid_from'u olur.
-            valid_from=observation.observed_at,
-            about_entity_id=payload.about_entity_id,
-            about_event_id=payload.about_event_id,
-            evidence_ids=payload.evidence_ids,
-            contradicting_evidence_ids=payload.contradicting_evidence_ids,
-            corroborates=payload.corroborates,
-            # F26: promote bu ikisini geçirmiyordu, dolayısıyla toplanan veriden gelen bir
-            # claim ne çelişkili işaretlenebiliyor ne de eski bir claim'in yerini alabiliyordu.
-            contradicts=payload.contradicts,
-            supersedes=payload.supersedes,
-        )
-    )
-
-    if claim.confidence >= PROMOTION_THRESHOLD:
-        conn.execute(
-            "MATCH (o:Observation {id: $oid}), (c:Claim {id: $cid}) "
-            "SET o.promoted = true CREATE (o)-[:PRODUCED]->(c)",
-            {"oid": observation_id, "cid": claim.id},
-        )
-    else:
-        # Eşiği geçmedi: Claim yine de oluşturuldu (REPORTED gibi düşük bir state'te,
-        # denetim/gelecekteki corroboration için erişilebilir) ama Observation
-        # promoted=false kalır — Q1 katmanlı hafıza modeli.
-        conn.execute(
-            "MATCH (o:Observation {id: $oid}), (c:Claim {id: $cid}) CREATE (o)-[:PRODUCED]->(c)",
-            {"oid": observation_id, "cid": claim.id},
-        )
+    claim = _create_claim_from_observation(conn, observation, payload)
 
     # Faz 11 (dogfooding F18): promote bir Claim üretiyor ama observations.py hiçbir yerde
     # vault render'ı tetiklemiyordu — diğer tüm yazma uçları tetikliyor. Sonuç: Obsidian'da

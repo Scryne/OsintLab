@@ -16,7 +16,10 @@ import type {
   InvestigationWorkspace,
   Monitor,
   Observation,
+  ObservationDismissResult,
+  ObservationPromoteBatchResult,
   ObservationPromoteResult,
+  ObservationQueue,
   SameAsCandidate,
   SameAsPending,
   LineageNode,
@@ -307,13 +310,49 @@ export const api = {
   observations: {
     // `ids` — F58: Inbox bildirimi "17 yeni içerik" diyor ve hangi gözlemler olduğunu
     // biliyor; bu parametre olmadan o gözlemlere gitmenin yolu yoktu.
-    list: (opts?: { promoted?: boolean; ids?: string[] }) => {
+    list: (opts?: { promoted?: boolean; ids?: string[]; dismissed?: boolean }) => {
       const qs = new URLSearchParams();
       if (opts?.promoted !== undefined) qs.set("promoted", String(opts.promoted));
       if (opts?.ids?.length) qs.set("ids", opts.ids.join(","));
+      // Faz 16: elenen gözlem silinmiyor, sadece işaretleniyor — "Bekliyor" sekmesinin
+      // doğru cevap vermesi için ayrıca filtrelenmesi gerekiyor.
+      if (opts?.dismissed !== undefined) qs.set("dismissed", String(opts.dismissed));
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return get<Observation[]>(`/observations${suffix}`);
     },
+    // Faz 16 — değerlendirmeyi bekleyen gözlemler, sinyale göre sıralı + kuyruk sağlığı.
+    queue: (opts?: { limit?: number; offset?: number; host?: string; maxScore?: number; minScore?: number }) => {
+      const qs = new URLSearchParams();
+      if (opts?.limit !== undefined) qs.set("limit", String(opts.limit));
+      if (opts?.offset !== undefined) qs.set("offset", String(opts.offset));
+      if (opts?.host) qs.set("host", opts.host);
+      if (opts?.maxScore !== undefined) qs.set("max_score", String(opts.maxScore));
+      if (opts?.minScore !== undefined) qs.set("min_score", String(opts.minScore));
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return get<ObservationQueue>(`/observations/queue${suffix}`);
+    },
+    dismiss: (observationIds: string[], reason?: string | null) =>
+      post<ObservationDismissResult>("/observations/dismiss", {
+        observation_ids: observationIds,
+        reason: reason ?? null,
+      }),
+    undismiss: (observationIds: string[]) =>
+      post<ObservationDismissResult>("/observations/undismiss", { observation_ids: observationIds }),
+    /** Faz 16 (ikinci tur) — seçilen gözlemleri TEK kararla promote eder. `sourceId`/`entityId`
+     * verilmezse her kayıt kuyrukta gösterilen KENDİ önerisini kullanır. Otomatik bir kural
+     * değil: kümeyi kullanıcı seçiyor (Design Principle #7). */
+    promoteBatch: (payload: {
+      observationIds: string[];
+      sourceId?: string | null;
+      entityId?: string | null;
+      requireEntity?: boolean;
+    }) =>
+      post<ObservationPromoteBatchResult>("/observations/promote-batch", {
+        observation_ids: payload.observationIds,
+        source_id: payload.sourceId ?? null,
+        about_entity_id: payload.entityId ?? null,
+        require_entity: payload.requireEntity ?? true,
+      }),
     create: (payload: { raw_content: string; observed_at?: string | null; source_url?: string | null }) =>
       post<Observation>("/observations", payload),
     promote: (

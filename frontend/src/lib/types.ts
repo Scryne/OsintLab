@@ -207,6 +207,12 @@ export interface Observation {
   // de claim üretir; bu alan olmadan "hiç işlenmemiş" ile "işlendi, eşiği geçmedi" ayırt
   // edilemiyordu.
   produced_claim_id: string | null;
+  /** Faz 16 — "değerlendirildi, bilgiye dönüştürülmedi". `promoted: false` tek başına iki
+   * ayrı hâli anlatmak zorundaydı ("henüz bakılmadı" ve "bakıldı, yükseltilmedi"); bu ayrım
+   * olmadan elenen gözlem ertesi gün yine kuyruğun içinde duruyordu. Kayıt SİLİNMEZ. */
+  dismissed: boolean;
+  dismissed_at: string | null;
+  dismiss_reason: string | null;
   /** Faz 15.2 — gözlem bir belgeden geldiyse hangi belgenin hangi sayfalarından geldiği.
    * Collector'dan gelen gözlemlerde null (onların provenance'ı `source_url`). Belge tabanlı
    * gözlemlerin URL'i YOKTUR; `source_url`'e uydurma bir değer yazmak yerine ayrı alan. */
@@ -441,6 +447,78 @@ export interface SameAsPending {
   entity_b_type: string;
   confidence: number;
   created_at: string;
+}
+
+/** Faz 16 — bir gözlemin kuyrukta neden bu sırada olduğunun tek gerekçesi. Skor tek bir
+ * sayı olsaydı kuyruk kara kutu olurdu: 180 kaydı toplu elerken kullanıcının neye güvendiğini
+ * bilmesi gerekiyor. `weight: 0` olan gerekçeler (injection uyarısı, OCR) sıralamayı
+ * etkilemez, sadece dikkat çeker. */
+export interface SignalReason {
+  code: string;
+  text: string;
+  weight: number;
+}
+
+export interface QueueItem extends Observation {
+  signal_score: number;
+  signal_reasons: SignalReason[];
+  matched_entities: { id: string; name: string; matched_on: string }[];
+  /** Hızlı promote'un "önerilir, kullanıcı onaylar" tarafı (Design Principle #7). */
+  suggested_source_id: string | null;
+  suggested_source_name: string | null;
+  suggested_entity_id: string | null;
+  host: string | null;
+  age_days: number;
+}
+
+export interface QueueHostBucket {
+  host: string;
+  count: number;
+  high_signal: number;
+}
+
+export interface QueueStats {
+  pending: number;
+  dismissed: number;
+  evaluated: number;
+  total: number;
+  high_signal: number;
+  noise: number;
+  oldest_pending_at: string | null;
+  oldest_pending_age_days: number | null;
+  hosts: QueueHostBucket[];
+}
+
+export interface ObservationQueue {
+  stats: QueueStats;
+  items: QueueItem[];
+  /** Filtreden geçen toplam — `items` sayfalanmış olabilir. */
+  matched: number;
+  high_signal_threshold: number;
+}
+
+export interface ObservationDismissResult {
+  dismissed: number;
+  /** Zaten claim üretmiş ya da bulunamamış id'ler — sessizce yutulmuyor. */
+  skipped: string[];
+}
+
+export interface ObservationPromoteBatchItem {
+  observation_id: string;
+  /** PROMOTED (eşiği geçti) · BELOW_THRESHOLD (claim üretildi, eşiğin altında) · SKIPPED.
+   * Üçü ayrı, çünkü ikincisi bir hata değil — Q1'in katmanlı hafıza modelinin normal sonucu. */
+  status: "PROMOTED" | "BELOW_THRESHOLD" | "SKIPPED";
+  headline: string;
+  claim_id: string | null;
+  confidence: number | null;
+  message: string | null;
+}
+
+export interface ObservationPromoteBatchResult {
+  promoted: number;
+  below_threshold: number;
+  skipped: number;
+  items: ObservationPromoteBatchItem[];
 }
 
 export interface ObservationPromoteResult {

@@ -3,7 +3,7 @@
 import { Suspense, useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FileText, Inbox as InboxIcon, Plus, ScanEye, X } from "lucide-react";
+import { FileText, Inbox as InboxIcon, ListChecks, Plus, ScanEye, Undo2, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type { Observation, ObservationPromoteResult } from "@/lib/types";
@@ -28,9 +28,19 @@ import {
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { ProvenanceBlock } from "@/components/provenance/provenance-label";
+import { SingleSourceNote } from "@/components/provenance/single-source-note";
 import { useToast } from "@/components/ui/toast";
 
-type Filter = "all" | "promoted" | "pending";
+type Filter = "all" | "promoted" | "pending" | "dismissed";
+
+/** Faz 16: sekme -> sorgu parametreleri. "Bekliyor" artık `dismissed=false` da geçiriyor —
+ * elenen gözlem silinmediği için, geçirmezse sekme "bekliyor" derken elenmişleri de sayardı. */
+const FILTER_QUERY: Record<Filter, { promoted?: boolean; dismissed?: boolean }> = {
+  all: {},
+  pending: { promoted: false, dismissed: false },
+  promoted: { promoted: true },
+  dismissed: { dismissed: true },
+};
 
 /** `useSearchParams` (F58'in ids filtresi) statik ön-render'ı bozuyor; Next.js bunun bir
  * Suspense sınırı içinde olmasını istiyor. Sayfa kabuğu dışarıda, arama parametresini okuyan
@@ -46,15 +56,15 @@ export default function ObservationsPage() {
 function ObservationsView() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const promoted = filter === "all" ? undefined : filter === "promoted";
+  const filterQuery = FILTER_QUERY[filter];
   // F58: Inbox'taki bir tarama bildiriminden "bu 17 gözlemi göster" diye gelinebiliyor.
   // Bildirim hangi gözlemlerden bahsettiğini zaten biliyordu; eksik olan aradaki bağdı.
   const searchParams = useSearchParams();
   const idsParam = searchParams.get("ids");
   const ids = useMemo(() => (idsParam ? idsParam.split(",").filter(Boolean) : []), [idsParam]);
   const { data: observations, error, loading, reload } = useApi(
-    () => api.observations.list({ promoted, ids: ids.length ? ids : undefined }),
-    [promoted, idsParam]
+    () => api.observations.list({ ...filterQuery, ids: ids.length ? ids : undefined }),
+    [filter, idsParam]
   );
 
   // Faz 11 (dogfooding F10): tek bir collector taraması bile onlarca gözlem üretiyor
@@ -80,7 +90,15 @@ function ObservationsView() {
             Ham metin/haber yapıştır, sisteme sok — eşiği geçerse Knowledge Graph&apos;a Claim olarak yükselir.
           </p>
         </div>
-        <NewObservationDialog onCreated={reload} />
+        <div className="flex items-center gap-2">
+          {/* Faz 16: değerlendirme kuyruğu ayrı bir ekran — bu sayfa tekil kayıt üzerinde
+              çalışmak için, kuyruk biriken yığını eritmek için. */}
+          <Button size="sm" variant="outline" render={<Link href="/observations/queue" />}>
+            <ListChecks aria-hidden className="h-4 w-4" />
+            Promote Kuyruğu
+          </Button>
+          <NewObservationDialog onCreated={reload} />
+        </div>
       </div>
 
       {ids.length > 0 && (
@@ -105,6 +123,7 @@ function ObservationsView() {
           <TabsTrigger value="all">Tümü</TabsTrigger>
           <TabsTrigger value="pending">Bekliyor</TabsTrigger>
           <TabsTrigger value="promoted">Promote edildi</TabsTrigger>
+          <TabsTrigger value="dismissed">Elendi</TabsTrigger>
         </TabsList>
         <TabsContent value={filter} className="mt-4 flex flex-col gap-3">
           <div className="flex items-center gap-3">
@@ -147,16 +166,19 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
       <div className="flex items-start justify-between gap-3">
         <ObservationText text={observation.raw_content} />
         {/* F32: üç durum var, iki rozet yetmiyordu — "işlendi ama eşiği geçmedi" hâli
-            "hiç işlenmemiş" gibi görünüyordu. */}
+            "hiç işlenmemiş" gibi görünüyordu. Faz 16 dördüncüyü ekledi: "elendi" —
+            değerlendirildi ama bilgiye dönüştürülmedi. */}
         <Badge
-          variant={observation.promoted ? "secondary" : observation.produced_claim_id ? "secondary" : "outline"}
+          variant={observation.promoted || observation.produced_claim_id ? "secondary" : "outline"}
           className="shrink-0"
         >
           {observation.promoted
             ? "promoted"
             : observation.produced_claim_id
               ? "claim üretildi · eşik altı"
-              : "bekliyor"}
+              : observation.dismissed
+                ? "elendi"
+                : "bekliyor"}
         </Badge>
       </div>
       {/* Q22 — uyarı metinle birlikte seyahat ediyor: promote kararı BU ekranda veriliyor,
@@ -193,9 +215,49 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
             </>
           )}
         </p>
-        <PromoteDialog observation={observation} onPromoted={onPromoted} />
+        <div className="flex shrink-0 items-center gap-2">
+          {observation.dismissed && <UndismissButton observation={observation} onDone={onPromoted} />}
+          <PromoteDialog observation={observation} onPromoted={onPromoted} />
+        </div>
       </div>
+      {observation.dismissed && (
+        <p className="text-xs leading-relaxed text-text-tertiary">
+          {new Date(observation.dismissed_at ?? observation.created_at).toLocaleString("tr-TR")}
+          {" tarihinde değerlendirildi, bilgiye dönüştürülmedi"}
+          {observation.dismiss_reason ? ` — ${observation.dismiss_reason}` : ""}
+        </p>
+      )}
     </div>
+  );
+}
+
+/** Faz 16 — eleme geri alınabilir olmalı, yoksa toplu eleme kullanılmayacak kadar riskli
+ * hissettirir. Kuyruktaki "son elemeyi geri al" oturum içinde çalışır; bu buton günler
+ * sonra da. */
+function UndismissButton({ observation, onDone }: { observation: Observation; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await api.observations.undismiss([observation.id]);
+          toast("Gözlem kuyruğa geri alındı", "success");
+          onDone();
+        } catch (err) {
+          toast(err instanceof Error ? err.message : "Geri alma başarısız", "error");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Undo2 aria-hidden className="h-4 w-4" />
+      Kuyruğa geri al
+    </Button>
   );
 }
 
@@ -361,8 +423,8 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
       toast(
         res.claim.confidence >= 0.45
           ? "Claim'e yükseltildi"
-          : "Claim oluşturuldu (eşik altı) — gözlem ham haliyle de duruyor",
-        res.claim.confidence >= 0.45 ? "success" : "default"
+          : "Claim üretildi (REPORTED) — tek kaynak, doğrulanmayı bekliyor",
+        "success"
       );
       onPromoted();
     } catch (err) {
@@ -410,11 +472,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
                 <ConfidenceBadge state={result.claim.knowledge_state} confidence={result.claim.confidence} className="shrink-0" />
               </div>
             </div>
-            {result.claim.confidence < 0.45 && (
-              <p className="text-xs text-text-tertiary">
-                Eşik (%45) geçilmedi — claim oluşturuldu ama gözlem &quot;promoted&quot; işaretlenmedi, ham haliyle erişilebilir kalıyor.
-              </p>
-            )}
+            {result.claim.confidence < 0.45 && <SingleSourceNote />}
             {result.why_matters.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 {result.why_matters.map((reason, i) => (
