@@ -4,7 +4,7 @@ import type { ProvenanceLabel } from "@/lib/types";
 
 /**
  * Q15 — SOURCE FACT / AI ANALYSIS / SYSTEM INFERENCE / USER INTERPRETATION.
- * Bilinçli olarak RENKLE değil kenarlık-stili + ikonla ayrışıyor (bkz. docs/Design.md
+ * Bilinçli olarak RENKLE değil kenarlık-stili + ikonla ayrışıyor (bkz. DESIGN.md
  * Uygulama Notları) — üçüncü bir renk sistemi Confidence Spectrum + Priority Scale'i
  * sulandırırdı. USER_INTERPRETATION tek istisna: marka accent moru kullanıyor, çünkü bu
  * kategori kullanıcının kendi sesi.

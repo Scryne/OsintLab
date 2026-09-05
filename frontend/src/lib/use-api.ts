@@ -61,8 +61,17 @@ export function useApi<T>(
 
   // `fetcher` her render'da yeni bir closure; ref'te tutulmazsa yoklama effect'i her
   // render'da yeniden kurulur ve zamanlayıcı hiç dolmaz.
+  //
+  // Yazma render sırasında değil bir effect'te yapılıyor: render'da ref'e yazmak React'ın
+  // saflık kuralını çiğniyor (concurrent render'da bir render atılabilir ve ref yine de
+  // değişmiş kalır). Bu effect BİLEREK ilk sırada duruyor — effect'ler bildirim
+  // sırasıyla çalıştığı için, aşağıdaki veri çekme ve yoklama effect'leri ref'i
+  // güncellenmiş hâliyle görür. İlk render'da `useRef(fetcher)` zaten doğru değeri
+  // taşıdığı için bir tur gecikme oluşmuyor.
   const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
+  useEffect(() => {
+    fetcherRef.current = fetcher;
+  });
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 

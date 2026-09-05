@@ -77,15 +77,18 @@ if ($asama -eq 'uygulama') {
     }
 }
 
-$designPath = Join-Path $docsDir 'Design.md'
+# 2026-09-06: tasarım kimliği docs/Design.md'den proje kökündeki DESIGN.md'ye taşındı
+# (Google DESIGN.md spec'i, alpha). docs/Design.md hâlâ duruyor ama artık yalnızca
+# Kontrast Sözleşmesi'ni taşıyan bir ek not; token değerlerinin kaynağı kökteki dosya.
+$designPath = Join-Path $projectDir 'DESIGN.md'
 if ((-not (Test-Path -LiteralPath $designPath -PathType Leaf)) -and $asama -in @('finalizasyon', 'roadmap', 'uygulama')) {
-    $lines.Add("Not: docs/Design.md henüz yok. Frontend işine başlamadan önce ui-ux-pro-max ile oluştur (bkz. global CLAUDE.md).")
+    $lines.Add("Not: DESIGN.md henüz yok. Frontend işine başlamadan önce create-design-md + ui-ux-pro-max ile oluştur (bkz. global CLAUDE.md).")
 }
 elseif (Test-Path -LiteralPath $designPath -PathType Leaf) {
     $designContent = ''
     try { $designContent = Get-Content -LiteralPath $designPath -Raw -ErrorAction Stop } catch { }
     if ($designContent -match '<[A-ZÇĞİÖŞÜ_]+>') {
-        $lines.Add("Not: docs/Design.md var ama hâlâ yer tutucu içeriyor gibi görünüyor, doldurulmamış olabilir.")
+        $lines.Add("Not: DESIGN.md var ama hâlâ yer tutucu içeriyor gibi görünüyor, doldurulmamış olabilir.")
     }
 }
 

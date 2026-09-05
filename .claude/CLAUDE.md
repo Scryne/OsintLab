@@ -18,7 +18,10 @@ bittiğinde `asama` alanını sırayla güncelle: `fikir` → `denetim` → `fin
 - `docs/Final-Dokuman.md` — nihai kararlar (teknoloji stack, mimari, riskler)
 - `docs/Roadmap.md` — fazlı yol haritası; her faz "Durum" sütunuyla takip edilir, hook bunu
   otomatik okur
-- `docs/Design.md` — bu projeye özel frontend kimliği (accent palet, tipografi, mood)
+- `DESIGN.md` (proje kökünde) — bu projeye özel frontend kimliği. Google DESIGN.md
+  spec'i (alpha): normatif token değerleri YAML frontmatter'da, gerekçe Markdown'da.
+  `npx @google/design.md lint DESIGN.md` ile doğrulanır.
+- `docs/Design.md` — yalnızca Kontrast Sözleşmesi (ölçüm kaydı). Token değeri içermez.
 
 ## Nasıl çalıştırılır
 
@@ -117,7 +120,7 @@ Operasyonel detay ve `.claude/skills/osint-brain/SKILL.md`'de.
 ## Frontend
 
 Taban disiplin global `~/.claude/CLAUDE.md`'deki Dark Glassmorphism kuralları — bunlar sabit
-ve her projede aynı. Projeye özel karakteri `docs/Design.md` belirler; o dosya boşsa veya yer
+ve her projede aynı. Projeye özel karakteri kökteki `DESIGN.md` belirler; o dosya boşsa veya yer
 tutucu içeriyorsa frontend işine başlamadan önce `ui-ux-pro-max` skill'iyle doldur.
 
 Araç sırası: `frontend-design` (yön) → `shadcn`/`21st` MCP (component) → `ui-ux-pro-max`

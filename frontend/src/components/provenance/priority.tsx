@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import type { Priority } from "@/lib/types";
 
 // Priority/Alarm Scale — sadece Intelligence Inbox'a özel, Confidence Spectrum'dan bilerek
-// ayrı bir renk ailesinde (mor-kırmızı). bkz. docs/Design.md.
+// ayrı bir renk ailesinde (mor-kırmızı). bkz. DESIGN.md "Colors".
 export const PRIORITY_ORDER: Priority[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
 
 export const PRIORITY_COLOR_VAR: Record<Priority, string> = {

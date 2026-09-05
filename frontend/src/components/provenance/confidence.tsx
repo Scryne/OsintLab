@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { KnowledgeState } from "@/lib/types";
 
-// Confidence Spectrum — bkz. docs/Design.md "Farklılaştırıcı Detay". Bu sıralama bilinçli:
+// Confidence Spectrum — bkz. DESIGN.md "Colors". Bu sıralama bilinçli:
 // soğuktan (belirsiz) sıcağa (yüksek güven) bir rampa; CONTRADICTED rampanın DIŞINDA.
 export const CONFIDENCE_ORDER: KnowledgeState[] = [
   "UNKNOWN",

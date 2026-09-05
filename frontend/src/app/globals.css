@@ -5,7 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * OsintLab design tokens — bkz. docs/Design.md.
+ * OsintLab design tokens — normatif değerlerin kaydı kökteki DESIGN.md'dir; kontrast
+ * ölçümleri ve gerekçeleri docs/Design.md'dedir.
  *
  * İKİ AYRI renk sistemi var, bilerek birbirinden ayrı tutuluyor (bunlar "chrome" değil,
  * DEĞİŞMEDİ — sadece zemin/glass/tipografi/buton "Frontend-taslak" reposuna göre reskin edildi):
