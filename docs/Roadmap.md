@@ -101,6 +101,34 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 16 | Promote Kuyruğu (değerlendirme darboğazı) | ✅ Tamamlandı | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
 | 17 | Corroboration Çalışma Ekranı | ✅ Tamamlandı | Bir claim'i doğrulayabilecek diğer claim'ler gerekçeleriyle öneriliyor; türetilmiş kaynak bağımsız doğrulamadan ayrılıyor; adaylar toplu olarak CORROBORATES/CONTRADICTS ile bağlanabiliyor ve confidence değişimi gösteriliyor. Bitti sayılması için Faz 16'dan kalan 42 REPORTED claim üzerinde fiilen çalıştırılmış ve en az bir küme SUPPORTED'a yükselmiş olması gerekir. |
 
+## Ara iş: Frontend Sertleştirme Turu (2026-09-06) ✅ Tamamlandı
+
+v3'e başlamadan önce, numaralı bir faz olmayan bir sertleştirme turu yapıldı — Faz 11'in
+dogfooding turuyla aynı türden iş: yeni özellik yok, mevcut olanın ölçülüp onarılması.
+Kullanıcı isteği: "mevcut frontend'i en iyi hâline çıkart". Detay: `docs/Frontend-Cilasi.md`.
+
+**Ne değişti (13 commit, hepsi push edildi):**
+
+| Alan | Ölçülen kusur | Sonuç |
+| --- | --- | --- |
+| Kontrast | 7 renk tokeni WCAG eşiğinin altında; en kötüsü en çok görülmesi gereken iki durumdu (CONTRADICTED 3.61, CRITICAL 4.10) | Rampanın anlamı korunarak düzeltildi (ton sabit, sadece açıklık). Ayrı `*-text` tokenları. Sözleşme: `docs/Design.md` |
+| Erişilebilirlik | 74 `<Label>`ın 38'i hiçbir kontrole bağlı değildi; `SearchablePicker` 40 isimsiz `<button>` yığını; `ConfirmButton` odağı kaybediyor + 3sn zaman sınırı | 75/75 etiket bağlı, gerçek listbox semantiği, WCAG 2.2.1 onarıldı, 24/24 dialog açıklamalı |
+| Performans | `/observations` açılışında backend'e **2336 istek** — kapalı dialogların mount'ta koşulsuz veri çekmesi | 2336 → 6. Aynı kalıp 15 yerde daha düzeltildi |
+| Lint | 5 React derleyici hatası (baseline) | **0** |
+| Tasarım kaydı | Kimlik dosyası serbest metindi | Kökte spec-uyumlu `DESIGN.md`, `lint` ve `export` ile doğrulanıyor |
+
+**Reddedilen bir karar — kayda geçmesi önemli.** `docs/Design.md` "her kartın sol kenarı
+`knowledge_state`'ten renk alır" diye söz veriyordu ve hiç uygulanmamıştı. Uygulandı, canlı
+veriyle bakıldı, **geri alındı**: gerçek dağılım tek renkli (44 claim'in 40'ı iki durumda),
+yani kenar hiçbir ayrım üretmiyor ve badge durumu zaten yazıyla söylüyor. Gerekçe kökteki
+`DESIGN.md`'nin "Do's and Don'ts" bölümünde. **Faz 18-20 grafı çeşitlendirdikten sonra
+yeniden değerlendirilebilir** — ama o zaman da önce canlı veriyle bakılarak.
+
+**Kapsam dışı bırakılanlar:** `/events` liste sayfası ve nav girişi eklenmedi (Faz 18'in
+bitti kriteri). `/entities/{id}`'deki N+1 (claim başına `/claims/{id}`, 33 istek)
+dokunulmadı — bilinçli bir birleştirme (F31/F33), ama büyük bir entity'de sorun olursa
+bakılacak yer burası.
+
 ## v3 Roadmap (planlama: 2026-09-05)
 
 v2'nin son fazı (17) bittiğinde roadmap'te bekleyen iş kalmamıştı. v3'ün kapsamı, bir dilek

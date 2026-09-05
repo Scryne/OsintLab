@@ -120,9 +120,31 @@ Operasyonel detay ve `.claude/skills/osint-brain/SKILL.md`'de.
 ## Frontend
 
 Taban disiplin global `~/.claude/CLAUDE.md`'deki Dark Glassmorphism kuralları — bunlar sabit
-ve her projede aynı. Projeye özel karakteri kökteki `DESIGN.md` belirler; o dosya boşsa veya yer
-tutucu içeriyorsa frontend işine başlamadan önce `ui-ux-pro-max` skill'iyle doldur.
+ve her projede aynı. Projeye özel karakteri kökteki `DESIGN.md` belirler. Çelişki olduğunda
+`DESIGN.md` global varsayılanı ezer.
 
-Araç sırası: `frontend-design` (yön) → `shadcn`/`21st` MCP (component) → `ui-ux-pro-max`
-(palet/UX) → `frontend-ui-engineering` (production/erişilebilirlik) → `tailwind-ui-refactor`
-(son cila).
+Araç sırası (yeni arayüz): `frontend-design` + `design-taste` (yön ve anti-slop) →
+`baseline-ui` (stack kontratı, sürekli açık) → `shadcn`/`21st` MCP (component) →
+`ui-ux-pro-max` (palet/UX) → `frontend-ui-engineering` (production) → `ux-writing` (arayüz
+metni) → denetim pasları (`fixing-accessibility`, animasyon varsa
+`fixing-motion-performance`) → `tailwind-ui-refactor` (son cila). Mevcut bir arayüzü
+toparlarken `improve-ui` ile başla. Ayrıntı: global `~/.claude/CLAUDE.md`.
+
+`fixing-metadata` bu projede çalıştırılmaz: tek kullanıcılı, `localhost`'ta çalışan bir
+araçta OG etiketi/canonical üretmek boş iş.
+
+### Frontend'in mevcut durumu (2026-09-06)
+
+v3'e başlamadan önce bir **sertleştirme turu** yapıldı — detay: `docs/Frontend-Cilasi.md`,
+özet: `docs/Roadmap.md` → "Ara iş: Frontend Sertleştirme Turu". Bilinmesi gerekenler:
+
+- **Lint 0, derleme temiz.** Bu bir taban çizgisi: yeni iş lint'i kirletmemeli.
+- **Kontrast bir sözleşme.** Renk bu projede bilgi taşıyor; zemin/nokta hâli ile metin hâli
+  AYRI tokenlar (`--confidence-*` vs `--confidence-*-text`). Metin için ham rampa rengini
+  kullanma. Yeni renk eklerken ölç, tahmin etme — `docs/Design.md`.
+- **Kapalı dialoglar veri çekmez.** `useApi(() => (open ? api.x.list() : Promise.resolve([])),
+  [open])` kalıbı zorunlu: koşulsuz çekim `/observations`'ta tek açılışta 2336 isteğe yol
+  açmıştı. Satır başına render edilen bir dialog yazarken bunu unutma.
+- **Reddedilmiş bir karar var:** confidence renginin kart kenarına inmesi denendi ve geri
+  alındı (gerekçe `DESIGN.md` "Do's and Don'ts"ta). Faz 18-20 grafı çeşitlendirmeden
+  yeniden denenmesin.
