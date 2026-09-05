@@ -11,6 +11,7 @@ import {
   FolderSearch,
   GitMerge,
   Inbox as InboxIcon,
+  Link2,
   ListChecks,
   Menu,
   Radar,
@@ -33,6 +34,9 @@ const NAV = [
   // Faz 16: kuyruk kendi nav satırında, çünkü rozet olmadan "kaç gözlem bekliyor" sorusunun
   // cevabı hiçbir yerde görünmüyordu — 221 rakamı ancak API'ye elle sorulunca çıkmıştı.
   { href: "/observations/queue", label: "Promote Kuyruğu", icon: ListChecks },
+  // Faz 17: kuyruğun claim tarafındaki karşılığı — gözlem bilgiye dönüştükten sonra
+  // bilginin güvenilirlik kazandığı adım.
+  { href: "/corroboration", label: "Doğrulama", icon: Link2 },
   { href: "/evidence", label: "Kanıt Kasası", icon: FileCheck },
   { href: "/collectors", label: "Toplayıcılar", icon: Rss },
   { href: "/entities/same-as", label: "Olası Eşleşmeler", icon: GitMerge },

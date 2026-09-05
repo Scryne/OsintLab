@@ -99,7 +99,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ✅ Tamamlandı | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
 | 15.4 | DOCINT: OCR | ✅ Tamamlandı | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
 | 16 | Promote Kuyruğu (değerlendirme darboğazı) | ✅ Tamamlandı | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
-| 17 | Corroboration Çalışma Ekranı | ⏳ Bekliyor | Bir claim'i doğrulayabilecek diğer claim'ler gerekçeleriyle öneriliyor; türetilmiş kaynak bağımsız doğrulamadan ayrılıyor; adaylar toplu olarak CORROBORATES/CONTRADICTS ile bağlanabiliyor ve confidence değişimi gösteriliyor. Bitti sayılması için Faz 16'dan kalan 42 REPORTED claim üzerinde fiilen çalıştırılmış ve en az bir küme SUPPORTED'a yükselmiş olması gerekir. |
+| 17 | Corroboration Çalışma Ekranı | ✅ Tamamlandı | Bir claim'i doğrulayabilecek diğer claim'ler gerekçeleriyle öneriliyor; türetilmiş kaynak bağımsız doğrulamadan ayrılıyor; adaylar toplu olarak CORROBORATES/CONTRADICTS ile bağlanabiliyor ve confidence değişimi gösteriliyor. Bitti sayılması için Faz 16'dan kalan 42 REPORTED claim üzerinde fiilen çalıştırılmış ve en az bir küme SUPPORTED'a yükselmiş olması gerekir. |
 
 ## Faz Detayları
 
@@ -1839,6 +1839,104 @@ ayrı" kararıyla tutarlı).
   anlatan claim'lerden en az bir küme `SUPPORTED`'a yükselmiş olmalı — Faz 16'daki gibi,
   bitti kriteri özelliğin varlığı değil, tıkanıklığın açılması.
 
+- **Kalibrasyon spike'i (2026-09-05, gerçek 44 claim üzerinde) — Faz 6'nın ölçüsü bu iş için
+  YETMİYOR ve bu bir kusur değil, farklı bir soru sorulduğunun kanıtı.**
+
+  Faz 6'nın `containment_similarity`'si TAM SAYFA metni için kalibre edilmişti (uzun,
+  boilerplate'li) ve aradığı şey TÜRETME'ydi (near-duplicate). Faz 17'nin girdisi RSS'ten
+  gelen 143–892 karakterlik başlık+özet, ve aradığı şey BAĞIMSIZ aynı-olay raporu — yani
+  metinler bilerek farklı. Ölçüldü: **946 çiftin tamamında, farklı kaynaklı hiçbir çiftte
+  5-shingle containment 0.000'ın üstüne çıkmadı.** Faz 6'nın ölçüsü aday BULUCU olarak
+  kullanılamaz; ama tam da bu yüzden mükemmel bir DİSKALİFİYE edicidir (yüksek containment =
+  türetilmiş/yinelenen, bağımsız doğrulama değil).
+
+  **Bulucu sinyal: IDF ağırlıklı nadir terim ortaklığı.** Ortak terimlerin IDF ağırlıklı
+  oranı — nadir bir terimi ("preparedness", "commandeered", "outage") paylaşmak, yaygın bir
+  terimi paylaşmaktan çok daha güçlü bir "aynı olay" sinyali. Farklı kaynaklı 601 çiftte
+  dağılım: medyan 0.003, p90 0.081, p95 0.103, maks 0.418.
+
+  **Zamansal yakınlık ikinci ve şart olan eksen.** Nadir terim ortaklığı tek başına
+  yetmiyor: iki yanlış pozitif tam olarak eşiğin üstüne çıktı ve ikisi de zaman ekseninde
+  elendi — "Chaotic Eclipse zero-day" ↔ "OpenAI Daybreak" (0.143, **24 gün arayla**, ortak
+  olan sadece genel güvenlik sözlüğü) ve "Strengthening democratic oversight" ↔ "US
+  government sides with OpenAI" (0.134, **14,9 gün**). Buna karşılık **gerçek çiftlerin
+  tamamı ≤ 2,9 gün** aralığında. Aynı olayı anlatan haberler zamanda kümeleniyor.
+
+  **Seçilen eşikler:** nadir terim ortaklığı ≥ 0.12 (farklı kaynaklı çiftlerin üst ~%4'ü) VE
+  zaman farkı ≤ 7 gün (gerçek çiftler 2,9 günde bitiyor, marj bırakıldı). Bu ikisiyle gerçek
+  veriden 12 aday çıkıyor ve hepsi elle bakıldığında gerçek — Faz 6'nın spike disiplininin
+  aynısı: eşik uydurulmadı, doğru pozitif ile en zor doğru negatif arasındaki boşluktan
+  seçildi.
+
+  **Kaynak filtresi tanım gereği, sezgisel değil.** Aynı bağımsız köke (Faz 6
+  `resolve_independent_root`) inen iki claim birbirini DOĞRULAYAMAZ — `confidence.py`'nin
+  `independence` skoru zaten ham Source sayısını değil bağımsız kök sayısını kullanıyor. 946
+  çiftin 345'i aynı kaynaktan; bunları elemek gürültünün büyük kısmını tanım gereği siliyor.
+
+  **Yan bulgu: aynı kaynaktan yinelenen claim'ler var.** Sıralamanın en tepesindeki çift
+  (nadir ortaklık 0.886, containment **0.836**) aynı kaynaktan (The Verge) aynı olayın iki
+  ayrı kaydı — collector aynı haberi iki farklı başlıkla iki gözlem olarak almış. Bu
+  corroboration DEĞİL, yineleme. Kullanıcının bunu yanlışlıkla "iki kaynak" sanıp
+  confidence'ı sahte şişirmesi, bu fazın önlemesi gereken tam olarak o hata — bu yüzden ayrı
+  ve BAĞLANAMAZ bir kategori olarak gösteriliyor.
+
 - **Sıra notu:** Faz 16'dan sonra ve doğrudan onun ölçümünden doğdu. Faz 16 gözlemi bilgiye
   çeviren adımı ucuzlattı; bu faz bilginin güvenilirlik kazanmasını sağlayan adımı ucuzlatıyor.
   İkisi olmadan sistem gözlem biriktiriyordu; Faz 16'dan sonra `REPORTED` claim biriktiriyor.
+
+- **Notlar (2026-09-05, tamamlandı).**
+
+  **Aday bulucu (`backend/app/corroboration.py`).** Sinyal iki eksenli ve ikisi de gerçek
+  veriden kalibre edildi (yukarıdaki spike): IDF ağırlıklı nadir terim ortaklığı ≥ 0.12 VE
+  zaman farkı ≤ 7 gün. Her aday, neden aday olduğunu gerekçe listesiyle taşıyor — Faz 16'nın
+  sinyal puanındaki disiplinin aynısı, LLM yok.
+
+  **Sınıflandırma bu fazın asıl işi.** Aynı ölçüm dört farklı sonuca çıkıyor ve yalnızca
+  ilki bağlanabilir:
+  - `CORROBORATION` — bağımsız kökler, aynı olay, farklı yazım. Confidence'ı yükseltir.
+  - `DERIVED_SUSPECT` — kaynaklar lineage'da bağlı değil ama metin neredeyse aynı. Muhtemelen
+    henüz işaretlenmemiş bir syndication; önce kaynak türetmesi kurulmalı.
+  - `SHARED_ROOT` — Source'lar farklı ama `DERIVED_FROM` zinciri ikisini de aynı köke
+    indiriyor. Kullanıcının "iki farklı site, demek ki iki kaynak" diye okuması en olası yer.
+  - `SAME_SOURCE_DUPLICATE` — aynı kaynağın aynı haberi iki kez kaydedilmiş hali.
+
+  **Bağımsızlık bir uyarı değil, KISIT.** API aynı bağımsız köke inen iki claim'i doğrular
+  olarak bağlamayı reddediyor (`links-batch`, `resolve_independent_root` üzerinden). Yalnızca
+  arayüzde uyarmak, arayüz dışından gelen her çağrıda aynı hatayı mümkün bırakırdı — ve o
+  hata bu fazın önlemek için var olduğu şey: bağımsız olmayan bir doğrulama confidence'ı
+  SAHTE yükseltir. Çelişki için böyle bir kısıt YOK: aynı kaynak kendisiyle pekâlâ çelişebilir
+  ve bu değerli bir sinyaldir.
+
+  **Doğrulama ve çelişki aynı uçtan (`POST /claims/links-batch`).** Aynı olayı anlatan iki
+  claim birbirini doğrulayabileceği gibi çelişebilir de, ve ikisi de aynı aday listesinden
+  çıkıyor. Ayrı uçlar/ekranlar olsaydı kullanıcı aynı çifti iki kez bulmak zorunda kalırdı.
+  Faz 16'nın toplu promote'undan iki ders taşındı: kısmi başarısızlık diğerlerini durdurmuyor
+  ve her çiftin ne olduğu sebebiyle dönüyor; vault BİR kez, sonda render ediliyor.
+
+  **Etki gösteriliyor.** Aday kartı bağlantı öncesi projeksiyonu (0.28 → 0.46), sonuç kartı
+  ise gerçek hesaplanmış değişimi kayıt kayıt gösteriyor. Bu fazın var olma sebebi tam olarak
+  o hareket; görünmezse kullanıcı neden uğraştığını bilemez.
+
+  **Sonuç (asıl sınav).** 13 aday çift tek hamlede bağlandı:
+
+  | | Önce | Sonra |
+  | --- | --- | --- |
+  | Eşiği (0.45) geçen claim | 1 | **15** |
+  | SUPPORTED | 1 | 11 |
+  | CORROBORATED | 0 | 2 |
+  | Confidence tavanı | 0.47 | **0.70** |
+
+  Faz 16'nın bıraktığı "43 claim'in 42'si REPORTED" tablosu kırıldı; confidence'ın
+  bağımsızlık + doğrulama bileşenleri ilk kez fiilen çalıştı. Geriye kalan tek aday,
+  bağlanamayan yineleme (The Verge aynı haberi iki başlıkla iki kez kaydetmiş, benzerlik
+  0.836) — doğru davranış.
+
+  **Kapanışta eklenen: "Yinelemeyi kapat".** İlk halinde ekran yinelemeyi tespit ediyor ama
+  ne yapılacağını söylemiyordu — Faz 11/16'nın tekrar eden dersi (bir sorunu görünür kılıp
+  aksiyonunu vermemek işin yarısı). Uyarı kartlarına supersede aksiyonu eklendi: kayıt
+  SİLİNMEZ, eskisinin `valid_to`'su yenisinin `valid_from`'unda kapanır (History Is
+  Immutable) — graf'ta durmaya devam eder ama artık iki kez sayılmaz.
+
+  **Sınır: aday bulucu O(n²).** 44 claim'de 946 çift, sorun yok. Binlerce claim'de bu
+  yeniden ele alınmalı (ör. entity/tarih üzerinden ön-kümeleme). v1'de bilinçli olarak
+  basit tutuldu — YAGNI; gerçek ölçek geldiğinde ölçülüp karar verilir.

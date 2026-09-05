@@ -490,6 +490,82 @@ class ObservationPromote(BaseModel):
     )
 
 
+class CandidateClaim(BaseModel):
+    """Aday listesinde bir claim'in gösterilmesi için gereken minimum. Tam `Claim` değil —
+    liste 200 çift dönebiliyor ve her çift iki claim taşıyor."""
+
+    id: str
+    text: str
+    source_id: str
+    source_name: str
+    confidence: float
+    knowledge_state: str
+    valid_from: datetime
+
+
+class CorroborationCandidate(BaseModel):
+    """Faz 17 — "bu iki claim aynı olayı anlatıyor" adayı.
+
+    `kind` bu fazın en önemli alanı: aynı ölçüm üç farklı sonuca çıkabiliyor ve ikisi
+    bağlanmamalı.
+    - `CORROBORATION`: bağımsız kaynaklar, aynı olay, farklı yazım — confidence'ı yükseltir.
+    - `DERIVED_SUSPECT`: kaynaklar farklı ve lineage'da bağlı DEĞİLLER, ama metin neredeyse
+      aynı. Muhtemelen henüz işaretlenmemiş bir syndication — önce kaynak türetmesi kurulmalı.
+    - `SHARED_ROOT`: Source'lar farklı ama DERIVED_FROM zinciri ikisini de aynı köke
+      indiriyor. Kullanıcının "iki farklı site, demek ki iki kaynak" diye okuması en olası
+      yer burası ve bu okuma confidence'ı sahte yükseltirdi (Q6, Faz 6).
+    - `SAME_SOURCE_DUPLICATE`: aynı kaynağın aynı haberi iki kez kaydedilmiş hali.
+    Son üçünü "iki kaynak" sanıp bağlamak confidence'ı SAHTE yükseltirdi; bu fazın önlemesi
+    gereken asıl hata bu — API bu yüzden yalnızca uyarmıyor, doğrulama bağını REDDEDİYOR."""
+
+    claim_a: CandidateClaim
+    claim_b: CandidateClaim
+    kind: str
+    rare_overlap: float
+    text_similarity: float
+    days_apart: float
+    shared_terms: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    # Bağlanırsa confidence nereye gider — bu fazın var olma sebebi tam olarak bu hareket.
+    projected_a: float | None = None
+    projected_b: float | None = None
+
+
+class ClaimLinkRequest(BaseModel):
+    claim_a_id: str
+    claim_b_id: str
+    # CORROBORATES (birbirini doğrular) | CONTRADICTS (çelişir). Aynı aday listesinden ikisi
+    # de kurulabilmeli: aynı olayı anlatan iki claim doğrulayabileceği gibi çelişebilir de,
+    # ayrı ekranlar olsaydı kullanıcı aynı çifti iki kez bulmak zorunda kalırdı.
+    link: str = "CORROBORATES"
+
+
+class ClaimLinkBatch(BaseModel):
+    """Toplu bağlama — Faz 16'nın birebir dersi: tekil bir uç bırakılsaydı bu fazın kendisi
+    yeni bir darboğaz olurdu."""
+
+    pairs: list[ClaimLinkRequest]
+
+
+class ClaimLinkResult(BaseModel):
+    claim_a_id: str
+    claim_b_id: str
+    link: str
+    # LINKED | SKIPPED
+    status: str
+    message: str | None = None
+    # Bağlantının gerçek etkisi (tahmin değil, yeniden hesaplanmış değer).
+    confidence_before: dict[str, float] = Field(default_factory=dict)
+    confidence_after: dict[str, float] = Field(default_factory=dict)
+    state_after: dict[str, str] = Field(default_factory=dict)
+
+
+class ClaimLinkBatchResult(BaseModel):
+    linked: int
+    skipped: int
+    results: list[ClaimLinkResult] = Field(default_factory=list)
+
+
 class ClaimContradictionAdd(BaseModel):
     """Faz 11 (dogfooding F26): çelişki YALNIZCA claim oluşturulurken kurulabiliyordu; sonradan
     eklemenin hiçbir yolu yoktu. Bu, F16'nın (about bağı sonradan düzeltilemiyordu) birebir

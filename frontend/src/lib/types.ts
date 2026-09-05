@@ -521,6 +521,57 @@ export interface ObservationPromoteBatchResult {
   items: ObservationPromoteBatchItem[];
 }
 
+/** Faz 17 — aday listesinde bir claim'in gösterilmesi için gereken minimum. */
+export interface CandidateClaim {
+  id: string;
+  text: string;
+  source_id: string;
+  source_name: string;
+  confidence: number;
+  knowledge_state: KnowledgeState;
+  valid_from: string;
+}
+
+/** Faz 17'nin en önemli ayrımı: aynı ölçüm üç farklı sonuca çıkabiliyor ve yalnızca ilki
+ * bağlanabilir. Diğerlerini "iki kaynak" sanıp bağlamak confidence'ı SAHTE yükseltirdi —
+ * bu fazın önlemesi gereken asıl hata bu. */
+export type CandidateKind =
+  | "CORROBORATION"
+  | "DERIVED_SUSPECT"
+  | "SHARED_ROOT"
+  | "SAME_SOURCE_DUPLICATE";
+
+export interface CorroborationCandidate {
+  claim_a: CandidateClaim;
+  claim_b: CandidateClaim;
+  kind: CandidateKind;
+  rare_overlap: number;
+  text_similarity: number;
+  days_apart: number;
+  shared_terms: string[];
+  reasons: string[];
+  /** Bağlanırsa confidence nereye gider — bu fazın var olma sebebi tam olarak bu hareket. */
+  projected_a: number | null;
+  projected_b: number | null;
+}
+
+export interface ClaimLinkResult {
+  claim_a_id: string;
+  claim_b_id: string;
+  link: "CORROBORATES" | "CONTRADICTS";
+  status: "LINKED" | "SKIPPED";
+  message: string | null;
+  confidence_before: Record<string, number>;
+  confidence_after: Record<string, number>;
+  state_after: Record<string, KnowledgeState>;
+}
+
+export interface ClaimLinkBatchResult {
+  linked: number;
+  skipped: number;
+  results: ClaimLinkResult[];
+}
+
 export interface ObservationPromoteResult {
   claim: Claim;
   recall: (Partial<EntityRecall & EventRecall> & { about: "entity" | "event"; id: string }) | null;

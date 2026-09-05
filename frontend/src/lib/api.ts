@@ -1,6 +1,8 @@
 import type {
   Claim,
+  ClaimLinkBatchResult,
   CollectorFetchResult,
+  CorroborationCandidate,
   Entity,
   EntityRecall,
   EntityRelation,
@@ -170,6 +172,19 @@ export const api = {
 
   claims: {
     list: () => get<Claim[]>("/claims"),
+    /** Faz 17 — "bu iki claim aynı olayı anlatıyor" adayları, gerekçeleriyle ve
+     * sınıflandırılmış. `kind` alanına bak: yalnızca CORROBORATION bağlanabilir. */
+    corroborationCandidates: (opts?: { claimId?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (opts?.claimId) qs.set("claim_id", opts.claimId);
+      if (opts?.limit !== undefined) qs.set("limit", String(opts.limit));
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return get<CorroborationCandidate[]>(`/claims/corroboration/candidates${suffix}`);
+    },
+    /** Doğrulama ve çelişki AYNI uçtan: aynı olayı anlatan iki claim birbirini
+     * doğrulayabileceği gibi çelişebilir de, ikisi de aynı aday listesinden çıkıyor. */
+    linkBatch: (pairs: { claim_a_id: string; claim_b_id: string; link: "CORROBORATES" | "CONTRADICTS" }[]) =>
+      post<ClaimLinkBatchResult>("/claims/links-batch", { pairs }),
     get: (id: string) => get<Claim>(`/claims/${id}`),
     create: (payload: {
       text: string;

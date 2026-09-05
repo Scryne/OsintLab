@@ -6,12 +6,29 @@ from fastapi import APIRouter, HTTPException
 from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
-from app.models import Claim, ClaimAboutUpdate, ClaimContradictionAdd, ClaimCreate, ClaimSupersedeAdd
+from app.corroboration import find_candidates
+from app.models import (
+    CandidateClaim,
+    Claim,
+    ClaimAboutUpdate,
+    ClaimContradictionAdd,
+    ClaimCreate,
+    ClaimLinkBatch,
+    ClaimLinkBatchResult,
+    ClaimLinkResult,
+    ClaimSupersedeAdd,
+    CorroborationCandidate,
+)
 from app.monitoring import claim_headline, notify_if_monitored
 from app.recall import why_matters
 from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/claims", tags=["claims"])
+
+# `CandidateClaim` alanlarının `corroboration._load_claims` satırından okunacak kısmı.
+_CANDIDATE_FIELDS = (
+    "id", "text", "source_id", "source_name", "confidence", "knowledge_state", "valid_from",
+)
 
 _FIELDS = (
     "c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
@@ -334,6 +351,169 @@ def list_claims() -> list[Claim]:
     conn = get_connection()
     result = conn.execute(f"MATCH (c:Claim) RETURN {_FIELDS} ORDER BY c.created_at")
     return [_row_to_claim(conn, row) for row in fetch_all(result)]
+
+
+@router.get("/corroboration/candidates", response_model=list[CorroborationCandidate])
+def corroboration_candidates(
+    claim_id: str | None = None, include_linked: bool = False, limit: int = 200
+) -> list[CorroborationCandidate]:
+    """Faz 17 — aynı olayı anlatıyor olabilecek claim çiftleri, gerekçeleriyle.
+
+    Yol sırası önemli: `/{claim_id}`DAN ÖNCE tanımlanmalı, yoksa FastAPI "corroboration"ı bir
+    claim id'si sanar (Faz 16'da `/observations/queue` ile aynı tuzak).
+
+    Sonuç ÜÇ kategoriye ayrılıyor ve ikisi bağlanmamalı — bkz. `CorroborationCandidate`."""
+    conn = get_connection()
+    pairs = find_candidates(conn, claim_id=claim_id, include_linked=include_linked, limit=limit)
+    return [
+        CorroborationCandidate(
+            claim_a=CandidateClaim(**{k: p.a[k] for k in _CANDIDATE_FIELDS}),
+            claim_b=CandidateClaim(**{k: p.b[k] for k in _CANDIDATE_FIELDS}),
+            kind=p.kind,
+            rare_overlap=p.rare_overlap,
+            text_similarity=p.text_similarity,
+            days_apart=p.days_apart,
+            shared_terms=p.shared_terms,
+            reasons=p.reasons,
+            projected_a=p.projected_a,
+            projected_b=p.projected_b,
+        )
+        for p in pairs
+    ]
+
+
+def _link_corroborates(conn, a_id: str, b_id: str) -> None:
+    """Q4: corroboration SİMETRİK bir ilişki — bağımsız iki claim aynı şeyi doğruluyorsa ikisi
+    de birbirini destekler, bu yüzden kenar her iki yönde de kuruluyor.
+
+    (Çelişkiden farkı: `CLAIM_CONTRADICTS` tek yön saklanıyor çünkü okuma tarafı hem gelen hem
+    giden kenara bakıyor ve iki yön yazmak çift sayıma yol açardı. `_gather_confidence_inputs`
+    corroboration'ı yalnızca GELEN yönde okuduğu için burada iki yön ŞART.)"""
+    conn.execute(
+        "MATCH (a:Claim {id: $a}), (b:Claim {id: $b}) "
+        "CREATE (a)-[:CORROBORATES]->(b) CREATE (b)-[:CORROBORATES]->(a)",
+        {"a": a_id, "b": b_id},
+    )
+
+
+def _already_linked(conn, a_id: str, b_id: str) -> str | None:
+    for query, label in (
+        ("MATCH (a:Claim {id: $a})-[:CORROBORATES]->(b:Claim {id: $b}) RETURN 1 AS x", "CORROBORATES"),
+        ("MATCH (a:Claim {id: $b})-[:CORROBORATES]->(b:Claim {id: $a}) RETURN 1 AS x", "CORROBORATES"),
+        ("MATCH (a:Claim {id: $a})-[:CLAIM_CONTRADICTS]->(b:Claim {id: $b}) RETURN 1 AS x", "CONTRADICTS"),
+        ("MATCH (a:Claim {id: $b})-[:CLAIM_CONTRADICTS]->(b:Claim {id: $a}) RETURN 1 AS x", "CONTRADICTS"),
+    ):
+        if fetch_one(conn.execute(query, {"a": a_id, "b": b_id})):
+            return label
+    return None
+
+
+@router.post("/links-batch", response_model=ClaimLinkBatchResult)
+def link_claims_batch(payload: ClaimLinkBatch) -> ClaimLinkBatchResult:
+    """Faz 17 — seçilen claim çiftlerini toplu olarak birbirine bağlar.
+
+    Doğrulama ve çelişki AYNI uçtan: aynı olayı anlatan iki claim birbirini doğrulayabileceği
+    gibi çelişebilir de, ve ikisi de aynı aday listesinden çıkıyor. Ayrı uçlar/ekranlar
+    olsaydı kullanıcı aynı çifti iki kez bulmak zorunda kalırdı.
+
+    Faz 16'nın toplu promote'undan alınan iki ders burada da geçerli: kısmi başarısızlık
+    diğerlerini durdurmuyor ve her çiftin ne olduğu sebebiyle dönüyor; vault BİR kez, sonda
+    render ediliyor."""
+    conn = get_connection()
+    results: list[ClaimLinkResult] = []
+    changed = False
+
+    for pair in payload.pairs:
+        a_id, b_id, link = pair.claim_a_id, pair.claim_b_id, pair.link.upper()
+
+        def skip(message: str) -> None:
+            results.append(
+                ClaimLinkResult(claim_a_id=a_id, claim_b_id=b_id, link=link, status="SKIPPED", message=message)
+            )
+
+        if link not in ("CORROBORATES", "CONTRADICTS"):
+            skip(f"Bilinmeyen bağ türü: {pair.link}")
+            continue
+        if a_id == b_id:
+            skip("Bir claim kendisiyle bağlanamaz")
+            continue
+        if not _node_exists(conn, "Claim", a_id) or not _node_exists(conn, "Claim", b_id):
+            skip("Claim bulunamadı")
+            continue
+        existing = _already_linked(conn, a_id, b_id)
+        if existing:
+            skip(f"Bu iki claim arasında zaten bir {existing} bağı var")
+            continue
+
+        # Q6 — bağımsızlık bir NEZAKET KONTROLÜ DEĞİL, bu fazın varlık sebebi. Aynı bağımsız
+        # köke inen iki claim birbirini doğruladığında confidence SAHTE yükselirdi: kullanıcı
+        # aday listesinde uyarıyı görse bile API'nin bunu kabul etmesi, arayüzün dışından
+        # gelen her çağrıda aynı hatayı mümkün kılardı. Çelişki için böyle bir kısıt YOK —
+        # aynı kaynak kendi kendisiyle pekâlâ çelişebilir (ve bu değerli bir sinyaldir).
+        if link == "CORROBORATES":
+            source_a = _claim_source_id(conn, a_id)
+            source_b = _claim_source_id(conn, b_id)
+            if source_a and source_b:
+                root_a = resolve_independent_root(conn, source_a["id"])
+                root_b = resolve_independent_root(conn, source_b["id"])
+                if root_a == root_b:
+                    skip(
+                        "İki claim aynı bağımsız kaynağa iniyor — doğrulama bağı kurulmadı. "
+                        "Bağımsız olmayan bir doğrulama confidence'ı sahte yükseltirdi (Q6). "
+                        "Aynı haberin iki kaydıysa biri supersede edilmeli."
+                    )
+                    continue
+
+        before = {
+            a_id: _gather_confidence_inputs(conn, a_id).confidence,
+            b_id: _gather_confidence_inputs(conn, b_id).confidence,
+        }
+
+        if link == "CORROBORATES":
+            _link_corroborates(conn, a_id, b_id)
+            titles = ("Claim bağımsız olarak doğrulandı", "Claim bağımsız olarak doğrulandı")
+        else:
+            # Çelişki tek yön saklanıyor (bkz. add_claim_contradiction) — anlamı simetrik ama
+            # okuma tarafı iki yöne de bakıyor, iki yön yazmak çift sayım olurdu.
+            conn.execute(
+                "MATCH (a:Claim {id: $a}), (b:Claim {id: $b}) "
+                "CREATE (a)-[:CLAIM_CONTRADICTS {status: 'UNRESOLVED', detected_at: $now}]->(b)",
+                {"a": a_id, "b": b_id, "now": datetime.now(timezone.utc)},
+            )
+            titles = ("Claim çelişkili olarak işaretlendi", "Var olan bir claim ile çelişki tespit edildi")
+
+        after: dict[str, float] = {}
+        state: dict[str, str] = {}
+        for cid, title in ((a_id, titles[0]), (b_id, titles[1])):
+            result = _recompute_and_store(conn, cid)
+            after[cid] = result.confidence
+            state[cid] = result.knowledge_state
+            about_entity, about_event = _claim_about(conn, cid)
+            _notify_change(
+                conn,
+                claim_id=cid,
+                about_entity_id=about_entity,
+                about_event_id=about_event,
+                result=result,
+                title=title,
+            )
+
+        changed = True
+        results.append(
+            ClaimLinkResult(
+                claim_a_id=a_id, claim_b_id=b_id, link=link, status="LINKED",
+                confidence_before=before, confidence_after=after, state_after=state,
+            )
+        )
+
+    if changed:
+        safe_render_vault(conn)
+
+    return ClaimLinkBatchResult(
+        linked=sum(1 for r in results if r.status == "LINKED"),
+        skipped=sum(1 for r in results if r.status == "SKIPPED"),
+        results=results,
+    )
 
 
 @router.get("/{claim_id}", response_model=Claim)
