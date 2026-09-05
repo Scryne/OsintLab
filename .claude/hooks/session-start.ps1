@@ -65,7 +65,7 @@ $lines.Add("Aşama: $asama -- $aciklama")
 if ($asama -eq 'uygulama') {
     $roadmapPath = Join-Path $docsDir 'Roadmap.md'
     if (Test-Path -LiteralPath $roadmapPath -PathType Leaf) {
-        $rows = @(Get-Content -LiteralPath $roadmapPath | Where-Object { $_ -match '^\|\s*\d+\s*\|' })
+        $rows = @(Get-Content -LiteralPath $roadmapPath | Where-Object { $_ -match '^\|\s*\d+(\.\d+)?\s*\|' })
         $total = $rows.Count
         $current = $rows | Where-Object { $_ -notmatch '✅' } | Select-Object -First 1
         if ($current) {
