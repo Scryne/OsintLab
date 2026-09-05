@@ -84,8 +84,8 @@ export function AddFindingDialog({
           <DialogTitle>Investigation&apos;a bulgu ekle</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label>Claim</Label>
-          <SearchablePicker items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
+          <Label htmlFor="add-finding-dialog-claim-1">Claim</Label>
+          <SearchablePicker id="add-finding-dialog-claim-1" items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
           <p className="text-xs leading-relaxed text-text-tertiary">
             Investigation kapatıldığında yalnızca{" "}
             <span className="font-medium text-foreground">doğrulanmış</span> bilgi durumundaki

@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen w-full flex-col md:flex-row">
+    <div className="flex min-h-dvh w-full flex-col md:flex-row">
       {/* Mobil üst bar — sidebar 768px altında gizli, hamburger ile açılıyor. */}
       <div className="glass-panel sticky top-0 z-30 flex items-center justify-between p-3 md:hidden">
         <div className="flex items-center gap-2.5">

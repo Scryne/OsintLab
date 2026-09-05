@@ -75,8 +75,9 @@ export function EvidenceClaimLinkDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Claim</Label>
+            <Label htmlFor="evidence-claim-link-dialog-claim-1">Claim</Label>
             <SearchablePicker
+              id="evidence-claim-link-dialog-claim-1"
               items={items}
               value={claimId}
               onChange={setClaimId}
@@ -85,9 +86,9 @@ export function EvidenceClaimLinkDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Duruş</Label>
+            <Label htmlFor="evidence-claim-link-dialog-durus-1">Duruş</Label>
             <Select value={stance} onValueChange={(v) => v && setStance(v as "SUPPORTS" | "CONTRADICTS")}>
-              <SelectTrigger>
+              <SelectTrigger id="evidence-claim-link-dialog-durus-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

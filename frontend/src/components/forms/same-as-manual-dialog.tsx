@@ -86,8 +86,8 @@ export function SameAsManualDialog({
           <DialogTitle>Aynı şey olduğunu elle bildir</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label>Aynı olduğu entity</Label>
-          <SearchablePicker items={items} value={otherId} onChange={setOtherId} placeholder="Entity ara…" />
+          <Label htmlFor="same-as-manual-dialog-ayni-oldug-u-entity-1">Aynı olduğu entity</Label>
+          <SearchablePicker id="same-as-manual-dialog-ayni-oldug-u-entity-1" items={items} value={otherId} onChange={setOtherId} placeholder="Entity ara…" />
           <p className="text-xs leading-relaxed text-text-tertiary">
             Otomatik tespit isim benzerliğine bakar; farklı isimler taşıyan aynı aktörü
             (ör. takma adları birbirine benzemeyen tehdit grupları) bulamaz. Bu yol onun için.

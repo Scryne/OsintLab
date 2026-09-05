@@ -132,8 +132,8 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
 
           {mode === "existing" ? (
             <div className="flex flex-col gap-1.5">
-              <Label>Kanıt</Label>
-              <SearchablePicker items={items} value={evidenceId} onChange={setEvidenceId} placeholder="Kanıt ara…" />
+              <Label htmlFor="evidence-link-dialog-kanit-1">Kanıt</Label>
+              <SearchablePicker id="evidence-link-dialog-kanit-1" items={items} value={evidenceId} onChange={setEvidenceId} placeholder="Kanıt ara…" />
             </div>
           ) : (
             <>
@@ -160,9 +160,9 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
           )}
 
           <div className="flex flex-col gap-1.5">
-            <Label>Duruş (stance)</Label>
+            <Label htmlFor="evidence-link-dialog-durus-stance-1">Duruş (stance)</Label>
             <Select value={stance} onValueChange={(v) => v && setStance(v as "SUPPORTS" | "CONTRADICTS")}>
-              <SelectTrigger>
+              <SelectTrigger id="evidence-link-dialog-durus-stance-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

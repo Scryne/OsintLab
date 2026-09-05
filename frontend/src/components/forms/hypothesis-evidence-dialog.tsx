@@ -154,8 +154,8 @@ export function HypothesisEvidenceDialog({
 
           {mode === "existing" ? (
             <div className="flex flex-col gap-1.5">
-              <Label>Kanıt</Label>
-              <SearchablePicker items={items} value={evidenceId} onChange={setEvidenceId} placeholder="Kanıt ara…" />
+              <Label htmlFor="hypothesis-evidence-dialog-kanit-1">Kanıt</Label>
+              <SearchablePicker id="hypothesis-evidence-dialog-kanit-1" items={items} value={evidenceId} onChange={setEvidenceId} placeholder="Kanıt ara…" />
               {items.length === 0 && (
                 <p className="text-xs text-text-tertiary">
                   Henüz hiç kanıt yok — <span className="font-medium text-foreground">Yeni kanıt oluştur</span>&apos;a geç.
@@ -187,9 +187,9 @@ export function HypothesisEvidenceDialog({
           )}
 
           <div className="flex flex-col gap-1.5">
-            <Label>Duruş</Label>
+            <Label htmlFor="hypothesis-evidence-dialog-durus-1">Duruş</Label>
             <Select value={stance} onValueChange={(v) => v && setStance(v as Stance)}>
-              <SelectTrigger>
+              <SelectTrigger id="hypothesis-evidence-dialog-durus-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

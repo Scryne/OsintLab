@@ -486,11 +486,11 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
         ) : (
           <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
             <div className="flex flex-col gap-1.5">
-              <Label>Kaynak</Label>
-              <SearchablePicker items={sourceItems} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
+              <Label htmlFor="page-kaynak-1">Kaynak</Label>
+              <SearchablePicker id="page-kaynak-1" items={sourceItems} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>İlgili entity/event</Label>
+              <Label htmlFor="page-ilgili-entity-event-1">İlgili entity/event</Label>
               <Select
                 value={aboutType}
                 onValueChange={(v) => {
@@ -499,7 +499,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
                   setAboutId(null);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="page-ilgili-entity-event-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -520,12 +520,13 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               </p>
             )}
             <div className="flex flex-col gap-1.5">
-              <Label>Destekleyici kanıt (opsiyonel)</Label>
-              <SearchablePicker items={evidenceItems} value={evidenceIds} onChange={setEvidenceIds} multiple placeholder="Kanıt ara…" />
+              <Label htmlFor="page-destekleyici-kanit-opsiyonel-2">Destekleyici kanıt (opsiyonel)</Label>
+              <SearchablePicker id="page-destekleyici-kanit-opsiyonel-2" items={evidenceItems} value={evidenceIds} onChange={setEvidenceIds} multiple placeholder="Kanıt ara…" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Çelişen kanıt (opsiyonel)</Label>
+              <Label htmlFor="page-c-elis-en-kanit-opsiyonel-3">Çelişen kanıt (opsiyonel)</Label>
               <SearchablePicker
+                id="page-c-elis-en-kanit-opsiyonel-3"
                 items={evidenceItems}
                 value={contradictingIds}
                 onChange={setContradictingIds}
@@ -534,12 +535,12 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Doğruladığı claim&apos;ler (opsiyonel)</Label>
-              <SearchablePicker items={claimItems} value={corroborates} onChange={setCorroborates} multiple placeholder="Claim ara…" />
+              <Label htmlFor="page-dog-ruladig-i-claimler-opsiy-4">Doğruladığı claim&apos;ler (opsiyonel)</Label>
+              <SearchablePicker id="page-dog-ruladig-i-claimler-opsiy-4" items={claimItems} value={corroborates} onChange={setCorroborates} multiple placeholder="Claim ara…" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Çeliştiği claim&apos;ler (opsiyonel)</Label>
-              <SearchablePicker items={claimItems} value={contradicts} onChange={setContradicts} multiple placeholder="Claim ara…" />
+              <Label htmlFor="page-c-elis-tig-i-claimler-opsiyo-5">Çeliştiği claim&apos;ler (opsiyonel)</Label>
+              <SearchablePicker id="page-c-elis-tig-i-claimler-opsiyo-5" items={claimItems} value={contradicts} onChange={setContradicts} multiple placeholder="Claim ara…" />
               {contradicts.length > 0 && (
                 <p className="text-xs leading-relaxed text-text-tertiary">
                   Her iki claim de <span className="font-medium text-foreground">CONTRADICTED</span> durumuna geçer
@@ -549,8 +550,8 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Yerini aldığı claim (opsiyonel)</Label>
-              <SearchablePicker items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="Claim ara…" />
+              <Label htmlFor="page-yerini-aldig-i-claim-opsiyon-6">Yerini aldığı claim (opsiyonel)</Label>
+              <SearchablePicker id="page-yerini-aldig-i-claim-opsiyon-6" items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="Claim ara…" />
               {supersedes && (
                 <p className="text-xs leading-relaxed text-text-tertiary">
                   Eski claim silinmez; <span className="font-medium text-foreground">valid_to</span> alanı kapatılır.

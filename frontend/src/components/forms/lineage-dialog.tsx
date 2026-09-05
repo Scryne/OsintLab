@@ -121,7 +121,10 @@ export function LineageDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Türetildiği kaynaklar (upstream)</Label>
+            {/* Bunlar bir form kontrolünü değil bir listeyi başlıklıyor; `<Label>`
+                buraya ait değil (hiçbir zaman bir alana bağlanamaz, ekran okuyucuya
+                yanlış vaatte bulunur). Düz başlık metni doğru eleman. */}
+            <p className="text-sm font-medium leading-none">Türetildiği kaynaklar (upstream)</p>
             {!lineage || lineage.ancestors.length === 0 ? (
               <p className="text-xs text-text-tertiary">Yok.</p>
             ) : (
@@ -147,7 +150,7 @@ export function LineageDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Bu kaynaktan türeyenler (downstream)</Label>
+            <p className="text-sm font-medium leading-none">Bu kaynaktan türeyenler (downstream)</p>
             {!lineage || lineage.descendants.length === 0 ? (
               <p className="text-xs text-text-tertiary">Yok.</p>
             ) : (
@@ -165,8 +168,9 @@ export function LineageDialog({
           </div>
 
           <div className="flex flex-col gap-1.5 border-t border-border pt-4">
-            <Label>Bu kaynak şundan türetilmiş:</Label>
+            <Label htmlFor="lineage-dialog-bu-kaynak-s-undan-tu-retilmi-1">Bu kaynak şundan türetilmiş:</Label>
             <SearchablePicker
+              id="lineage-dialog-bu-kaynak-s-undan-tu-retilmi-1"
               items={candidates}
               value={upstreamId}
               onChange={setUpstreamId}

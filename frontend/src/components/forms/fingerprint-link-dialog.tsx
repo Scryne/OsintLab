@@ -117,8 +117,9 @@ export function FingerprintLinkDialog({
 
           {!yeniMod && (
             <div className="flex flex-col gap-1.5">
-              <Label>Mevcut entity</Label>
+              <Label htmlFor="fingerprint-link-dialog-mevcut-entity-1">Mevcut entity</Label>
               <SearchablePicker
+                id="fingerprint-link-dialog-mevcut-entity-1"
                 items={items.map(({ id, label, sublabel }) => ({ id, label, sublabel }))}
                 value={entityId}
                 onChange={setEntityId}

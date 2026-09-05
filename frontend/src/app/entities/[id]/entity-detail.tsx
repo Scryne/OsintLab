@@ -454,8 +454,8 @@ function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreate
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Hedef entity</Label>
-            <SearchablePicker items={items} value={targetId} onChange={setTargetId} placeholder="Entity ara…" />
+            <Label htmlFor="entity-detail-hedef-entity-1">Hedef entity</Label>
+            <SearchablePicker id="entity-detail-hedef-entity-1" items={items} value={targetId} onChange={setTargetId} placeholder="Entity ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="relation-type">İlişki türü</Label>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -27,14 +27,21 @@ type SearchablePickerProps = {
   items: PickerItem[];
   placeholder?: string;
   emptyText?: string;
+  /** Dışarıdaki `<Label htmlFor>` bunu hedefler. Verilmezse arama kutusu isimsiz kalır —
+   * ekran okuyucu sadece "edit" der. Faz "frontend cilası" (2026-09-06): 74 `<Label>`ın
+   * 38'i yetimdi ve çoğunun sebebi buydu; component id almadığı için bağlanamıyorlardı. */
+  id?: string;
+  /** Erişilebilir isim, görünür bir etiket olmadığında. */
+  "aria-label"?: string;
 } & (SingleProps | MultiProps);
 
 /** Select'in type-ahead desteklememesi için genellenmiş Input+filtre idiyomu (bkz.
  * EntitiesPage'in arama-filtre deseni) — Entity/Source/Claim/Evidence seçimlerinin hepsinde
  * kullanılır. Tek/çoklu seçim aynı component, `multiple` prop'una göre ayrışır. */
 export function SearchablePicker(props: SearchablePickerProps) {
-  const { items, placeholder = "Ara…", emptyText = "Sonuç yok" } = props;
+  const { items, placeholder = "Ara…", emptyText = "Sonuç yok", id } = props;
   const [query, setQuery] = useState("");
+  const listId = useId();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -57,7 +64,16 @@ export function SearchablePicker(props: SearchablePickerProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={placeholder} />
+      <Input
+        id={id}
+        type="search"
+        role="searchbox"
+        aria-label={props["aria-label"]}
+        aria-controls={listId}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+      />
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedIds.map((id) => {
@@ -82,7 +98,16 @@ export function SearchablePicker(props: SearchablePickerProps) {
           })}
         </div>
       )}
-      <div className="max-h-40 overflow-y-auto rounded-lg border border-border">
+      {/* Liste bir seçim kümesi, düz buton yığını değil. `role="listbox"` olmadan ekran
+          okuyucu 40 kez "button" diyor ve hangisinin seçili olduğunu söylemiyordu; seçim
+          durumu yalnızca arkaplan tonuyla belliydi. `aria-selected` bunu duyurulur yapıyor,
+          `aria-multiselectable` de tek/çoklu ayrımını. */}
+      <div
+        id={listId}
+        role="listbox"
+        aria-multiselectable={props.multiple ? true : undefined}
+        className="max-h-40 overflow-y-auto rounded-lg border border-border"
+      >
         {filtered.length === 0 ? (
           <p className="p-2 text-xs text-text-tertiary">{emptyText}</p>
         ) : (
@@ -92,6 +117,8 @@ export function SearchablePicker(props: SearchablePickerProps) {
               <button
                 key={item.id}
                 type="button"
+                role="option"
+                aria-selected={active}
                 onClick={() => toggle(item.id)}
                 className={cn(
                   "flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-surface-raised",

@@ -104,12 +104,12 @@ export function ClaimSupersedeDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Yeni claim (yerini alan)</Label>
-            <SearchablePicker items={items} value={newerId} onChange={setNewerId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-supersede-dialog-yeni-claim-yerini-alan-1">Yeni claim (yerini alan)</Label>
+            <SearchablePicker id="claim-supersede-dialog-yeni-claim-yerini-alan-1" items={items} value={newerId} onChange={setNewerId} placeholder="Claim ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Eski claim (yerini bırakan)</Label>
-            <SearchablePicker items={olderItems} value={olderId} onChange={setOlderId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-supersede-dialog-eski-claim-yerini-birakan-2">Eski claim (yerini bırakan)</Label>
+            <SearchablePicker id="claim-supersede-dialog-eski-claim-yerini-birakan-2" items={olderItems} value={olderId} onChange={setOlderId} placeholder="Claim ara…" />
           </div>
           <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
             Eski claim <span className="font-medium text-foreground">silinmez</span> — geçerlilik

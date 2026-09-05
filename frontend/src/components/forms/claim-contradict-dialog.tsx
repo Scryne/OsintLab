@@ -99,12 +99,12 @@ export function ClaimContradictDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Claim</Label>
-            <SearchablePicker items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-contradict-dialog-claim-1">Claim</Label>
+            <SearchablePicker id="claim-contradict-dialog-claim-1" items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Çeliştiği claim</Label>
-            <SearchablePicker items={otherItems} value={otherId} onChange={setOtherId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-contradict-dialog-c-elis-tig-i-claim-2">Çeliştiği claim</Label>
+            <SearchablePicker id="claim-contradict-dialog-c-elis-tig-i-claim-2" items={otherItems} value={otherId} onChange={setOtherId} placeholder="Claim ara…" />
           </div>
           <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
             İkisi de <span className="font-medium text-foreground">CONTRADICTED</span> durumuna geçer, çelişki{" "}

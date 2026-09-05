@@ -148,7 +148,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label>
+              <Label htmlFor="quick-promote-kaynak">
                 Kaynak
                 {item.suggested_source_id === sourceId && sourceId && (
                   <span className="ml-1.5 text-xs font-normal text-text-tertiary">
@@ -157,6 +157,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
                 )}
               </Label>
               <SearchablePicker
+                id="quick-promote-kaynak"
                 items={sourceItems}
                 value={sourceId}
                 onChange={setSourceId}
@@ -174,7 +175,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label>
+              <Label htmlFor="quick-promote-entity">
                 İlgili entity
                 {item.suggested_entity_id === entityId && entityId && (
                   <span className="ml-1.5 text-xs font-normal text-text-tertiary">
@@ -183,6 +184,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
                 )}
               </Label>
               <SearchablePicker
+                id="quick-promote-entity"
                 items={entityItems}
                 value={entityId}
                 onChange={setEntityId}

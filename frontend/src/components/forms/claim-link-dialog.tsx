@@ -73,8 +73,8 @@ export function ClaimLinkDialog({ entityId, onLinked }: { entityId: string; onLi
           <DialogTitle>Claim&apos;i bu entity&apos;ye bağla</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label>Claim</Label>
-          <SearchablePicker items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
+          <Label htmlFor="claim-link-dialog-claim-1">Claim</Label>
+          <SearchablePicker id="claim-link-dialog-claim-1" items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
           <p className="text-xs text-text-tertiary">
             Bağlantısız claim&apos;ler listenin başında. Claim&apos;in metni değişmez, yalnızca neyle
             ilgili olduğu düzeltilir.

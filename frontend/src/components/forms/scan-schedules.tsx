@@ -296,10 +296,11 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
       <div className="flex flex-col gap-1.5">
-        <Label>Kaynak</Label>
+        <Label htmlFor="scan-schedule-kaynak">Kaynak</Label>
         {/* Kaynak zorunlu: toplanan gözlemin provenance'ı ve Inbox bildiriminin izlenen
             hedefi bu. Kaynaksız bir tarama, sonradan promote edilemeyen içerik biriktirirdi. */}
         <SearchablePicker
+          id="scan-schedule-kaynak"
           items={(sources ?? []).map((s) => ({ id: s.id, label: s.name, sublabel: s.url ?? undefined }))}
           value={sourceId}
           onChange={setSourceId}
@@ -324,9 +325,9 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <Label>Mod</Label>
+          <Label htmlFor="scan-schedules-mod-1">Mod</Label>
           <Select value={mode} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
-            <SelectTrigger>
+            <SelectTrigger id="scan-schedules-mod-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -336,9 +337,9 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label>Sıklık</Label>
+          <Label htmlFor="scan-schedules-siklik-2">Sıklık</Label>
           <Select value={interval} onValueChange={(v) => v && setInterval(v)}>
-            <SelectTrigger>
+            <SelectTrigger id="scan-schedules-siklik-2">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

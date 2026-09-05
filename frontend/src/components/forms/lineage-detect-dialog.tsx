@@ -92,12 +92,12 @@ export function LineageDetectDialog({ onDetected }: { onDetected: () => void }) 
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Claim A</Label>
-            <SearchablePicker items={items} value={aId} onChange={setAId} placeholder="Claim ara…" />
+            <Label htmlFor="lineage-detect-dialog-claim-a-1">Claim A</Label>
+            <SearchablePicker id="lineage-detect-dialog-claim-a-1" items={items} value={aId} onChange={setAId} placeholder="Claim ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Claim B</Label>
-            <SearchablePicker items={bItems} value={bId} onChange={setBId} placeholder="Claim ara…" />
+            <Label htmlFor="lineage-detect-dialog-claim-b-2">Claim B</Label>
+            <SearchablePicker id="lineage-detect-dialog-claim-b-2" items={bItems} value={bId} onChange={setBId} placeholder="Claim ara…" />
           </div>
           {result && (
             <div className="rounded-lg border border-border bg-surface p-3 text-xs leading-relaxed text-text-secondary">

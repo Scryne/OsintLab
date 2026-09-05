@@ -145,9 +145,9 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
         <Input id="collector-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label>Mod</Label>
+        <Label htmlFor="page-mod-1">Mod</Label>
         <Select value={mode} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
-          <SelectTrigger>
+          <SelectTrigger id="page-mod-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

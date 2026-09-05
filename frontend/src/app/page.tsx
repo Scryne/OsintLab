@@ -55,15 +55,30 @@ export default function MainWorkspace() {
         <p className="mt-1 text-sm text-text-secondary">
           Bilinen entity ve event&apos;lerde ara — sonuçlar Knowledge Graph&apos;a dayanır.
         </p>
+        {/* Uygulamanın birincil kontrolü etiketsizdi — sadece placeholder vardı, o da
+            yazmaya başlayınca kayboluyor ve ekran okuyucuya isim vermiyor. Etiket görsel
+            olarak gizli ama gerçek: `sr-only` + `htmlFor`. */}
         <div className="glass-panel relative mt-5 rounded-2xl p-1">
+          <label htmlFor="workspace-search" className="sr-only">
+            Entity ve event ara
+          </label>
           <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
           <Input
+            id="workspace-search"
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Bir kişi, kurum, lokasyon ya da event ara…"
             className="h-12 border-0 bg-transparent pl-11 text-base shadow-none focus-visible:ring-0"
           />
         </div>
+        {/* Sonuçlar anlık geliyor ama gelişi duyurulmuyordu; klavye/ekran okuyucu
+            kullanıcısı listeye Tab'layana kadar bir şey bulunduğunu bilmiyordu. */}
+        <p aria-live="polite" className="sr-only">
+          {query.trim()
+            ? `${results.entities.length + results.events.length} sonuç bulundu`
+            : ""}
+        </p>
         {query.trim() && (
           <div className="mt-2 flex flex-col gap-1 rounded-lg border border-border bg-surface p-2">
             {results.entities.length === 0 && results.events.length === 0 && (

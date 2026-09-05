@@ -118,14 +118,15 @@ export function NewClaimDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Kaynak</Label>
-            <SearchablePicker items={sourceItems} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
+            <Label htmlFor="claim-form-kaynak-1">Kaynak</Label>
+            <SearchablePicker id="claim-form-kaynak-1" items={sourceItems} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
           </div>
           {claimItems.length > 0 && (
             <>
               <div className="flex flex-col gap-1.5">
-                <Label>Doğruladığı claim&apos;ler (corroborates)</Label>
+                <Label htmlFor="claim-form-dog-ruladig-i-claimler-corro-2">Doğruladığı claim&apos;ler (corroborates)</Label>
                 <SearchablePicker
+                  id="claim-form-dog-ruladig-i-claimler-corro-2"
                   items={claimItems}
                   value={corroborates}
                   onChange={setCorroborates}
@@ -134,8 +135,9 @@ export function NewClaimDialog({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Çeliştiği claim&apos;ler (contradicts)</Label>
+                <Label htmlFor="claim-form-c-elis-tig-i-claimler-contra-3">Çeliştiği claim&apos;ler (contradicts)</Label>
                 <SearchablePicker
+                  id="claim-form-c-elis-tig-i-claimler-contra-3"
                   items={claimItems}
                   value={contradicts}
                   onChange={setContradicts}
@@ -144,8 +146,8 @@ export function NewClaimDialog({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Yerini aldığı claim (supersedes)</Label>
-                <SearchablePicker items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="Claim ara…" />
+                <Label htmlFor="claim-form-yerini-aldig-i-claim-superse-4">Yerini aldığı claim (supersedes)</Label>
+                <SearchablePicker id="claim-form-yerini-aldig-i-claim-superse-4" items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="Claim ara…" />
               </div>
             </>
           )}

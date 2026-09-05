@@ -162,8 +162,8 @@ function ScopeAddDialog({
           <DialogTitle>Kapsama {etiket.toLowerCase()} ekle</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label>{etiket}</Label>
-          <SearchablePicker items={items} value={pickedId} onChange={setPickedId} placeholder={`${etiket} ara…`} />
+          <Label htmlFor="investigation-scope-etiket-1">{etiket}</Label>
+          <SearchablePicker id="investigation-scope-etiket-1" items={items} value={pickedId} onChange={setPickedId} placeholder={`${etiket} ara…`} />
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !pickedId}>
