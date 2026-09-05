@@ -51,7 +51,7 @@ export default function CollectorsPage() {
     <div className="relative isolate mx-auto flex max-w-2xl flex-col gap-8 overflow-hidden">
       <WireframeGlobe spin className="pointer-events-none absolute -right-16 -top-16 -z-10 h-56 w-56 text-white/5" />
       <div>
-        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Toplayıcılar</h1>
+        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Toplayıcılar</h1>
         <p className="text-sm text-text-secondary">
           Allowlist&apos;teki hostname&apos;lerden RSS/web sayfası tara — sonuçlar Gözlem olarak sisteme düşer.
           Bir kaynağı zamanlanmış taramaya alırsan bunu senin yerine arka plan yapar.

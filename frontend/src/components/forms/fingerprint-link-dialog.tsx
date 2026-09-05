@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -104,6 +105,7 @@ export function FingerprintLinkDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Metadata alanını entity&apos;ye bağla</DialogTitle>
+          <DialogDescription>Belgenin metadata alanından çıkan kişi ya da kurumu bir entity&apos;ye bağlar.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           {/* Q22 — bu değer belgeyi kim ürettiyse onun yazdığı metindir. Sınır burada da

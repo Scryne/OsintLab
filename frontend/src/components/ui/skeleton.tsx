@@ -28,6 +28,29 @@ export function SkeletonList({ count = 3, className }: { count?: number; classNa
   );
 }
 
+/** Detay sayfaları için (Entity, Event, Investigation, Source).
+ *
+ * 2026-09-06: uygulamada iki farklı yükleme dili vardı — liste sayfaları iskelet
+ * gösteriyor, detay sayfaları dönen bir spinner. Aynı uygulamada aynı bekleyişin iki
+ * ayrı görüntüsü olması gezinirken sıçrama hissi veriyordu. Detay sayfası tek bir blok
+ * değil (başlık + meta + gövde), o yüzden kendi şekli gerekiyor. */
+export function SkeletonDetail({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex flex-col gap-6", className)} role="status" aria-label="Yükleniyor">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-8 w-1/2" />
+        <Skeleton className="h-4 w-1/3" />
+      </div>
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-24 rounded-lg" />
+        <Skeleton className="h-8 w-24 rounded-lg" />
+        <Skeleton className="h-8 w-28 rounded-lg" />
+      </div>
+      <SkeletonRows count={4} />
+    </div>
+  );
+}
+
 /** Tek sütun satır listeleri için (Observations, Investigations, Inbox — kart değil, tam
  * genişlikte satır). */
 export function SkeletonRows({ count = 4, className }: { count?: number; className?: string }) {

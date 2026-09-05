@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -101,6 +102,7 @@ export function LineageDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{source.name} — kaynak bağımsızlığı</DialogTitle>
+          <DialogDescription>Bu kaynağın hangi kaynaklardan türediğini gösterir ve elle türetme bağı kurmanı sağlar. Türetilmiş kaynaklar bağımsız doğrulama sayılmaz.</DialogDescription>
         </DialogHeader>
 
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">

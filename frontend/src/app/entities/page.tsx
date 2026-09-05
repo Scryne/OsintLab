@@ -15,6 +15,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
   DialogFooter,
@@ -48,7 +49,7 @@ export default function EntitiesPage() {
       <WireframeBurst spin className="pointer-events-none absolute -right-10 top-12 -z-10 h-48 w-48 text-white/5" />
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Entity&apos;ler</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Entity&apos;ler</h1>
           <p className="text-sm text-text-secondary">Bilinen kişi, kurum ve lokasyonlar.</p>
         </div>
         <NewEntityDialog onCreated={reload} existingTypes={entities?.map((e) => e.entity_type) ?? []} />
@@ -147,6 +148,7 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Yeni entity ekle</DialogTitle>
+          <DialogDescription>Graf&apos;a yeni bir kişi, kurum, ürün ya da lokasyon ekler. Tür serbest metindir; listedekiler öneridir, kural değil.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

@@ -22,6 +22,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -85,7 +86,7 @@ function ObservationsView() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Gözlemler</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Gözlemler</h1>
           <p className="text-sm text-text-secondary">
             Ham metin/haber yapıştır, sisteme sok — eşiği geçerse Knowledge Graph&apos;a Claim olarak yükselir.
           </p>
@@ -335,6 +336,7 @@ function NewObservationDialog({ onCreated }: { onCreated: () => void }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Yeni gözlem ekle</DialogTitle>
+          <DialogDescription>Sisteme elle bir gözlem girer. Gözlemler ham kayıttır; claim&apos;e yükseltilene kadar Knowledge Graph&apos;a girmez.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -462,6 +464,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Observation&apos;ı Claim&apos;e yükselt</DialogTitle>
+          <DialogDescription>Bu gözlemi bir claim&apos;e yükseltir. Kaynak zorunlu; entity bağı kurulmazsa Memory Recall bu claim&apos;i bulamaz.</DialogDescription>
         </DialogHeader>
 
         {result ? (

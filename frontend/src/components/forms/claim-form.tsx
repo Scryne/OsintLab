@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -105,6 +106,7 @@ export function NewClaimDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Yeni claim ekle</DialogTitle>
+          <DialogDescription>Bir kaynağa dayanan yeni bir iddia kaydeder. Confidence, kaynağın güvenilirliğinden ve kurulan bağlardan hesaplanır.</DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <div className="flex flex-col gap-1.5">

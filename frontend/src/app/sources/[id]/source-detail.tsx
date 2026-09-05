@@ -9,7 +9,8 @@ import type { Source } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonDetail } from "@/components/ui/skeleton";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { LineageDialog } from "@/components/forms/lineage-dialog";
 import { ScanScheduleList } from "@/components/forms/scan-schedules";
@@ -56,7 +57,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
     }
   }
 
-  if (loading) return <LoadingState label="Kaynak yükleniyor…" />;
+  if (loading) return <SkeletonDetail />;
   if (error) return <ErrorState message={error.message} />;
   if (!source) return null;
 
@@ -69,7 +70,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">
+            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">
               {source.name}
             </h1>
             <Badge variant="secondary">{source.source_type}</Badge>

@@ -101,7 +101,7 @@ export default function InboxPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Intelligence Inbox</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Intelligence Inbox</h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-secondary">
             More signal, less noise.
             {/* Sayfanın canlı olduğunu SÖYLEMEK gerekiyor: sessizce tazelenen bir liste ile

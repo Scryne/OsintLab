@@ -197,6 +197,19 @@
   --color-priority-critical-text: var(--priority-critical-text);
 }
 
+/*
+ * z-index ölçeği — 2026-09-06'da belgelendi. Değerler zaten katmanlıydı ama hiçbir yerde
+ * yazmıyordu, o yüzden yeni bir katman eklerken doğru sayıyı tahmin etmek gerekiyordu.
+ * Yeni bir örtüşme eklerken bu listeye bak, araya sayı uydurma:
+ *
+ *   z-10   sayfa içi dekoratif katman ve yerel örtüşmeler (wireframe motifleri `-z-10`,
+ *          Select'in iç ikon/scroll okları)
+ *   z-20   yapışkan çalışma çubukları ve masaüstü kenar çubuğu (içerik üstünde kalır)
+ *   z-30   mobil üst bar ve açılan mobil menü (kenar çubuğunun üstünde)
+ *   z-50   modal katmanı: Dialog backdrop + popup, Select popup
+ *   z-100  toast — her şeyin üstünde, çünkü modal AÇIKKEN de görünmesi gerekiyor
+ *          (bir dialog içinde kaydedince sonucu bildiren şey bu)
+ */
 @layer base {
   * {
     @apply border-border outline-ring/50;

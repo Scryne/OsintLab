@@ -35,7 +35,7 @@ export default function SameAsQueuePage() {
     <div className="relative isolate mx-auto flex max-w-3xl flex-col gap-6 overflow-hidden">
       <WireframeBurst spin className="pointer-events-none absolute -right-14 -top-16 -z-10 h-52 w-52 text-white/5" />
       <div>
-        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Olası Eşleşmeler</h1>
+        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Olası Eşleşmeler</h1>
         <p className="text-sm text-text-secondary">
           Aynı gerçek varlığa ait olabilecek entity çiftleri — sistem hiçbirini kendi başına birleştirmez, onay senin.
         </p>

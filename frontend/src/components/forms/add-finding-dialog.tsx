@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -82,6 +83,7 @@ export function AddFindingDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Investigation&apos;a bulgu ekle</DialogTitle>
+          <DialogDescription>Bir claim&apos;i bu araştırmanın bulgusu olarak işaretler. Yalnızca doğrulanmış bulgular kapanışta Knowledge Graph&apos;a yükselir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="add-finding-dialog-claim-1">Claim</Label>

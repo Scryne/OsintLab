@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -101,6 +102,7 @@ export function ClaimSupersedeDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Bir claim&apos;in yerini aldığını bildir</DialogTitle>
+          <DialogDescription>Yeni bir claim&apos;in eskisinin yerini aldığını bildirir. Eski kayıt silinmez, geçerlilik aralığı kapanır.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

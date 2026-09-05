@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -84,6 +85,7 @@ export function SameAsManualDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Aynı şey olduğunu elle bildir</DialogTitle>
+          <DialogDescription>İki entity kaydının aynı şeye ait olduğunu bildirir. Kayıtlar birleştirilmez, aralarında bir eşitlik bağı kurulur.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="same-as-manual-dialog-ayni-oldug-u-entity-1">Aynı olduğu entity</Label>

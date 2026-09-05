@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -85,6 +86,7 @@ export function EvidenceObservationDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Belgeden gözlem üret</DialogTitle>
+          <DialogDescription>Yüklenen belgenin metninden gözlem üretir. Belge metni güvenilmeyen veri sınırı içinde sunulur.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <p className="text-xs text-text-secondary">

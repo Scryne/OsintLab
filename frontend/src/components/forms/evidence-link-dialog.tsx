@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -105,6 +106,7 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Bu claim&apos;e kanıt bağla</DialogTitle>
+          <DialogDescription>Bu claim&apos;e kanıt bağlar. Bağlanan kanıt confidence&apos;ı yükseltir; duruş, desteklediği yönü söyler.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex gap-1.5 rounded-lg bg-muted p-1">

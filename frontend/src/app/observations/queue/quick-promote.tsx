@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -109,6 +110,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Hızlı promote</DialogTitle>
+          <DialogDescription>Tek bir gözlemi claim&apos;e yükseltir. Kaynak ve entity önerilir; onaylamadan önce kontrol et.</DialogDescription>
         </DialogHeader>
 
         {result ? (

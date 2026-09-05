@@ -17,7 +17,7 @@ export default function InvestigationsPage() {
       <WireframeRipple className="pointer-events-none absolute -right-10 -top-14 -z-10 h-52 w-52 text-white/5" />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Investigation&apos;lar</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Investigation&apos;lar</h1>
           <p className="text-sm text-text-secondary">Research Question → Findings → Conclusion.</p>
         </div>
         {/* F38: investigation acmanin arayuzde hicbir yolu yoktu. */}

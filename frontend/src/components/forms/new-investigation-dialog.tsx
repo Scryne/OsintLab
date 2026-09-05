@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -65,6 +66,7 @@ export function NewInvestigationDialog({ onCreated }: { onCreated: () => void })
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Yeni investigation aç</DialogTitle>
+          <DialogDescription>Yeni bir araştırma açar. Araştırma sorusu zorunludur — kapsam ve bulgular ona göre değerlendirilir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

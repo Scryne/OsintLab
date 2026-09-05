@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 
 export function LoadingState({ label = "Yükleniyor…" }: { label?: string }) {
   return (
-    <div className="flex items-center gap-2 py-8 text-sm text-text-secondary">
+    // `role="status"` olmadan ekran okuyucu bekleyişi hiç duyurmuyordu: metin ekrana
+    // sessizce giriyordu. Bölüm-içi yüklemeler için; tam sayfa bekleyişte SkeletonDetail.
+    <div role="status" className="flex items-center gap-2 py-8 text-sm text-text-secondary">
       <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
       {label}
     </div>
@@ -27,14 +29,27 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   );
 }
 
-export function EmptyState({ title, description }: { title: string; description?: string }) {
+/** Boş durum. `action` opsiyoneldir ama gerçekten bir sonraki adım varsa verilmelidir —
+ * "hiçbir şey yok" demek kullanıcıyı çıkmazda bırakır; boş bir ekranın işi, oraya nasıl
+ * içerik geleceğini söylemektir. Her boş duruma zorla buton koymak da doğru değil:
+ * sonraki adım başka bir sayfadaysa ya da filtreyi kaldırmaksa, onu açıklamada söyle. */
+export function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-surface p-6 text-sm">
       <div className="flex items-center gap-2 text-text-secondary">
         <SearchX aria-hidden className="h-4 w-4" />
-        <span className="font-medium text-foreground">{title}</span>
+        <span className="font-medium text-balance text-foreground">{title}</span>
       </div>
-      {description && <p className="text-text-tertiary">{description}</p>}
+      {description && <p className="text-pretty text-text-tertiary">{description}</p>}
+      {action && <div className="mt-2">{action}</div>}
     </div>
   );
 }

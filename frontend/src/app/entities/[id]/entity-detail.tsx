@@ -9,7 +9,8 @@ import type { Claim, SameAsCandidate, Source } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonDetail } from "@/components/ui/skeleton";
 import { ConfidenceBadge, ConfidenceRail } from "@/components/provenance/confidence";
 import { ProvenanceBlock } from "@/components/provenance/provenance-label";
 import { WhyMattersDisclosure } from "@/components/provenance/why-matters-disclosure";
@@ -19,6 +20,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -129,7 +131,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [fullClaims, recall, confidenceFilter]);
 
-  if (entityLoading || recallLoading) return <LoadingState label="Entity yükleniyor…" />;
+  if (entityLoading || recallLoading) return <SkeletonDetail />;
   if (entityError) return <ErrorState message={entityError.message} />;
   if (recallError) return <ErrorState message={recallError.message} />;
   if (!entity || !recall) return null;
@@ -142,7 +144,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">{entity.name}</h1>
+            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">{entity.name}</h1>
             <Badge variant="secondary">{entity.entity_type}</Badge>
           </div>
           {entity.aliases.length > 0 && (
@@ -451,6 +453,7 @@ function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreate
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Entity ilişkisi ekle</DialogTitle>
+          <DialogDescription>İki entity arasında bir ilişki kurar. İlişkinin türünü sen verirsin — sistem tahmin etmez.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

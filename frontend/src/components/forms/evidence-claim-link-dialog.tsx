@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -72,6 +73,7 @@ export function EvidenceClaimLinkDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Kanıtı bir claim&apos;e bağla</DialogTitle>
+          <DialogDescription>Bu kanıtı bir claim&apos;e bağlar ve kanıtın claim&apos;i desteklediğini mi yoksa çürüttüğünü mü belirtir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

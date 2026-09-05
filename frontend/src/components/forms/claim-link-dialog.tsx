@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -71,6 +72,7 @@ export function ClaimLinkDialog({ entityId, onLinked }: { entityId: string; onLi
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Claim&apos;i bu entity&apos;ye bağla</DialogTitle>
+          <DialogDescription>Bir claim&apos;i bu entity ile ilişkilendirir. Claim&apos;in metni değişmez, yalnızca neyle ilgili olduğu düzeltilir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="claim-link-dialog-claim-1">Claim</Label>

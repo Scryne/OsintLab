@@ -15,6 +15,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
   DialogFooter,
@@ -45,7 +46,7 @@ export default function SourcesPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Kaynaklar</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Kaynaklar</h1>
           <p className="text-sm text-text-secondary">Claim ve event&apos;lerin atıflı olduğu bilgi kaynakları.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -162,6 +163,7 @@ export function NewSourceDialog({ onCreated, existingTypes = [] }: { onCreated: 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Yeni kaynak ekle</DialogTitle>
+          <DialogDescription>Toplama yapılabilecek yeni bir kaynak tanımlar. Güvenilirlik değeri confidence hesabına doğrudan girer.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

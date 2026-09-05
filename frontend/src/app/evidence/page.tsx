@@ -75,7 +75,7 @@ export default function EvidencePage() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div>
-        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Kanıt Kasası</h1>
+        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Kanıt Kasası</h1>
         <p className="text-sm text-text-secondary">
           Yüklenen dosyalar içerik hash&apos;iyle (SHA-256) saklanır — aynı dosya iki kez
           kaydedilmez, sonradan değiştirilirse hash tutmaz.

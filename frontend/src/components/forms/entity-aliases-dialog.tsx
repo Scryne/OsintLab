@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -75,6 +76,7 @@ export function EntityAliasesDialog({ entity, onSaved }: { entity: Entity; onSav
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{entity.name} — alias&apos;lar</DialogTitle>
+          <DialogDescription>Bu entity&apos;nin bilinen diğer adlarını yönetir. Alias&apos;lar arama ve eşleştirmede kullanılır.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="entity-aliases">Alias&apos;lar (virgülle ayır)</Label>

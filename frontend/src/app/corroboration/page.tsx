@@ -126,7 +126,7 @@ export default function CorroborationPage() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <header>
-        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">
+        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">
           Doğrulama
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">

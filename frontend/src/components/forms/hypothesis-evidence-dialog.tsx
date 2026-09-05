@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -127,6 +128,7 @@ export function HypothesisEvidenceDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Hipoteze kanıt bağla</DialogTitle>
+          <DialogDescription>Bu hipoteze kanıt bağlar ve kanıtın hipotezi desteklediğini mi çürüttüğünü mü belirtir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex gap-1.5 rounded-lg bg-muted p-1">

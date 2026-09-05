@@ -7,13 +7,14 @@ import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonDetail } from "@/components/ui/skeleton";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { WhyMattersDisclosure } from "@/components/provenance/why-matters-disclosure";
 import { NewClaimDialog } from "@/components/forms/claim-form";
 import { EvidenceLinkDialog } from "@/components/forms/evidence-link-dialog";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 
 export function EventDetail({ eventId }: { eventId: string }) {
@@ -23,7 +24,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
     [eventId]
   );
 
-  if (eventLoading || recallLoading) return <LoadingState label="Event yükleniyor…" />;
+  if (eventLoading || recallLoading) return <SkeletonDetail />;
   if (eventError) return <ErrorState message={eventError.message} />;
   if (recallError) return <ErrorState message={recallError.message} />;
   if (!event || !recall) return null;
@@ -33,7 +34,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
       <header className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">{event.title}</h1>
+            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">{event.title}</h1>
             <Badge variant="secondary">{event.event_type}</Badge>
           </div>
           <div className="mt-1 flex items-center gap-3">
@@ -172,6 +173,7 @@ function NewLinkSourceDialog({ eventId, onLinked }: { eventId: string; onLinked:
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Bu event&apos;i bildiren kaynağı bağla</DialogTitle>
+          <DialogDescription>Bu event&apos;i bildiren kaynağı işaretler; olayın provenance zinciri buradan kurulur.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <SearchablePicker items={items} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />

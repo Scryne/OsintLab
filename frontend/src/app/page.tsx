@@ -51,7 +51,7 @@ export default function MainWorkspace() {
     <div className="relative isolate mx-auto flex max-w-5xl flex-col gap-8 overflow-hidden">
       <WireframeGlobe spin className="pointer-events-none absolute -right-16 -top-20 -z-10 h-64 w-64 text-white/5" />
       <section>
-        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">Ana Çalışma Alanı</h1>
+        <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Ana Çalışma Alanı</h1>
         <p className="mt-1 text-sm text-text-secondary">
           Bilinen entity ve event&apos;lerde ara — sonuçlar Knowledge Graph&apos;a dayanır.
         </p>

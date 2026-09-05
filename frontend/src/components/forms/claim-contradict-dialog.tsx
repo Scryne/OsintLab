@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -96,6 +97,7 @@ export function ClaimContradictDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>İki claim arasında çelişki kur</DialogTitle>
+          <DialogDescription>İki claim&apos;in birbiriyle çeliştiğini beyan eder. Çelişki otomatik saptanmaz — bu senin kararın.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

@@ -13,13 +13,15 @@ import { WorkflowRail } from "@/components/forms/workflow-rail";
 import type { InvestigationStatus, InvestigationWorkspace, KnowledgeState } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
+import { ErrorState, EmptyState } from "@/components/ui/state";
+import { SkeletonDetail } from "@/components/ui/skeleton";
 import { ConfidenceBadge, ConfidenceRail } from "@/components/provenance/confidence";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -71,7 +73,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
     }
   }
 
-  if (loading) return <LoadingState label="Investigation yükleniyor…" />;
+  if (loading) return <SkeletonDetail />;
   if (error) return <ErrorState message={error.message} />;
   if (!ws) return null;
 
@@ -84,7 +86,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <header>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-foreground">{inv.title}</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">{inv.title}</h1>
           <Badge variant="outline">{inv.status}</Badge>
         </div>
         <p className="mt-1 text-sm text-text-secondary">{inv.research_question}</p>
@@ -372,6 +374,7 @@ function NewHypothesisDialog({ investigationId, onCreated }: { investigationId: 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Yeni hipotez</DialogTitle>
+          <DialogDescription>Bu araştırmaya sınanabilir bir hipotez ekler. Kanıt daha sonra hipoteze bağlanır.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="hypothesis-text">Hipotez</Label>

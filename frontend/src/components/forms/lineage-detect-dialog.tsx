@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -89,6 +90,7 @@ export function LineageDetectDialog({ onDetected }: { onDetected: () => void }) 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>İki claim arasında türetme sına</DialogTitle>
+          <DialogDescription>İki claim&apos;in metnini karşılaştırıp birinin diğerinden türetilmiş olup olmadığını sınar.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

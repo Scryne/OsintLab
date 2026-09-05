@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -160,6 +161,7 @@ function ScopeAddDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Kapsama {etiket.toLowerCase()} ekle</DialogTitle>
+          <DialogDescription>Bu araştırmanın kapsamına bir öğe ekler. Kapsam, hangi claim ve kaynakların araştırmaya ait sayılacağını belirler.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="investigation-scope-etiket-1">{etiket}</Label>
