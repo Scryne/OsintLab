@@ -101,6 +101,80 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 16 | Promote Kuyruğu (değerlendirme darboğazı) | ✅ Tamamlandı | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
 | 17 | Corroboration Çalışma Ekranı | ✅ Tamamlandı | Bir claim'i doğrulayabilecek diğer claim'ler gerekçeleriyle öneriliyor; türetilmiş kaynak bağımsız doğrulamadan ayrılıyor; adaylar toplu olarak CORROBORATES/CONTRADICTS ile bağlanabiliyor ve confidence değişimi gösteriliyor. Bitti sayılması için Faz 16'dan kalan 42 REPORTED claim üzerinde fiilen çalıştırılmış ve en az bir küme SUPPORTED'a yükselmiş olması gerekir. |
 
+## v3 Roadmap (planlama: 2026-09-05)
+
+v2'nin son fazı (17) bittiğinde roadmap'te bekleyen iş kalmamıştı. v3'ün kapsamı, bir dilek
+listesinden değil **sistemin kendi durumunun ölçümünden** çıkarıldı — Faz 16 ve 17'nin ikisi
+de böyle doğmuştu ve ikisi de doğru çıktı.
+
+**Ölçüm (2026-09-05, Faz 17 bittikten hemen sonra):**
+
+| | |
+| --- | --- |
+| Entity | 5 · aralarında **0 ilişki** |
+| **Event** | **0** |
+| Claim | 43 canlı — **43'ü entity'ye bağlı, 0'ı event'e** |
+| Investigation | 2, ikisi de CLOSED, 0 aktif |
+| Inbox | 38 NEW, hiçbiri işlenmemiş |
+
+Üç bulgu birbirine bağlı:
+
+1. **Event katmanı ölü, çünkü arayüzden ERİŞİLEMİYOR.** `/events` altında yalnızca `[id]`
+   sayfası var: liste yok, oluşturma formu yok, nav'da girişi yok. Promote formundaki "Event"
+   seçeneği çalışıyor ama seçici hep boş ve event yaratmanın hiçbir yolu yok — seçenek
+   görünüyor, kullanılamıyor. Oysa toplanan verinin tamamı olay: Astra lansmanı, ChatGPT
+   kesintisi, German wiki olayı, rogue agent sürüsü, Chaotic Eclipse zero-day.
+2. **Graf henüz graf değil.** 5 entity, aralarında sıfır kenar. `OpenAI ↔ Astra` verideki en
+   bariz ilişki ve grafta yok. `ENTITY_RELATION`'ın hiç yazılmadığı v1 denetiminde (2026-09-02)
+   zaten tespit edilmiş ve Faz 10/13'e işlenmişti — ama gerçek kullanımda hâlâ sıfır.
+3. **Entity modeli fazla kaba.** 43 claim'in **33'ü tek bir entity'ye** (OpenAI) asılı:
+   lansman, kesinti, davalar, Brezilya, rogue agent'lar hepsi aynı kovada. Doğal ayrıştırma
+   tam olarak eksik olan şey — olaylar.
+
+**Bu yüzden sıralama: önce sağlamlaştırma, sonra genişleme.** Faz 15'te ertelenen
+GEOINT/SOCMINT/MEDIAINT daha çok GİRDİ ekliyor; ölçüm ise girdinin zaten yapılandırılmadığını
+söylüyor. Yeni domain'i önce açmak, 224 gözlemi 500'e çıkarıp aynı yapısal boşluğu büyütmek
+olurdu — Faz 12'nin toplamayı otomatikleştirip değerlendirmeyi elde bırakmasının birebir
+aynısı. Kullanıcı kararı (2026-09-05): önce graf, sonra domain'ler.
+
+**Tekrar eden desen — v3'ün üç fazı da aynı hastalığı tedavi ediyor:** mekanizma Faz 1'den
+beri şemada var, onu tetikleyecek iş akışı yok. Faz 16'da promote, Faz 17'de `CORROBORATES`,
+şimdi `Event` ve `ENTITY_RELATION`.
+
+**Faz 18'in hediyesi: olay tespiti zaten kuruldu.** Faz 17'de kurulan doğrulama bağlarının
+bağlantılı bileşenleri ölçüldüğünde **4 temiz olay kümesi** çıktı (15 claim): Astra'nın siber
+yetenek değerlendirmesi (5 claim / 4 kaynak), rogue agent–German wiki olayı (5/2), Astra
+lansmanı (3/3), ChatGPT kesintisi (2/2). Dördü de gerçek ve AYRI olaylar — 1 ile 3 ikisi de
+Astra hakkında olmasına rağmen doğru bölünmüş. Faz 17 farkında olmadan olay dedektörünü de
+inşa etmiş; Faz 18 yeni bir sinyal icat etmiyor, var olanı okuyor.
+
+**Entity çıkarma kararı: önce deterministik, LLM sonraya (kullanıcı, 2026-09-05).** Ölçüldü:
+büyük-harf öbeği taraması 43 claim'de 79 aday veriyor ve kalite kabaca yarı yarıya — doğru
+(ChatGPT, Codex, Daybreak, Preparedness Framework, GenDigital Avast Antivirus, Crowdstrike
+Falcon, Australian Federal Police, KrebsOnSecurity), gürültü ("Critical", "German", "Shortly",
+"According", "In August", "June"), sınır hatası ("The New York" + "Times" ayrı düşüyor,
+"OpenAI's" kesme işaretiyle ayrılıyor). İnsanın filtreleyeceği bir öneri listesi olarak
+yeterli, otomatik olarak değil. LLM destekli çıkarma daha iyi isabet verirdi ama toplanan
+metni ilk kez bir modele girdi yapardı — Q22'nin uyardığı prompt injection yüzeyi tam orada
+açılır. Karar Faz 16'daki disiplinin aynısı: önce deterministik kurulur, **kaçırma oranı
+gerçek veride ölçülür**, LLM kararı o sayıdan sonra verilir.
+
+**Kalıcı sınır (v3'te de değişmiyor):** Tam otonom araştırma / AI'ın kritik kararları (entity
+merge, claim verification, investigation conclusion) kendi başına alması — Design Principle #7,
+versiyon meselesi değil.
+
+| Faz | Adı | Durum | Bitti Kriteri |
+| --- | --- | --- | --- |
+| 18 | Event Katmanı | ⏳ Bekliyor | Event arayüzden listelenebiliyor, oluşturulabiliyor ve nav'dan erişilebiliyor; bir claim bir olaya bağlanabiliyor; doğrulama kümelerinden olay adayı öneriliyor; bir entity'nin olayları zaman çizgisinde görülebiliyor. Bitti sayılması için ölçülen 4 gerçek kümenin (15 claim) fiilen Event'e dönüşmüş olması gerekir. |
+| 19 | Entity İlişkileri | ⏳ Bekliyor | Birlikte geçen entity'ler ilişki adayı olarak öneriliyor; ilişkinin TÜRÜNÜ kullanıcı veriyor; kurulan ilişki entity sayfasında ve vault notunda görünüyor. Bitti sayılması için graf'ta gerçek kenarların (en az `OpenAI ↔ Astra`) bulunması gerekir — 5 izole düğüm olmaktan çıkmalı. |
+| 20 | Entity Adayı Çıkarma (deterministik) | ⏳ Bekliyor | Claim metinlerinden yeni entity adayları sinyale göre sıralı olarak öneriliyor, toplu elenebiliyor/onaylanabiliyor. Bitti sayılması için gerçek 79 adaylık listenin eritilmiş **ve kaçırma oranının ölçülmüş** olması gerekir (LLM kararının girdisi bu sayıdır). |
+
+**v3 ikinci hat — ertelenen domain'ler (GEOINT / SOCMINT / MEDIAINT):** planlaması Faz 20
+bittikten SONRA yapılacak. Gerekçe Faz 15'in kendi dersi: bir domain'in nereye bağlanacağı,
+bağlanacağı yapı kurulduktan sonra netleşiyor. Faz 18-20 bittiğinde graf'ta olay ekseni ve
+entity ilişkileri olacak — yeni bir domain'in üreteceği verinin neye takılacağı ancak o zaman
+belli olur.
+
 ## Faz Detayları
 
 ### Faz 1: Temel Altyapı
@@ -1940,3 +2014,126 @@ ayrı" kararıyla tutarlı).
   **Sınır: aday bulucu O(n²).** 44 claim'de 946 çift, sorun yok. Binlerce claim'de bu
   yeniden ele alınmalı (ör. entity/tarih üzerinden ön-kümeleme). v1'de bilinçli olarak
   basit tutuldu — YAGNI; gerçek ölçek geldiğinde ölçülüp karar verilir.
+
+### Faz 18: Event Katmanı
+
+- **Neden bu faz var (ölçüm, 2026-09-05).** 43 canlı claim'in **43'ü entity'ye, 0'ı event'e**
+  bağlı. Event tablosu Faz 1'de kuruldu, `OCCURRED_AT`/`ABOUT_EVENT` ilişkileri şemada var,
+  promote formunda "Event" seçeneği duruyor — ve grafta sıfır event var.
+
+- **Sebep ilgisizlik değil, ERİŞİLEMEZLİK.** `frontend/src/app/events/` altında yalnızca
+  `[id]` sayfası var: liste yok, oluşturma formu yok, nav'da girişi yok. Promote formunda
+  "Event"i seçtiğinde açılan seçici hep boş, çünkü event yaratmanın hiçbir yolu yok. Yani
+  seçenek görünüyor ama kullanılamıyor — Faz 11'de defalarca çıkan desenin aynısı
+  (mekanizma var, ona giden yol yok).
+
+- **Bunun somut bedeli.** 43 claim'in **33'ü tek bir entity'ye** (OpenAI) asılı: Astra
+  lansmanı, ChatGPT kesintisi, telif davaları, Brezilya açılımı, rogue agent olayları — hepsi
+  aynı kovada. OpenAI entity sayfası okunamaz durumda ve doğal ayrıştırma tam olarak eksik
+  olan eksen: olaylar.
+
+- **Faz 17 olay dedektörünü zaten kurdu.** Doğrulama (`CORROBORATES`) bağlarının bağlantılı
+  bileşenleri ölçüldüğünde 4 temiz küme çıktı (15 claim):
+
+  | Küme | Claim | Kaynak | Olay |
+  | --- | --- | --- | --- |
+  | 1 | 5 | 4 | Astra'nın siber yetenek değerlendirmesi |
+  | 2 | 5 | 2 | Rogue agent'lar / German wiki olayı |
+  | 3 | 3 | 3 | Astra lansmanı |
+  | 4 | 2 | 2 | ChatGPT kesintisi |
+
+  Dördü de gerçek ve AYRI olaylar — 1 ile 3 ikisi de Astra hakkında olmasına rağmen doğru
+  bölünmüş. Bu faz yeni bir sinyal icat etmiyor, var olanı okuyor. Kalan 28 claim tek başına
+  (bileşen büyüklüğü 1) — onlar için elle olay oluşturma yolu şart, yani türetme tek yol
+  olamaz.
+
+- **İşler:**
+  - **Event listesi + oluşturma + nav girişi.** Eksik olan asıl parça; bunsuz geri kalanı
+    kullanılamaz.
+  - **Claim → Event bağı.** Promote akışında ve sonradan (Faz 11'in F16 dersi: bağ sonradan
+    onarılabilir olmalı — `PATCH /claims/{id}/about` zaten var, arayüzde event tarafı yok).
+  - **Olay adayı önerisi.** Doğrulama bileşenlerinden türetilir; kullanıcı kümeye bir başlık
+    verip Event'e çevirir. Küme bir öneridir, kararı insan verir (Design Principle #7).
+  - **Yan onarım: `GET /claims/{id}/explain` hangi claim'lerin doğruladığını söylemiyor.**
+    Corroboration SKORUNU veriyor ama skorun kaynağını değil; bu kümeleri hesaplarken
+    aday-uçları farkını almak gibi dolambaçlı bir yol gerekti. Auditability'yi merkeze alan
+    bir projede ("neden bu confidence?" her zaman cevaplanabilmeli, Q4) bu bir boşluk ve
+    olay türetmesinin doğrudan ihtiyacı.
+  - **Entity zaman çizgisi.** Bir entity'nin olayları zaman sırasıyla — 33 claim'lik yığının
+    okunabilir hale geldiği yer burası.
+
+- **Bitti Kriteri:** Event arayüzden listelenebiliyor, oluşturulabiliyor ve nav'dan
+  erişilebiliyor; bir claim bir olaya bağlanabiliyor; doğrulama kümelerinden olay adayı
+  öneriliyor; bir entity'nin olayları zaman çizgisinde görülebiliyor. **Fazın sınavı:**
+  ölçülen 4 gerçek küme (15 claim) fiilen Event'e dönüşmüş olmalı — Faz 16/17'deki gibi,
+  bitti kriteri özelliğin varlığı değil, boşluğun gerçekten kapanması.
+
+### Faz 19: Entity İlişkileri
+
+- **Neden bu faz var (ölçüm, 2026-09-05).** 5 entity var ve aralarında **0 ilişki**. Şu an
+  elimizde bağlantısız düğümlerden oluşan bir yıldız var; "Knowledge Graph"in *graph* kısmı
+  hiç çalışmadı. `ENTITY_RELATION`'ın hiç yazılmadığı v1 denetiminde (2026-09-02) zaten
+  tespit edilmiş ve Faz 10/13'e işlenmişti — gerçek kullanımda hâlâ sıfır, yani orada
+  kapanmamış.
+
+- **Aday sinyali ölçüldü ve yeterli.** Claim metinlerinde birlikte geçen entity çiftleri:
+  `Astra ↔ OpenAI` (10 claim'de birlikte), `Chaotic Eclipse ↔ INFINITE NIGHTMARE` (2). İki
+  aday, ikisi de doğru — yüksek isabet, küçük hacim. Faz 12/16'nın entity eşleştiricisi
+  (`scanning.match_entities_in_text`) zaten bu işi yapıyor; bu faz onu çift eksenine taşıyor.
+
+- **İlişkinin TÜRÜNÜ sistem vermez.** "OpenAI, Astra'yı geliştirdi" ile "Astra, OpenAI'ın
+  ürünü" arasındaki fark anlamsal bir karardır ve birlikte geçme bunu söyleyemez. Sistem
+  çifti önerir, türü kullanıcı yazar (Design Principle #7 — ve Faz 11'in F8 dersi: tür
+  alanları serbest metin olmalı, sabit bir listeye kilitlenmemeli).
+
+- **Sıra notu.** Faz 20'den (79 entity adayı) ÖNCE, bilerek. 20'den sonraya alınsaydı daha
+  çok ilişki adayı olurdu — yeni entity'ler yeni birlikte-geçmeler doğurur — ama graf üç faz
+  boyunca kenarsız kalırdı. Bu fazın küçük olması (2 aday) onu ucuz yapıyor, ertelenebilir
+  değil; ayrıca Faz 20'nin ürettiği her yeni entity bu mekanizmaya kendiliğinden akar.
+
+- **Bitti Kriteri:** Birlikte geçen entity'ler ilişki adayı olarak öneriliyor; ilişkinin türü
+  kullanıcı tarafından veriliyor; kurulan ilişki entity sayfasında ve Obsidian vault notunda
+  görünüyor. **Fazın sınavı:** graf'ta gerçek kenarlar var (en az `OpenAI ↔ Astra`) — 5 izole
+  düğüm olmaktan çıkmış olmalı.
+
+### Faz 20: Entity Adayı Çıkarma (deterministik)
+
+- **Neden bu faz var.** Entity'ler bugüne kadar YALNIZCA elle yaratıldı: 5 tane. Oysa 43
+  claim düzinelerce kurum/kişi/ürün adı içeriyor ve hiçbiri graf'a girmiyor. Faz 18 ve 19
+  yeni eksenler açıyor (olay, ilişki) ama ikisi de mevcut 5 entity üzerinde çalışıyor —
+  girdinin kendisi dar kaldıkça graf da dar kalır.
+
+- **Yöntem kararı: önce deterministik, LLM sonraya (kullanıcı, 2026-09-05).** Ölçüldü:
+  büyük-harf öbeği taraması 43 claim'de 79 aday veriyor, kalite kabaca yarı yarıya.
+  - Doğru: ChatGPT, Codex, Daybreak, Preparedness Framework, GenDigital Avast Antivirus,
+    Crowdstrike Falcon, Australian Federal Police, KrebsOnSecurity.
+  - Gürültü: "Critical", "German", "Shortly", "According", "In August", "June", "Authorities".
+  - Sınır hatası: "The New York" ile "Times" ayrı düşüyor; "OpenAI's" kesme işaretiyle
+    ayrılıyor.
+
+  İnsanın filtreleyeceği bir öneri listesi olarak yeterli, otomatik olarak değil.
+
+- **LLM neden şimdi değil.** Faz 4'te kurulan Claude Code agent katmanı bu işi çok daha iyi
+  yapardı (isabet ve sınır doğruluğu). Ama toplanan metni İLK KEZ bir modele girdi yapardı ve
+  Q22'nin uyardığı prompt injection yüzeyi tam orada açılır — bu projede toplanan içerik
+  bugüne kadar hiçbir modele girdi olmadı, yalnızca desen eşleştirmesinden geçti. Karar Faz
+  16'daki disiplinin aynısı (otomatik promote kuralı deneyimden sonra karara bağlandı ve
+  cevap "hayır" çıktı): önce deterministik kurulur, **kaçırma oranı gerçek veride ölçülür**,
+  LLM kararı o sayıdan sonra verilir. Ölçüm olmadan verilen bir "evet" de "hayır" da tahmin
+  olurdu.
+
+- **İşler:**
+  - Aday çıkarma + sinyale göre sıralama (kaç claim'de geçiyor, kaç FARKLI kaynakta —
+    ikincisi önemli: tek bir haberin özel ismi ile beş kaynakta geçen bir kurum aynı ağırlıkta
+    olmamalı).
+  - Toplu eleme + toplu onaylama, geri alınabilir — Faz 16 kuyruğunun birebir deseni.
+  - Elenen aday kaybolmaz ve tekrar önerilmez (Q17 disiplini; yoksa aynı 40 gürültü her
+    tarama sonrası yeniden karşına çıkar).
+  - Onaylanan aday Entity'ye dönüşürken tür alanı serbest metin (F8).
+  - **Kaçırma ölçümü:** gerçek metinlerde gözle bulunan ama listede olmayan entity'ler
+    sayılır ve roadmap'e yazılır.
+
+- **Bitti Kriteri:** Adaylar sinyale göre sıralı öneriliyor, toplu elenebiliyor/
+  onaylanabiliyor, elenen kayboluyor değil işaretleniyor. **Fazın sınavı:** gerçek 79
+  adaylık liste fiilen eritilmiş **ve kaçırma oranı ölçülüp kaydedilmiş** olmalı — ikincisi
+  olmadan faz bitmiş sayılmaz, çünkü LLM kararının tek girdisi o sayıdır.
