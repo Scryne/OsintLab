@@ -10,11 +10,11 @@ import { HypothesisEvidenceDialog } from "@/components/forms/hypothesis-evidence
 import { AddFindingDialog } from "@/components/forms/add-finding-dialog";
 import { InvestigationNarrative } from "@/components/forms/investigation-narrative";
 import { WorkflowRail } from "@/components/forms/workflow-rail";
-import type { InvestigationStatus, InvestigationWorkspace } from "@/lib/types";
+import type { InvestigationStatus, InvestigationWorkspace, KnowledgeState } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
-import { ConfidenceBadge } from "@/components/provenance/confidence";
+import { ConfidenceBadge, ConfidenceEdge, ConfidenceRail } from "@/components/provenance/confidence";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +50,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
     [investigationId]
   );
   const [transitioning, setTransitioning] = useState(false);
+  const [confidenceFilter, setConfidenceFilter] = useState<KnowledgeState | null>(null);
 
   function reloadAll() {
     reload();
@@ -75,6 +76,9 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
   if (!ws) return null;
 
   const inv = ws.investigation;
+  const visibleClaims = confidenceFilter
+    ? ws.claims.filter((c) => c.knowledge_state === confidenceFilter)
+    : ws.claims;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -161,11 +165,29 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
             description="Kapsama bir entity ekle ya da bir gözlemi promote et."
           />
         ) : (
-          <div className="flex flex-col gap-2">
-            {ws.claims.map((c) => (
-              <div
+          // Design.md imza öğesinin ikinci yarısı: spektrum sadece Entity'de bir filtre
+          // olarak duruyordu, oysa "hangi bilgi ne kadar sağlam" sorusu bir investigation
+          // içinde en az onun kadar anlamlı — kapanışta hangi claim'in finding olacağına
+          // karar verirken sorulan soru tam olarak bu.
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+            <div className="shrink-0 border-b border-border pb-3 sm:w-40 sm:border-b-0 sm:border-r sm:pr-4 sm:pb-0">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+                Confidence Spectrum
+              </p>
+              <ConfidenceRail active={confidenceFilter} onSelect={setConfidenceFilter} />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              {visibleClaims.length === 0 ? (
+                <EmptyState
+                  title="Bu güven seviyesinde claim yok"
+                  description="Spektrum'dan seçimi kaldırıp hepsini görebilirsin."
+                />
+              ) : null}
+              {visibleClaims.map((c) => (
+              <ConfidenceEdge
                 key={c.id}
-                className={`rounded-lg border border-border bg-surface p-3 ${c.superseded ? "opacity-60" : ""}`}
+                state={c.knowledge_state}
+                className={`rounded-lg border border-border bg-surface p-3 pl-4 ${c.superseded ? "opacity-60" : ""}`}
               >
                 <div className="flex flex-wrap items-center gap-1.5">
                   <ConfidenceBadge state={c.knowledge_state} confidence={c.confidence} />
@@ -177,8 +199,9 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
                 <p className={`mt-1 text-sm text-foreground ${c.superseded ? "line-through decoration-white/30" : ""}`}>
                   {c.headline}
                 </p>
-              </div>
-            ))}
+              </ConfidenceEdge>
+              ))}
+            </div>
           </div>
         )}
       </section>
@@ -251,13 +274,17 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         ) : (
           <div className="flex flex-col gap-2">
             {findings.map((f) => (
-              <div key={f.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-surface p-3">
+              <ConfidenceEdge
+                key={f.id}
+                state={f.knowledge_state}
+                className="flex items-start justify-between gap-3 rounded-lg border border-border bg-surface p-3 pl-4"
+              >
                 <p className="text-sm text-foreground">{f.headline}</p>
                 <div className="flex shrink-0 items-center gap-2">
                   {f.validated && <Badge variant="secondary">validated</Badge>}
                   <ConfidenceBadge state={f.knowledge_state} confidence={f.confidence} />
                 </div>
-              </div>
+              </ConfidenceEdge>
             ))}
           </div>
         )}

@@ -8,7 +8,7 @@ import { useApi } from "@/lib/use-api";
 import { Input } from "@/components/ui/input";
 import { ErrorState, EmptyState } from "@/components/ui/state";
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
-import { ConfidenceBadge } from "@/components/provenance/confidence";
+import { ConfidenceBadge, ConfidenceEdge } from "@/components/provenance/confidence";
 import { PriorityBadge } from "@/components/provenance/priority";
 import { IconChip } from "@/components/ui/icon-chip";
 import { WireframeGlobe } from "@/components/ui/wireframe-globe";
@@ -89,7 +89,9 @@ export default function MainWorkspace() {
         <StatCard icon={Users} label="Entity" value={entities?.length} href="/entities" />
         <StatCard icon={Calendar} label="Event" value={events?.length} />
         <StatCard icon={FolderSearch} label="Investigation" value={investigations?.length} href="/investigations" />
-        <StatCard icon={Radio} label="Source" value={sources?.length} />
+        {/* Event kartı bilerek href'siz: /events liste sayfası Faz 18'in kapsamında,
+            henüz yok. Source ise vardı ama bağlanmamıştı — ölü karttı. */}
+        <StatCard icon={Radio} label="Source" value={sources?.length} href="/sources" />
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -130,10 +132,14 @@ export default function MainWorkspace() {
             {!claimsLoading && !claimsError && recentClaims.length === 0 && <EmptyState title="Henüz claim yok" />}
             <div className="flex flex-col gap-2">
               {recentClaims.map((claim) => (
-                <div key={claim.id} className="flex items-start justify-between gap-2 rounded-md bg-surface-raised px-2.5 py-2">
-                  <p className="truncate text-sm text-foreground">{claim.text}</p>
+                <ConfidenceEdge
+                  key={claim.id}
+                  state={claim.knowledge_state}
+                  className="flex items-start justify-between gap-2 rounded-md bg-surface-raised py-2 pr-2.5 pl-3.5"
+                >
+                  <p className="line-clamp-2 text-sm text-pretty text-foreground">{claim.text}</p>
                   <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} className="shrink-0" />
-                </div>
+                </ConfidenceEdge>
               ))}
             </div>
           </div>

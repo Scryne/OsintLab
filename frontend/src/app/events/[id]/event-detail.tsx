@@ -8,7 +8,7 @@ import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingState, ErrorState, EmptyState } from "@/components/ui/state";
-import { ConfidenceBadge } from "@/components/provenance/confidence";
+import { ConfidenceBadge, ConfidenceEdge } from "@/components/provenance/confidence";
 import { WhyMattersDisclosure } from "@/components/provenance/why-matters-disclosure";
 import { NewClaimDialog } from "@/components/forms/claim-form";
 import { EvidenceLinkDialog } from "@/components/forms/evidence-link-dialog";
@@ -94,16 +94,20 @@ export function EventDetail({ eventId }: { eventId: string }) {
         ) : (
           <div className="flex flex-col gap-2">
             {recall.related_claims.map((claim) => (
-              <div key={claim.id} className="rounded-lg border border-border bg-surface p-3">
+              <ConfidenceEdge
+                key={claim.id}
+                state={claim.knowledge_state}
+                className="rounded-lg border border-border bg-surface p-3 pl-4"
+              >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm text-foreground">{claim.text}</p>
+                  <p className="text-sm text-pretty text-foreground">{claim.text}</p>
                   <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} className="shrink-0" />
                 </div>
                 <div className="mt-2 flex flex-wrap items-start gap-3">
                   <WhyMattersDisclosure claimId={claim.id} />
                   <EvidenceLinkDialog claimId={claim.id} onLinked={reloadRecall} />
                 </div>
-              </div>
+              </ConfidenceEdge>
             ))}
           </div>
         )}

@@ -77,6 +77,38 @@ export function ConfidenceBadge({
   );
 }
 
+/**
+ * İmza öğe (Design.md "Farklılaştırıcı Detay"): bir Claim/Entity/Event kartının sol kenarı
+ * doğrudan `knowledge_state`'ten renk alır. Amaç, kullanıcının rengi öğrendikten sonra
+ * "bu bilgi ne kadar sağlam" sorusunu badge'i okumadan, göz ucuyla cevaplayabilmesi.
+ *
+ * Renk burada TEK BAŞINA sinyal taşıdığı için ham rampa değeri kullanılır (metin varyantı
+ * değil) ve o değerlerin 3:1 eşiğini geçmesi bir kısıttır — bkz. Design.md Kontrast
+ * Sözleşmesi. Ayrıca renk tek dayanak kalmasın diye kenar `title` ile de adlandırılıyor;
+ * kartın içindeki `ConfidenceBadge` zaten metin karşılığını veriyor, o yüzden kenarın
+ * kendisi ekran okuyucuya `aria-hidden`.
+ */
+export function ConfidenceEdge({
+  state,
+  className,
+  children,
+  ...rest
+}: {
+  state: KnowledgeState;
+  className?: string;
+  children: React.ReactNode;
+} & Omit<React.ComponentProps<"div">, "style">) {
+  return (
+    <div
+      className={cn("confidence-edge", className)}
+      style={{ "--edge": CONFIDENCE_COLOR_VAR[state] } as React.CSSProperties}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** İmza öğe: Confidence Spectrum'u gerçek, tıklanabilir bir lejant/filtre olarak gösterir. */
 export function ConfidenceRail({
   active,
@@ -93,6 +125,10 @@ export function ConfidenceRail({
           <button
             key={state}
             type="button"
+            // Bu butonlar bir filtre anahtarı; `aria-pressed` olmadan ekran okuyucu
+            // "hangi durum seçili" sorusunu cevaplayamıyordu — görsel olarak sadece
+            // arkaplan tonu değişiyor, o da duyurulmuyor.
+            aria-pressed={isActive}
             onClick={() => onSelect?.(isActive ? null : state)}
             className={cn(
               "flex items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors",
@@ -111,6 +147,7 @@ export function ConfidenceRail({
       <div className="my-1 h-px bg-border" />
       <button
         type="button"
+        aria-pressed={active === "CONTRADICTED"}
         onClick={() => onSelect?.(active === "CONTRADICTED" ? null : "CONTRADICTED")}
         className={cn(
           "flex items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors",
