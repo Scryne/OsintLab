@@ -96,7 +96,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ✅ Tamamlandı | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi (**DOCINT**); spike yapıldı (2026-09-05, gerçek PDF'lerle) ve alt-roadmap'i (15.1–15.4) yazıldı. |
 | 15.1 | DOCINT: metin + metadata çıkarma | ✅ Tamamlandı | Evidence Vault'a yüklenen bir PDF'in metni ve metadata'sı çıkarılıp saklanıyor; 492 sayfalık belge API'yi bloklamıyor (arka plan işi); metin katmanı olmayan (taranmış) belge sessizce boş geçmiyor, açıkça işaretleniyor. |
 | 15.2 | DOCINT: belge → Observation → Claim hattı | ✅ Tamamlandı | Belgeden çıkan metin Observation olarak sisteme giriyor ve mevcut promote akışına katılıyor; belge metni/metadata'sı Q22 güvenilmeyen-veri sınırı içinde sunuluyor, talimat-görünümlü ifade kullanıcıya bildiriliyor. |
-| 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ⏳ Bekliyor | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
+| 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ✅ Tamamlandı | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
 | 15.4 | DOCINT: OCR (koşullu) | ⏳ Bekliyor | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
 | 16 | Promote Kuyruğu (değerlendirme darboğazı) | ⏳ Bekliyor | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
 
@@ -1434,6 +1434,68 @@ ayrı" kararıyla tutarlı).
     alanında injection doğrulandı).
 - **Bitti Kriteri:** Bir belgenin metadata'sı UI'da ayrı bir blok olarak görünüyor; buradan
   çıkan bir yazar/kurum bilgisi kullanıcı onayıyla bir Entity'ye bağlanabiliyor.
+
+- **Notlar:** 2026-09-05 tamamlandı.
+
+  **Parmak izi, belgenin içeriği değil üretildiği ortamın izi:** kim yazdı, hangi araçla, ne
+  zaman, hangi kurumun sisteminden geçti. Alanlar bu soruların sırasına göre gruplandı
+  (Kim / Hangi araçla / Ne zaman / Kurum izi / Diğer) — bir analistin sorduğu sıra bu. Bilinmeyen
+  alanlar atılmıyor, "Diğer"de toplanıyor: hangi alanın bir gün anlamlı olacağını şimdiden
+  bilemeyiz ve sessizce düşürmek bu projenin tekrar eden hata sınıfı.
+
+  **Asıl sinyal tarihin kendisinde değil, saat diliminde.** `parse_pdf_date` PDF damgasını
+  (`D:20201209120222-05'00'`) okunabilir hale getirirken UTC farkını ayrıca döndürüyor:
+  NIST belgesi `UTC-05:00` diyor — belgeyi üreten makinenin coğrafi konumuna dair bir ipucu.
+  Tarih zaten çoğu zaman biliniyor; fark bilinmiyor. Kenar durumları sınandı: `Z` (UTC),
+  `+03'00'`, eksik alanlar, ve hiç ayrıştırılamayan değer (ham değer olduğu gibi dönüyor —
+  uydurma tarih üretilmiyor).
+
+  **Uygulama sırasında bulunan hata:** regex saat dilimi ekinde `Z`'den sonra da rakam
+  bekliyordu, dolayısıyla `D:20240410211143Z` eşleşmiyor ve **UTC'de üretilmiş her belge
+  "saat dilimi bilinmiyor" görünüyordu**. arXiv fikstüründe yakalandı (pdfTeX UTC yazıyor),
+  rakamlar opsiyonel yapılarak düzeltildi.
+
+  **Bağlanabilir alanlar bilerek dar: yalnızca `Author` ve `Company`.** `Creator`/`Producer`
+  yazılım adı taşıyor ("Acrobat PDFMaker 20 for Word", "pdfTeX-1.40.25"); onları Entity'ye
+  bağlanabilir yapmak grafı yazılım adlarıyla kirletirdi. Uç, bağlanamaz bir alan
+  gönderildiğinde 422 ile ve hangi alanların bağlanabilir olduğunu söyleyerek reddediyor.
+
+  **Öneri sistem, karar insan** (Design Principle #7). `/Author: Joint Task Force` bir kuruma
+  benziyor olabilir ama hangi Entity olduğu — ya da hiçbiri olmadığı — bir yargı. Sistem ada
+  göre olası eşleşmeyi listenin üstüne alıyor, **otomatik seçmiyor**. Graf'ta karşılığı
+  olmayan bir değer için "yeni entity oluştur" yolu aynı diyalogda: aksi halde kullanıcı
+  Entity'ler sayfasına gidip geri dönmek zorunda kalır ve akış orada kopardı.
+
+  **Bağ denetlenebilir.** Yeni rel: `Evidence -[:FINGERPRINT_ENTITY {field, value}]-> Entity`.
+  Alan adı ve o andaki ham değer kenarın üzerinde — yalnızca "bu belge şu kuruma ait" demek
+  iddianın nereden geldiğini siler; "`/Author` alanı 'Joint Task Force' diyordu" demek
+  denetlenebilir (Q9 temporal disiplininin küçük karşılığı: belge yeniden çıkarılıp metadata
+  değişse bile bağın hangi değere dayandığı kayıtlı kalır). Bağ kaldırılabiliyor da — Faz
+  13/F50'nin dersi: kurulabilen bağ kaldırılabilmeli, gerçek araştırma tek geçişte doğru olmuyor.
+
+  **Q22 bu blokta da geçerli.** Metadata kaynaklı talimat-görünümlü ifadeler parmak izi
+  yanıtında ayrıca dönüyor ve blok açıldığında **değerlerden ÖNCE** gösteriliyor. Bağlama
+  diyaloğu da değeri güvenilmeyen-içerik çerçevesi içinde sunuyor: bağlanan şeyin ham veri
+  olduğu unutulmasın.
+
+  **Doğrulama (izole backend):** NIST SP 800-53r5'te 5 grup / 9 alan doğru ayrıştı
+  (`Author: Joint Task Force` bağlanabilir, `Creator: Acrobat PDFMaker 20 for Word`,
+  `ContentTypeId` SharePoint GUID'i, iki tarih için `UTC-05:00` notu); `Author` bir Entity'ye
+  bağlandı ve aynı bağ ikinci kez istendiğinde çoğalmadı (idempotent); `Creator` ve olmayan
+  bir alan 422 ile reddedildi; bağ kaldırıldı, tekrar kaldırma 404 verdi; injection
+  fikstüründe metadata kaynaklı uyarı parmak izinde göründü ve ifade blokta gösterildi ama
+  yorumlanmadı; metadata'sı zayıf bir belge (taranmış) 2 grupla sorunsuz döndü; olmayan
+  evidence 404.
+
+  **Arayüz:** Kanıt Kasası satırında **varsayılan kapalı** açılır blok — her satırda açık
+  dursaydı sayfa okunamazdı; parmak izi çoğu zaman aranmayan, arandığındaysa tamamı istenen
+  bir bilgi. Bağlı entity rozet olarak alanın altında, yanında bağı kaldırma düğmesiyle.
+  Görsel tur Playwright ile yapıldı, konsol hatası çıkmadı.
+
+  **Göç:** `FINGERPRINT_ENTITY` rel tablosu. Gerçek grafta doğrulandı — sayımlar birebir aynı
+  (evidence 3, observation 222, claim 8, entity 5); mevcut kanıtların hiçbirinde metadata
+  olmadığı için parmak izi boş dönüyor (bu doğru: onlar 15.1 öncesinden kalan, dosyası
+  olmayan kayıtlar).
 
 ### Faz 15.4: DOCINT — OCR (koşullu)
 - **Ön koşul:** Tesseract sistem kurulumu kabul edilmiş olmalı (spike bulgu 6 — pip ile

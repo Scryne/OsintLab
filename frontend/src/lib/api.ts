@@ -6,6 +6,7 @@ import type {
   EntityRelation,
   Evidence,
   EvidenceExtraction,
+  EvidenceFingerprint,
   EvidenceVaultItem,
   EventItem,
   EventRecall,
@@ -224,6 +225,13 @@ export const api = {
     // promote gözlemin metnini doğrudan claim metni yapıyor.
     createObservation: (id: string, payload: { page_from: number; page_to: number }) =>
       post<Observation>(`/evidence/${id}/observations`, payload),
+    // Faz 15.3 — belgenin üretildiği ortamın izi (metadata), OSINT anlamına göre gruplanmış.
+    fingerprint: (id: string) => get<EvidenceFingerprint>(`/evidence/${id}/fingerprint`),
+    // Bağı kullanıcı kurar (Design Principle #7); sistem yalnızca olası eşleşmeyi öne alır.
+    linkFingerprint: (id: string, entityId: string, field: string) =>
+      put<EvidenceFingerprint>(`/evidence/${id}/fingerprint/${entityId}`, { field }),
+    unlinkFingerprint: (id: string, entityId: string, field: string) =>
+      del(`/evidence/${id}/fingerprint/${entityId}?field=${encodeURIComponent(field)}`),
     upload: async (payload: { file: File; evidence_type: string; collected_at?: string | null }) => {
       const form = new FormData();
       form.append("file", payload.file);

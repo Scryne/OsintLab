@@ -199,6 +199,13 @@ REL_TABLES = [
     "CREATE REL TABLE IF NOT EXISTS SUPPORTS(FROM Evidence TO Claim)",
     "CREATE REL TABLE IF NOT EXISTS CONTRADICTS(FROM Evidence TO Claim)",
     "CREATE REL TABLE IF NOT EXISTS INCLUDES(FROM Investigation TO Entity)",
+    # Faz 15.3 (DOCINT): belge metadata'sindaki bir alanin (ornegin /Author) grafta bilinen
+    # bir Entity'ye isaret ettigi, KULLANICI ONAYIYLA burada kaydedilir.
+    #
+    # `field` ve `value` kenarin uzerinde: hangi alanin bu bagi dogurdugu ve o andaki ham
+    # degeri kaybolmamali. Yalnizca "bu belge su kuruma ait" demek, iddianin nereden
+    # geldigini siler; "/Author alani 'Joint Task Force' diyordu" demek denetlenebilir.
+    "CREATE REL TABLE IF NOT EXISTS FINGERPRINT_ENTITY(FROM Evidence TO Entity, field STRING, value STRING, created_at TIMESTAMP)",
     "CREATE REL TABLE IF NOT EXISTS INVESTIGATES(FROM Investigation TO Event)",
     "CREATE REL TABLE IF NOT EXISTS PRODUCED(FROM Observation TO Claim)",
     # Faz 15.2 (DOCINT): bir gozlem bir belgenin BELIRLI SAYFALARINDAN geldiyse bagi

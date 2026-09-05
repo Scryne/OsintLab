@@ -392,6 +392,109 @@ def hits_from_json(raw: str | None) -> list[dict]:
     return value if isinstance(value, list) else []
 
 
+# --- Faz 15.3: belge parmak izi ---------------------------------------------------------
+#
+# Metadata, belgenin İÇERİĞİ değil ÜRETİLDİĞİ ORTAMIN izi: kim yazdı, hangi araçla, ne zaman,
+# hangi kurumun sisteminden geçti. Faz 15 spike'ı bunun ölçülebilir bir değer olduğunu
+# gösterdi — NIST SP 800-53r5 `/Author: Joint Task Force`, `/Creator: Acrobat PDFMaker 20 for
+# Word` ve bir SharePoint `/ContentTypeId` GUID'i taşıyordu; arXiv makalesi pdfTeX sürümünü ve
+# dakika hassasiyetinde zaman damgalarını.
+#
+# **Bu alanlar da güvenilmeyen veridir** (Q22). Spike `/Subject` alanına gömülü bir talimat
+# denemesi doğruladı; parmak izi bloğu bunları GÖSTERİR, asla yorumlamaz.
+
+# Alanların OSINT anlamına göre gruplanması. Sıra bilinçli: önce "kim", sonra "neyle", sonra
+# "ne zaman" — bir analistin sorduğu sıra bu.
+_FINGERPRINT_GROUPS: list[tuple[str, str, tuple[str, ...]]] = [
+    ("kim", "Kim", ("Author", "Company")),
+    ("arac", "Hangi araçla", ("Creator", "Producer", "PTEX.Fullbanner")),
+    ("zaman", "Ne zaman", ("CreationDate", "ModDate")),
+    ("kurum", "Kurum izi", ("ContentTypeId", "SourceModified", "Category")),
+]
+
+# Bir kişi ya da kuruma işaret edebilecek alanlar — yalnızca bunlar Entity'ye bağlanabilir.
+# `Creator`/`Producer` yazılım adı taşır (ör. "Acrobat PDFMaker 20 for Word"), kişi değil;
+# onları bağlanabilir yapmak grafı yazılım adlarıyla kirletirdi.
+LINKABLE_FIELDS = ("Author", "Company")
+
+_PDF_DATE_RE = re.compile(
+    r"^D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?"
+    # Saat dilimi eki iki biçimde gelir: "Z" (tek başına, UTC) ya da "+05'00'". Rakamlar
+    # bu yüzden opsiyonel — zorunlu olduklarında "Z" hiç eşleşmiyordu ve UTC'de üretilmiş
+    # her belge "saat dilimi bilinmiyor" görünüyordu (arXiv fikstüründe yakalandı).
+    r"(?:(Z|[+-])(\d{2})?'?(\d{2})?'?)?"
+)
+
+
+def parse_pdf_date(value: str) -> dict:
+    """PDF tarih damgasını (`D:20201209120222-05'00'`) okunabilir hale getirir.
+
+    **Saat dilimi farkı ayrıca döndürülüyor, çünkü asıl OSINT sinyali orada.** Tarihin kendisi
+    genelde zaten biliniyor; belgeyi üreten makinenin `-05:00`'te olması ise yazarın coğrafi
+    konumu hakkında bir ipucu. Alan yoksa ya da ayrıştırılamıyorsa ham değer olduğu gibi
+    döner — uydurma bir tarih üretmiyoruz."""
+    m = _PDF_DATE_RE.match(value.strip()) if value else None
+    if not m:
+        return {"readable": value, "utc_offset": None}
+    y, mo, d, h, mi, se, sign, oh, om = m.groups()
+    readable = y
+    if mo:
+        readable += "-%s" % mo
+    if d:
+        readable += "-%s" % d
+    if h:
+        readable += " %s:%s" % (h, mi or "00")
+        if se:
+            readable += ":%s" % se
+    offset = None
+    if sign == "Z":
+        offset = "UTC"
+    elif sign in ("+", "-") and oh:
+        offset = "UTC%s%s:%s" % (sign, oh, om or "00")
+    return {"readable": readable, "utc_offset": offset}
+
+
+def fingerprint(metadata: dict[str, str]) -> list[dict]:
+    """Metadata'yı OSINT anlamına göre gruplanmış alanlara çevirir.
+
+    Bilinmeyen alanlar atılmıyor, "Diğer" grubunda toplanıyor: hangi alanın bir gün anlamlı
+    olacağını şimdiden bilemeyiz, ve sessizce düşürmek bu projenin tekrar eden hata sınıfı."""
+    kalan = dict(metadata)
+    gruplar: list[dict] = []
+
+    for key, label, fields in _FINGERPRINT_GROUPS:
+        alanlar = []
+        for name in fields:
+            value = kalan.pop(name, None)
+            if not value:
+                continue
+            alan = {
+                "field": name,
+                "value": value,
+                "linkable": name in LINKABLE_FIELDS,
+                "note": None,
+            }
+            if name in ("CreationDate", "ModDate"):
+                parsed = parse_pdf_date(value)
+                alan["value"] = parsed["readable"]
+                if parsed["utc_offset"]:
+                    alan["note"] = "Belgeyi üreten makinenin saat dilimi: %s" % parsed["utc_offset"]
+            alanlar.append(alan)
+        if alanlar:
+            gruplar.append({"key": key, "label": label, "fields": alanlar})
+
+    if kalan:
+        gruplar.append({
+            "key": "diger",
+            "label": "Diğer",
+            "fields": [
+                {"field": k, "value": v, "linkable": False, "note": None}
+                for k, v in sorted(kalan.items())
+            ],
+        })
+    return gruplar
+
+
 def metadata_to_json(metadata: dict[str, str]) -> str:
     """Metadata grafta tek bir STRING kolonunda JSON olarak duruyor.
 

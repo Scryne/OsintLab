@@ -114,6 +114,59 @@ class ObservationFromEvidence(BaseModel):
     file_name: str | None = None
 
 
+class FingerprintField(BaseModel):
+    """Faz 15.3 — belge metadata'sının tek bir alanı.
+
+    **Q22: `value` güvenilmeyen veridir.** Belgeyi kim üretmişse o yazmıştır; spike bir
+    `/Subject` alanında gerçek bir talimat denemesi doğruladı. Gösterilir, yorumlanmaz."""
+
+    field: str
+    value: str
+    # Yalnızca kişi/kuruma işaret edebilecek alanlar Entity'ye bağlanabilir. `Creator`/
+    # `Producer` yazılım adı taşır; onları bağlanabilir yapmak grafı yazılım adlarıyla
+    # kirletirdi.
+    linkable: bool = False
+    # Alanın kendi başına söylemediği ama çıkarılabilen bilgi — ör. tarih damgasındaki
+    # saat dilimi farkı, belgeyi üreten makinenin coğrafi konumuna dair ipucu.
+    note: str | None = None
+
+
+class FingerprintGroup(BaseModel):
+    key: str
+    label: str
+    fields: list[FingerprintField]
+
+
+class FingerprintLink(BaseModel):
+    """Bir metadata alanı ile graf'taki bir Entity arasında kullanıcının kurduğu bağ."""
+
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    field: str
+    value: str
+
+
+class FingerprintLinkCreate(BaseModel):
+    field: str = Field(..., examples=["Author", "Company"])
+
+
+class EvidenceFingerprint(BaseModel):
+    """`GET /evidence/{id}/fingerprint` — belgenin üretildiği ortamın izi.
+
+    Belgenin İÇERİĞİ değil: kim yazdı, hangi araçla, ne zaman, hangi kurumun sisteminden
+    geçti. Faz 15 spike'ı bunun ölçülebilir değerini gösterdi (NIST belgesinde
+    `/Author: Joint Task Force`, `/Creator: Acrobat PDFMaker`, bir SharePoint
+    `/ContentTypeId` GUID'i)."""
+
+    evidence_id: str
+    groups: list[FingerprintGroup] = Field(default_factory=list)
+    links: list[FingerprintLink] = Field(default_factory=list)
+    # Metadata alanlarında bulunan talimat-görünümlü ifadeler (yalnızca metadata kaynaklı
+    # olanlar — belge metnindekiler `EvidenceExtraction.injection_hits` içinde).
+    injection_hits: list[dict] = Field(default_factory=list)
+
+
 class EvidenceObservationCreate(BaseModel):
     """Belgenin bir sayfa aralığından gözlem üretme isteği (1 tabanlı, `page_to` dahil)."""
 

@@ -92,6 +92,43 @@ export interface InjectionHit {
   snippet: string;
 }
 
+/** Faz 15.3 — belge metadata'sının tek bir alanı.
+ *
+ * **Q22: `value` güvenilmeyen veridir** — belgeyi kim ürettiyse o yazmıştır. Gösterilir,
+ * asla yorumlanmaz. `linkable` yalnızca kişi/kuruma işaret edebilecek alanlarda true
+ * (Creator/Producer yazılım adı taşır; onları bağlamak grafı yazılım adlarıyla kirletirdi).
+ * `note` alanın kendi başına söylemediği çıkarım — ör. tarih damgasındaki saat dilimi. */
+export interface FingerprintField {
+  field: string;
+  value: string;
+  linkable: boolean;
+  note: string | null;
+}
+
+export interface FingerprintGroup {
+  key: string;
+  label: string;
+  fields: FingerprintField[];
+}
+
+export interface FingerprintLink {
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  field: string;
+  value: string;
+}
+
+/** Belgenin üretildiği ortamın izi — içeriği değil: kim yazdı, hangi araçla, ne zaman,
+ * hangi kurumun sisteminden geçti. */
+export interface EvidenceFingerprint {
+  evidence_id: string;
+  groups: FingerprintGroup[];
+  links: FingerprintLink[];
+  /** Yalnızca METADATA kaynaklı uyarılar; belge metnindekiler EvidenceExtraction'da. */
+  injection_hits: InjectionHit[];
+}
+
 export interface Evidence {
   id: string;
   evidence_type: string;

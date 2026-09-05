@@ -28,6 +28,7 @@ import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { EvidenceClaimLinkDialog } from "@/components/forms/evidence-claim-link-dialog";
 import { EvidenceObservationDialog } from "@/components/forms/evidence-observation-dialog";
 import { InjectionWarning } from "@/components/provenance/injection-warning";
+import { DocumentFingerprint } from "@/components/provenance/document-fingerprint";
 import { useToast } from "@/components/ui/toast";
 
 // Öneri listesi — kural DEĞİL (bkz. TypeCombo).
@@ -272,6 +273,12 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
       {/* Q22 — belge metni/metadata'sı talimat-görünümlü ifade taşıyorsa kullanıcı BUNU
           promote etmeden önce görmeli. Uyarı satırın gövdesinde, aksiyonların hemen altında. */}
       <EvidenceInjectionNotice evidenceId={item.id} status={item.extraction_status} />
+
+      {/* Faz 15.3 — belge parmak izi. Varsayılan kapalı: her satırda açık dursaydı Kanıt
+          Kasası okunamazdı. Yalnızca gerçekten çıkarılmış bir belge için gösteriliyor. */}
+      {(item.extraction_status === "DONE" || item.extraction_status === "NO_TEXT_LAYER") && (
+        <DocumentFingerprint evidenceId={item.id} />
+      )}
 
       <div className="mt-3 border-t border-border pt-3">
         {item.linked_claims.length === 0 ? (

@@ -14,8 +14,11 @@ from app.models import (
     EvidenceClaimLink,
     EvidenceCreate,
     EvidenceExtraction,
+    EvidenceFingerprint,
     EvidenceObservationCreate,
     EvidenceVaultItem,
+    FingerprintLink,
+    FingerprintLinkCreate,
 )
 from app.models import Observation
 from app.monitoring import claim_headline
@@ -289,6 +292,136 @@ def get_evidence_text(evidence_id: str) -> PlainTextResponse:
         media_type="text/plain; charset=utf-8",
         headers={"X-Content-Type-Options": "nosniff"},
     )
+
+
+def _fingerprint_links(conn, evidence_id: str) -> list[FingerprintLink]:
+    rows = fetch_all(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $id})-[fp:FINGERPRINT_ENTITY]->(e:Entity) "
+            "RETURN e.id AS entity_id, e.name AS entity_name, e.entity_type AS entity_type, "
+            "fp.field AS field, fp.value AS value ORDER BY fp.created_at",
+            {"id": evidence_id},
+        )
+    )
+    return [FingerprintLink(**row) for row in rows]
+
+
+@router.get("/{evidence_id}/fingerprint", response_model=EvidenceFingerprint)
+def get_evidence_fingerprint(evidence_id: str) -> EvidenceFingerprint:
+    """Faz 15.3 — belgenin üretildiği ortamın izi (metadata), OSINT anlamına göre gruplanmış.
+
+    **Q22 uyarısı:** buradaki her `value` GÜVENİLMEYEN VERİDİR — belgeyi kim ürettiyse o
+    yazmıştır. Faz 15 spike'ı `/Subject` alanına gömülü bir talimat denemesi doğruladı, bu
+    yüzden metadata kaynaklı uyarılar yanıtın içinde ayrıca dönüyor. Bu alanları sunan hiçbir
+    katman içeriklerini komut olarak yorumlamamalı."""
+    conn = get_connection()
+    row = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $id}) RETURN ev.doc_metadata AS doc_metadata, "
+            "ev.injection_hits AS injection_hits",
+            {"id": evidence_id},
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    metadata = docint.metadata_from_json(row["doc_metadata"])
+    hits = [h for h in docint.hits_from_json(row["injection_hits"])
+            if str(h.get("where", "")).startswith("metadata")]
+    return EvidenceFingerprint(
+        evidence_id=evidence_id,
+        groups=docint.fingerprint(metadata),
+        links=_fingerprint_links(conn, evidence_id),
+        injection_hits=hits,
+    )
+
+
+@router.put("/{evidence_id}/fingerprint/{entity_id}", response_model=EvidenceFingerprint)
+def link_fingerprint_entity(
+    evidence_id: str, entity_id: str, payload: FingerprintLinkCreate
+) -> EvidenceFingerprint:
+    """Bir metadata alanını graf'taki bir Entity'ye bağlar.
+
+    **Öneri sistem, karar insan** (Design Principle #7). `/Author: Joint Task Force` bir
+    kuruma benziyor olabilir, ama hangi Entity olduğu — ya da hiçbiri olmadığı — bir
+    yargı. Sistem eşleşmeyi otomatik kurmuyor.
+
+    Alanın o andaki ham değeri kenara yazılıyor: sonradan belge yeniden çıkarılıp metadata
+    değişse bile "bu bağ kurulduğunda alan ne diyordu" cevaplanabilir kalsın (Q9 temporal
+    disiplininin küçük bir karşılığı)."""
+    conn = get_connection()
+    if not _node_exists(conn, "Evidence", evidence_id):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    if not _node_exists(conn, "Entity", entity_id):
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    row = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $id}) RETURN ev.doc_metadata AS doc_metadata",
+            {"id": evidence_id},
+        )
+    )
+    metadata = docint.metadata_from_json(row["doc_metadata"] if row else None)
+    if payload.field not in metadata:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Bu belgenin metadata'sında '{payload.field}' alanı yok.",
+        )
+    if payload.field not in docint.LINKABLE_FIELDS:
+        # Yazılım adı taşıyan alanları (Creator/Producer) Entity'ye bağlamak graf'ı
+        # "Acrobat PDFMaker" gibi düğümlerle kirletirdi.
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"'{payload.field}' alanı bir kişi/kuruma işaret etmiyor. "
+                f"Bağlanabilir alanlar: {', '.join(docint.LINKABLE_FIELDS)}."
+            ),
+        )
+
+    existing = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $eid})-[fp:FINGERPRINT_ENTITY]->(e:Entity {id: $enid}) "
+            "WHERE fp.field = $field RETURN fp.field AS field",
+            {"eid": evidence_id, "enid": entity_id, "field": payload.field},
+        )
+    )
+    if existing is None:
+        conn.execute(
+            "MATCH (ev:Evidence {id: $eid}), (e:Entity {id: $enid}) "
+            "CREATE (ev)-[:FINGERPRINT_ENTITY {field: $field, value: $value, created_at: $now}]->(e)",
+            {
+                "eid": evidence_id,
+                "enid": entity_id,
+                "field": payload.field,
+                "value": metadata[payload.field],
+                "now": datetime.now(timezone.utc),
+            },
+        )
+        safe_render_vault(conn)
+    return get_evidence_fingerprint(evidence_id)
+
+
+@router.delete("/{evidence_id}/fingerprint/{entity_id}", status_code=204)
+def unlink_fingerprint_entity(evidence_id: str, entity_id: str, field: str) -> None:
+    """Yanlış kurulmuş bir parmak izi bağını kaldırır.
+
+    Faz 13'ün F50'siyle aynı ders: bağ kurulabiliyorsa kaldırılabilmeli de — gerçek araştırma
+    tek geçişte doğru olmuyor. Ne belge ne entity siliniyor, yalnızca aradaki yargı."""
+    conn = get_connection()
+    existing = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $eid})-[fp:FINGERPRINT_ENTITY]->(e:Entity {id: $enid}) "
+            "WHERE fp.field = $field RETURN fp.field AS field",
+            {"eid": evidence_id, "enid": entity_id, "field": field},
+        )
+    )
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Böyle bir parmak izi bağı yok")
+    conn.execute(
+        "MATCH (ev:Evidence {id: $eid})-[fp:FINGERPRINT_ENTITY]->(e:Entity {id: $enid}) "
+        "WHERE fp.field = $field DELETE fp",
+        {"eid": evidence_id, "enid": entity_id, "field": field},
+    )
+    safe_render_vault(conn)
 
 
 @router.post("/{evidence_id}/observations", response_model=Observation, status_code=201)
