@@ -11,3 +11,10 @@ python-multipart==0.0.32
 # Faz 15.1 (DOCINT): PDF metin + metadata cikarma. Saf Python, sistem bagimliligi yok.
 # Faz 15 spike'inda 6.17.0 ile gercek belgelerle dogrulandi (NIST SP 800-53r5, 492 sayfa).
 pypdf==6.17.0
+
+# Faz 15.4 (DOCINT/OCR): taranmis belgeler. pypdfium2 sayfayi goruntuye cevirir (saf pip),
+# pytesseract ise SISTEME KURULU tesseract.exe'yi cagirir -- projenin ilk sistem-seviyesi
+# bagimliligi. Gerekcesi olculdu: pip-only alternatif (rapidocr-onnxruntime) ayni sayfada
+# %33 kelime isabeti ve 8,0 sn verirken tesseract %99,5 ve 1,3 sn verdi (bkz. Roadmap 15.4).
+pypdfium2==5.13.0
+pytesseract==0.3.13

@@ -97,7 +97,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 15.1 | DOCINT: metin + metadata çıkarma | ✅ Tamamlandı | Evidence Vault'a yüklenen bir PDF'in metni ve metadata'sı çıkarılıp saklanıyor; 492 sayfalık belge API'yi bloklamıyor (arka plan işi); metin katmanı olmayan (taranmış) belge sessizce boş geçmiyor, açıkça işaretleniyor. |
 | 15.2 | DOCINT: belge → Observation → Claim hattı | ✅ Tamamlandı | Belgeden çıkan metin Observation olarak sisteme giriyor ve mevcut promote akışına katılıyor; belge metni/metadata'sı Q22 güvenilmeyen-veri sınırı içinde sunuluyor, talimat-görünümlü ifade kullanıcıya bildiriliyor. |
 | 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ✅ Tamamlandı | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
-| 15.4 | DOCINT: OCR (koşullu) | ⏳ Bekliyor | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
+| 15.4 | DOCINT: OCR | ✅ Tamamlandı | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
 | 16 | Promote Kuyruğu (değerlendirme darboğazı) | ⏳ Bekliyor | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
 
 ## Faz Detayları
@@ -1506,6 +1506,73 @@ ayrı" kararıyla tutarlı).
   güvenilirlikte değildir.
 - **Bitti Kriteri:** Taranmış bir belgeden metin çıkarılabiliyor ve bu metnin kaynağının OCR
   olduğu sistemde görünür kalıyor.
+
+- **Notlar:** 2026-09-05 tamamlandı. **Ön koşul kabul edildi** (kullanıcı kararı): Tesseract
+  5.4.0 `winget install UB-Mannheim.TesseractOCR` ile kuruldu.
+
+  **Ama önce ön koşulun kendisi sınandı.** Faz 15 spike'ı "OCR sistem kurulumu ister" derken
+  bunu Tesseract'ı varsayarak söylüyordu; karar verildikten sonra pip-only bir yol olup
+  olmadığı ölçüldü, çünkü varsa kabul edilen maliyet gereksiz olurdu. Sınav gerçek bir
+  taranmış sayfaydı: arXiv 1. sayfası 200 DPI'da görüntüye çevrilip **metin katmanından gelen
+  doğru metinle** karşılaştırıldı.
+
+  | motor | süre | kelime isabeti | uydurma kelime |
+  |---|---|---|---|
+  | `tesseract` (sistem) | **1,3 sn** | **%99,5** | **0** |
+  | `rapidocr-onnxruntime` (saf pip) | 8,0 sn | %33,2 | 69 |
+
+  rapidocr kelimeler arası boşlukları düşürüyordu ("Googleherebygrants", "AttentionIsAllYouNeed")
+  — OSINT'te isim aramayı ve iddia okumayı bozan bir kusur. Yani sistem bağımlılığı artık
+  varsayım değil, **ölçülmüş bir gereklilik**.
+
+  **Türkçe dil verisi eklendi ve bu önemli çıktı.** Varsayılan Tesseract kurulumunda yalnızca
+  `eng` ve `osd` var. Ölçüldü: aksanlı Türkçe bir taranmış belgede `eng` ile 29 kelimenin 15'i
+  doğru ("Büyükşehir" → "Buyuksehir", "İstanbul" → "istanbul"), `tur` ile **29/29**. Dil verisi
+  proje içine kondu (`data/tessdata/`, `TESSDATA_PREFIX` ile): Program Files altına yazmak
+  yönetici istiyor, ve diller projede durunca kurulum belgelenebilir oluyor. Uçtan uca API
+  üzerinden de doğrulandı — 13/13 aksanlı kelime doğru.
+
+  **`tesseract.exe` PATH'te ARANMIYOR, bilinen konumlardan bulunuyor.** Bu bilinçli ve bu
+  projeye özel bir tuzağı kapatıyor: winget kurulumdan sonra PATH'i günceller ama zaten
+  çalışan süreçler bunu görmez, ve backend burada bir Windows zamanlanmış görevi olarak
+  oturum açılışında başlıyor. PATH'e güvenseydik OCR "kurulu ama görünmez" olurdu ve taranmış
+  belgeler **sebebi söylenmeden** okunamazdı — bu fazın ailesinin tamamı bu hata sınıfına
+  karşı. Gerçek serviste doğrulandı: yeniden başlatılan görev `/health`'te
+  `ocr: {available: true, lang: "tur+eng"}` döndürüyor. Farklı bir konum için
+  `OSINTLAB_TESSERACT`.
+
+  **OCR otomatik değil, açık bir tercih.** Taranmış 492 sayfalık bir belge dakikalar sürer;
+  yüklemede sessizce başlatmak sürpriz maliyet olurdu. `POST /evidence/{id}/ocr` işi aynı
+  arka plan işçisine `mode="ocr"` ile veriyor (15.1'in kuyruğu ikinci bir moda genişletildi;
+  ilerleme ve yeniden-başlatma dayanıklılığı aynen geçerli — ama yarım kalan iş her zaman
+  metin katmanı modunda deneniyor, OCR kendiliğinden başlatılmıyor). OCR kurulu değilse uç
+  503 ile **sebebi ve kurulum komutunu** döndürüyor.
+
+  **Metin katmanı ile OCR aynı şey değil ve bu ayrım gözleme kadar taşınıyor.** `text_source`
+  ("extracted" / "ocr"), `ocr_confidence` ve `ocr_lang` Evidence'ta saklanıyor; belgeden gözlem
+  üretildiğinde `text_source` gözleme de yazılıyor. Gerekçesi 15.2'de öğrenilen dersin
+  aynısı: **promote kararı gözlem ekranında veriliyor**, işaret metinle birlikte seyahat
+  etmezse kararın verildiği yerde görünmez olur. OCR'lı bir belgeden sayfa aralığı gözlemi
+  üretilirken metin katmanı yerine OCR yolu kullanılıyor (aksi halde `NO_TEXT_LAYER` dönerdi).
+
+  **Doğrulama (izole backend):** taranmış belge yüklemede `NO_TEXT_LAYER`, OCR sonrası `DONE`
+  (2.858 karakter, güven 0,947, 2,0 sn); OCR'lı belgeden gözlem üretildi ve `text_source: ocr`
+  hem gözlemde hem listede göründü; metin katmanı olan bir belge OCR'landığında kaynak doğru
+  değişti (39.510 → 39.486 karakter, güven 0,913); olmayan evidence 404; PDF olmayan dosya
+  `UNSUPPORTED`.
+
+  **Görsel turda bulunan gerçek hata:** `text_source` sonuç ne olursa olsun yazılıyordu,
+  dolayısıyla OCR'lanmaya çalışılmış ama **PDF bile olmayan** bir dosya kalıcı olarak
+  "ocr kaynaklı" görünüyor ve arayüz ona sonsuza dek "Yeniden OCR" öneriyordu. Kaynak artık
+  yalnızca gerçekten metin üretildiğinde (`DONE`) yazılıyor — metin yoksa kaynak da yoktur.
+
+  **Arayüz:** metin katmanı olmayan belgede **OCR ile oku**, OCR'lanmış belgede **Yeniden
+  OCR**; rozet `OCR ile okundu · %95` (güven skoru rozette, çünkü %70'lik bir okumayla
+  %99'luk okuma arasındaki farkı görmeden bir iddia grafa yükseltilmemeli); Gözlemler
+  sayfasında OCR kaynaklı gözlemde ayrı bir `OCR` işareti.
+
+  **Kurulum belgelendi:** `.claude/CLAUDE.md`'ye "OCR — projenin tek sistem-seviyesi
+  bağımlılığı" bölümü eklendi (kurulum komutu, dil verisi ekleme, PATH tuzağı, `/health`).
 
 ### Faz 16: Promote Kuyruğu (değerlendirme darboğazı)
 

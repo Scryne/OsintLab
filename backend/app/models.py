@@ -76,6 +76,11 @@ class Evidence(EvidenceCreate):
     pages_done: int | None = None
     extraction_error: str | None = None
     extracted_at: datetime | None = None
+    # Faz 15.4 — metnin kaynağı: "extracted" (belgenin kendi metin katmanı) ya da "ocr"
+    # (görüntüden tahmin). OCR çıktısı çıkarılmış metinle aynı güvenilirlikte DEĞİLDİR.
+    text_source: str | None = None
+    ocr_confidence: float | None = None
+    ocr_lang: str | None = None
 
 
 class EvidenceExtraction(BaseModel):
@@ -97,6 +102,9 @@ class EvidenceExtraction(BaseModel):
     metadata: dict[str, str] = Field(default_factory=dict)
     text_chars: int = 0
     text_preview: str = ""
+    text_source: str | None = None
+    ocr_confidence: float | None = None
+    ocr_lang: str | None = None
     # Faz 15.2 (Q22): belgede/metadata'da bulunan talimat-görünümlü ifadeler. Boş liste
     # "temiz" demek değil, "bilinen desenlerden hiçbiri eşleşmedi" demek — asıl koruma
     # tespit değil, bu metnin hiçbir katmanda komut olarak yürütülmemesi.
@@ -268,6 +276,10 @@ class Observation(ObservationCreate):
     # Faz 15.2 (Q22) — bu gözlemin KENDİ metninde bulunan talimat-görünümlü ifadeler.
     # Kaynağı belge de olabilir collector da: toplanan hiçbir metin talimat değildir.
     injection_hits: list[dict] = Field(default_factory=list)
+    # Faz 15.4 — metnin kaynağı: "extracted" (belgenin kendi metin katmanı) ya da "ocr"
+    # (görüntüden tahmin). İşaret metinle BİRLİKTE seyahat ediyor, çünkü promote kararı bu
+    # gözlem üzerinde veriliyor — 15.2'de injection uyarısı için öğrenilen dersin aynısı.
+    text_source: str | None = None
 
 
 INVESTIGATION_STATUSES = ("OPEN", "ACTIVE", "PAUSED", "RESOLVED", "CLOSED", "ARCHIVED")

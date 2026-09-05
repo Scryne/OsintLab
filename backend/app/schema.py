@@ -83,6 +83,9 @@ NODE_TABLES = [
         extraction_error STRING,
         extracted_at TIMESTAMP,
         injection_hits STRING,
+        text_source STRING,
+        ocr_confidence DOUBLE,
+        ocr_lang STRING,
         PRIMARY KEY(id)
     )
     """,
@@ -109,6 +112,7 @@ NODE_TABLES = [
         source_url STRING,
         created_at TIMESTAMP,
         injection_hits STRING,
+        text_source STRING,
         PRIMARY KEY(id)
     )
     """,
@@ -263,6 +267,14 @@ COLUMN_ADDITIONS = [
     # veriliyor; uyari yalnizca kaynak belgede dursaydi, kullanici bir iddiayi Knowledge
     # Graph'a yukseltirken onu gormeyebilirdi.
     "ALTER TABLE Observation ADD IF NOT EXISTS injection_hits STRING",
+    # Faz 15.4: metnin kaynagi -- "extracted" (belgenin kendi metin katmani) ya da "ocr"
+    # (goruntuden TAHMIN). Ikisi ayni guvenilirlikte degil ve bu bilgi, 15.2'de injection
+    # uyarisi icin ogrenilen dersle ayni sebeple gozleme kadar tasiniyor: isaret metinle
+    # birlikte seyahat etmezse, promote kararinin verildigi yerde gorunmez olur.
+    "ALTER TABLE Evidence ADD IF NOT EXISTS text_source STRING",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS ocr_confidence DOUBLE",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS ocr_lang STRING",
+    "ALTER TABLE Observation ADD IF NOT EXISTS text_source STRING",
 ]
 
 

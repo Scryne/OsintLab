@@ -25,7 +25,7 @@ router = APIRouter(prefix="/observations", tags=["observations"])
 _FIELDS = (
     "o.id AS id, o.raw_content AS raw_content, o.observed_at AS observed_at, "
     "o.promoted AS promoted, o.source_url AS source_url, o.created_at AS created_at, "
-    "o.injection_hits AS injection_hits"
+    "o.injection_hits AS injection_hits, o.text_source AS text_source"
 )
 
 # F32: OPTIONAL MATCH ile üretilmiş claim'in id'si. Ayrı bir sorgu yerine aynı sorguya
@@ -98,6 +98,7 @@ def create_observation_record(
     observed_at: datetime | None = None,
     source_url: str | None = None,
     log_extra: dict | None = None,
+    text_source: str | None = None,
 ) -> Observation:
     """create_observation'ın altındaki paylaşılan mantık — collector router'ı da bunu kullanır.
 
@@ -117,7 +118,7 @@ def create_observation_record(
     conn.execute(
         "CREATE (:Observation {id: $id, raw_content: $raw_content, observed_at: $observed_at, "
         "promoted: false, source_url: $source_url, created_at: $created_at, "
-        "injection_hits: $injection_hits})",
+        "injection_hits: $injection_hits, text_source: $text_source})",
         {
             "id": observation_id,
             "raw_content": raw_content,
@@ -125,13 +126,14 @@ def create_observation_record(
             "source_url": source_url,
             "created_at": created_at,
             "injection_hits": docint.hits_to_json(hits),
+            "text_source": text_source,
         },
     )
     _append_daily_log(observation_id, raw_content, observed_at, created_at, source_url, log_extra)
     return Observation(
         id=observation_id, promoted=False, created_at=created_at,
         raw_content=raw_content, observed_at=observed_at, source_url=source_url,
-        injection_hits=hits,
+        injection_hits=hits, text_source=text_source,
     )
 
 

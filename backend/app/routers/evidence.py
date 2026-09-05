@@ -37,7 +37,8 @@ _FIELDS = (
     "ev.content_hash AS content_hash, ev.collected_at AS collected_at, ev.created_at AS created_at, "
     "ev.extraction_status AS extraction_status, ev.page_count AS page_count, "
     "ev.pages_done AS pages_done, ev.extraction_error AS extraction_error, "
-    "ev.extracted_at AS extracted_at"
+    "ev.extracted_at AS extracted_at, ev.text_source AS text_source, "
+    "ev.ocr_confidence AS ocr_confidence, ev.ocr_lang AS ocr_lang"
 )
 
 # Metin önizlemesi: "gerçekten metin çıktı mı" sorusunu tam metni indirmeden cevaplar.
@@ -242,7 +243,8 @@ def get_evidence_extraction(evidence_id: str) -> EvidenceExtraction:
             "ev.doc_metadata AS doc_metadata, ev.page_count AS page_count, "
             "ev.pages_done AS pages_done, ev.extraction_error AS error, "
             "ev.extracted_at AS extracted_at, ev.extracted_text AS text, "
-            "ev.injection_hits AS injection_hits",
+            "ev.injection_hits AS injection_hits, ev.text_source AS text_source, "
+            "ev.ocr_confidence AS ocr_confidence, ev.ocr_lang AS ocr_lang",
             {"id": evidence_id},
         )
     )
@@ -261,6 +263,9 @@ def get_evidence_extraction(evidence_id: str) -> EvidenceExtraction:
         text_chars=len(text),
         text_preview=text[:PREVIEW_CHARS],
         injection_hits=docint.hits_from_json(row["injection_hits"]),
+        text_source=row["text_source"],
+        ocr_confidence=row["ocr_confidence"],
+        ocr_lang=row["ocr_lang"],
     )
 
 
@@ -451,7 +456,12 @@ def create_observation_from_evidence(
             detail="Bu kanıtın vault'ta yüklenmiş bir dosyası yok, gözlem üretilemez.",
         )
 
-    result = docint.extract_page_range(path, payload.page_from, payload.page_to)
+    # Faz 15.4: belge OCR ile okunmuşsa metin katmanı YOKTUR — aynı yoldan okumaya
+    # çalışmak NO_TEXT_LAYER verirdi. Kaynağa göre doğru okuyucu seçiliyor.
+    if evidence.text_source == "ocr":
+        result = docint.ocr_page_range(path, payload.page_from, payload.page_to)
+    else:
+        result = docint.extract_page_range(path, payload.page_from, payload.page_to)
     if result["status"] != docint.DONE:
         # Sessizce boş bir gözlem üretmektense reddediyoruz: bu fazın tamamı, içeriği
         # olmayan bir kaydın "işlenmiş" gibi görünmesini engellemek üzerine kurulu.
@@ -468,7 +478,9 @@ def create_observation_from_evidence(
             "evidence_id": evidence_id,
             "page_from": payload.page_from,
             "page_to": payload.page_to,
+            "text_source": evidence.text_source,
         },
+        text_source=evidence.text_source,
     )
     conn.execute(
         "MATCH (o:Observation {id: $oid}), (ev:Evidence {id: $eid}) "
@@ -483,6 +495,39 @@ def create_observation_from_evidence(
     )
     # Kenar kurulduktan SONRA yeniden okunuyor ki dönen nesne `from_evidence` taşısın.
     return get_observation(observation.id)
+
+
+@router.post("/{evidence_id}/ocr", status_code=202)
+def ocr_evidence(evidence_id: str) -> dict:
+    """Faz 15.4 — belgeyi metin katmanından değil GÖRÜNTÜDEN okur (OCR).
+
+    **Açık bir tercih, otomatik değil.** Taranmış 492 sayfalık bir belge dakikalar sürer;
+    yüklemede sessizce başlatmak kullanıcıyı sürprizle karşılaştırırdı. Ayrıca OCR bir
+    TAHMİNDİR: sonuç `text_source="ocr"` ve bir güven skoruyla saklanıp gözleme kadar
+    taşınıyor — çıkarılmış metinle aynı güvenilirlikte sunulmamalı."""
+    durum = docint.ocr_status()
+    if not durum["available"]:
+        # Sessizce başarısız olmak yerine SEBEBİ söylüyoruz: OCR sistem kurulumuna bağlı,
+        # ve "neden okunamadı" sorusunun cevabı kullanıcıda olmalı.
+        raise HTTPException(status_code=503, detail=durum["error"])
+    conn = get_connection()
+    if not _node_exists(conn, "Evidence", evidence_id):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    if _resolve_stored_file(get_evidence(evidence_id).file_path) is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Bu kanıtın vault'ta yüklenmiş bir dosyası yok, OCR yapılamaz.",
+        )
+    doc_worker.mark_pending(evidence_id)
+    if not doc_worker.enqueue(evidence_id, "ocr"):
+        raise HTTPException(status_code=503, detail="Belge işleyicisi çalışmıyor.")
+    return {
+        "evidence_id": evidence_id,
+        "status": docint.PENDING,
+        "status_label": "OCR sırada bekliyor",
+        "lang": durum["lang"],
+        "queue_depth": doc_worker.queue_depth(),
+    }
 
 
 @router.post("/{evidence_id}/extract", status_code=202)

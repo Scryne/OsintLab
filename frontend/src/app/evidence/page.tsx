@@ -11,6 +11,7 @@ import {
   Loader2,
   Lock,
   RefreshCw,
+  ScanEye,
   Search,
   Upload,
 } from "lucide-react";
@@ -263,6 +264,12 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
               onCreated={onChanged}
             />
           )}
+          {/* Faz 15.4 — OCR yalnızca gerçekten gerektiğinde önerilir: metin katmanı yoksa,
+              ya da OCR bir kez denenmiş ve sonuç iyileştirilmek isteniyorsa. */}
+          {item.has_file &&
+            (item.extraction_status === "NO_TEXT_LAYER" || item.text_source === "ocr") && (
+              <OcrButton evidenceId={item.id} tekrar={item.text_source === "ocr"} onDone={onChanged} />
+            )}
           {item.has_file && CIKARILABILIR_DEGIL.includes(item.extraction_status ?? "PENDING") && (
             <ReextractButton evidenceId={item.id} onDone={onChanged} />
           )}
@@ -339,6 +346,19 @@ function ExtractionBadge({ item }: { item: EvidenceVaultItem }) {
   }
 
   if (st === "DONE") {
+    // Faz 15.4 — OCR bir TAHMİN, metin katmanı ise belgenin kendi verisi. İkisini aynı
+    // rozetle göstermek, fazın bitti kriterinin ("kaynağın OCR olduğu görünür kalmalı")
+    // tam tersi olurdu. Güven skoru da rozette: %70'lik bir okuma ile %99'luk okuma
+    // arasındaki farkı kullanıcı görmeden bir iddiayı grafa yükseltmemeli.
+    if (item.text_source === "ocr") {
+      const guven = item.ocr_confidence != null ? ` · %${Math.round(item.ocr_confidence * 100)}` : "";
+      return (
+        <Badge variant="secondary" className="text-priority-medium">
+          <ScanEye aria-hidden className="h-3 w-3" />
+          OCR ile okundu{guven}
+        </Badge>
+      );
+    }
     return (
       <Badge variant="outline" className="text-text-secondary">
         <FileScan aria-hidden className="h-3 w-3" />
@@ -420,5 +440,46 @@ function EvidenceInjectionNotice({
     <div className="mt-3">
       <InjectionWarning hits={data.injection_hits} />
     </div>
+  );
+}
+
+/** Faz 15.4 — taranmış belgeyi görüntüden okur.
+ *
+ * OCR sistem kurulumuna bağlı (Tesseract). Kurulu değilse uç 503 ile SEBEBİ ve kurulum
+ * komutunu döndürüyor; o mesajı olduğu gibi gösteriyoruz — "çalışmadı" demek, bu projenin
+ * defalarca kapattığı sessiz başarısızlık sınıfına geri dönmek olurdu. */
+function OcrButton({
+  evidenceId,
+  tekrar,
+  onDone,
+}: {
+  evidenceId: string;
+  tekrar: boolean;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 px-2 text-xs"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const r = await api.evidence.ocr(evidenceId);
+          toast(`OCR sıraya alındı${r.lang ? ` (${r.lang})` : ""}`, "success");
+          onDone();
+        } catch (err) {
+          toast(err instanceof Error ? err.message : "OCR başlatılamadı", "error");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <ScanEye aria-hidden className="h-3.5 w-3.5" />
+      {tekrar ? "Yeniden OCR" : "OCR ile oku"}
+    </Button>
   );
 }

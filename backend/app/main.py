@@ -4,7 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import doc_worker, scheduler
+from app import doc_worker, docint, scheduler
 from app.db import get_connection
 from app.routers import claims, collectors, entities, evidence, events, investigations, monitors, observations, sources, vault
 
@@ -79,4 +79,12 @@ def health() -> dict:
         # Faz 15.1: belge işleyicisi de sessiz bir mekanizma — durumu görünür olmalı.
         "docint_worker": doc_worker.is_running(),
         "docint_queue": doc_worker.queue_depth(),
+        # Faz 15.4: OCR sistem kurulumuna bağlı. "Kurulu mu" sorusunun tek satırlık cevabı
+        # burada olmalı — sessizce çalışmayan bir mekanizma, hiç kurulmamış olmaktan kötüdür.
+        "ocr": _ocr_health(),
     }
+
+
+def _ocr_health() -> dict:
+    d = docint.ocr_status()
+    return {"available": d["available"], "lang": d["lang"], "error": d["error"]}

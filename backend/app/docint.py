@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Callable
@@ -390,6 +391,232 @@ def hits_from_json(raw: str | None) -> list[dict]:
     except (TypeError, ValueError):
         return []
     return value if isinstance(value, list) else []
+
+
+# --- Faz 15.4: OCR (taranmış belgeler) --------------------------------------------------
+#
+# **Neden sistem bağımlılığı kabul edildi.** Faz 15 spike'ı "OCR sistem kurulumu ister"
+# demişti ama bunu Tesseract'ı varsayarak söylüyordu; 15.4'e başlarken pip-only bir yol olup
+# olmadığı ölçüldü. Aynı taranmış sayfada (arXiv 1. sayfası görüntüye çevrilip metin
+# katmanından gelen doğru metinle karşılaştırıldı):
+#
+#     rapidocr-onnxruntime (saf pip) : 8,0 sn — kelime isabeti %33,2, 69 uydurma kelime
+#     tesseract (sistem kurulumu)    : 1,3 sn — kelime isabeti %99,5, 0 uydurma kelime
+#
+# rapidocr kelimeler arası boşlukları düşürüyordu ("Googleherebygrants"); OSINT'te isim
+# aramayı ve iddia okumayı bozan bir kusur. Yani sistem bağımlılığı bu sefer varsayım değil,
+# ölçülmüş bir gereklilik.
+#
+# **Metin katmanı ile OCR aynı şey DEĞİL.** Çıkarılan metin belgenin kendi verisidir; OCR bir
+# TAHMİNDİR. Bu yüzden kaynağı (`text_source`) ve güveni saklanıyor ve gözleme kadar taşınıyor
+# — 15.2'de injection uyarısı için öğrenilen dersin aynısı: işaret metinle birlikte seyahat
+# etmezse, kararın verildiği yerde görünmez olur.
+
+# Proje-yerel dil verisi. Tesseract'ın kendi `tessdata`sı Program Files altında ve oraya
+# yazmak yönetici istiyor; ayrıca varsayılan kurulumda **Türkçe yok** (ölçüldü: `eng` ile
+# Türkçe bir belgede 29 kelimenin 15'i doğru çıktı, "Büyükşehir" → "Buyuksehir"; `tur` ile
+# 29/29). Diller projeye konunca hem Türkçe eklenebiliyor hem kurulum belgelenebilir oluyor.
+TESSDATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "tessdata"
+
+# OCR görüntü çözünürlüğü. 200 DPI ölçülen kalite/hız dengesi; daha yükseği kayda değer
+# doğruluk kazandırmadan süreyi artırıyor.
+OCR_DPI = 200
+
+# Tercih sırası: iki dil birden varsa ikisi de verilir (Tesseract karışık belgede seçer).
+_PREFERRED_LANGS = ("tur", "eng")
+
+
+# Tesseract'ın nerede olduğu. PATH'e GÜVENİLMİYOR ve bu bilinçli: winget kurulumdan sonra
+# PATH'i günceller ama zaten çalışan süreçler bunu görmez — backend bu projede bir Windows
+# zamanlanmış görevi olarak açılışta başlıyor, yani OCR "kurulu ama görünmez" olabilirdi ve
+# taranmış belgeler sebebi söylenmeden okunamazdı. Bilinen konumlar açıkça deneniyor.
+_TESSERACT_KONUMLARI = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+)
+
+# Elle bir yol vermek gerekirse (taşınabilir kurulum, farklı sürücü):
+ENV_TESSERACT = "OSINTLAB_TESSERACT"
+
+
+def tesseract_cmd() -> str | None:
+    """`tesseract.exe`'nin yolu — sırayla: ortam değişkeni, PATH, bilinen konumlar."""
+    elle = os.environ.get(ENV_TESSERACT)
+    if elle and Path(elle).is_file():
+        return elle
+    from shutil import which
+    bulunan = which("tesseract")
+    if bulunan:
+        return bulunan
+    for yol in _TESSERACT_KONUMLARI:
+        if Path(yol).is_file():
+            return yol
+    return None
+
+
+def _tessdata_prefix() -> str | None:
+    """Proje-yerel dil klasörü varsa onu kullanır, yoksa sistemin kendi kurulumuna bırakır."""
+    return str(TESSDATA_DIR) if TESSDATA_DIR.is_dir() else None
+
+
+def ocr_status() -> dict:
+    """OCR'ın bu makinede gerçekten kullanılabilir olup olmadığı.
+
+    "Kurulu mu" sorusunun cevabı arayüzde görünmeli: OCR sessizce çalışmıyorsa kullanıcı
+    taranmış bir belgeyi neden okuyamadığını bilemez — bu projenin tekrar eden hata sınıfı."""
+    try:
+        import pytesseract
+    except ImportError:
+        return {"available": False, "langs": [], "lang": None,
+                "error": "pytesseract kurulu değil (pip install -r requirements.txt)."}
+
+    komut = tesseract_cmd()
+    if komut is None:
+        return {"available": False, "langs": [], "lang": None,
+                "error": ("Tesseract bulunamadı. Kurulum: "
+                          "`winget install UB-Mannheim.TesseractOCR`. "
+                          "Farklı bir yerdeyse %s ortam değişkeniyle belirt." % ENV_TESSERACT)}
+    pytesseract.pytesseract.tesseract_cmd = komut
+
+    prefix = _tessdata_prefix()
+    env_onceki = os.environ.get("TESSDATA_PREFIX")
+    if prefix:
+        os.environ["TESSDATA_PREFIX"] = prefix
+    try:
+        version = str(pytesseract.get_tesseract_version())
+        langs = sorted(pytesseract.get_languages(config=""))
+    except Exception as exc:  # noqa: BLE001 — binary yok ya da bozuk kurulum
+        return {
+            "available": False, "langs": [], "lang": None,
+            "error": (
+                "Tesseract bulunamadı ya da çalıştırılamadı (%s). Kurulum: "
+                "`winget install UB-Mannheim.TesseractOCR`." % type(exc).__name__
+            ),
+        }
+    finally:
+        if prefix and env_onceki is None:
+            os.environ.pop("TESSDATA_PREFIX", None)
+        elif env_onceki is not None:
+            os.environ["TESSDATA_PREFIX"] = env_onceki
+
+    secili = [l for l in _PREFERRED_LANGS if l in langs]
+    return {
+        "available": bool(secili),
+        "version": version,
+        "langs": langs,
+        "lang": "+".join(secili) if secili else None,
+        "tessdata": prefix,
+        "error": None if secili else "Tesseract kurulu ama tur/eng dil verisi yok.",
+    }
+
+
+def page_count_of(path: Path) -> int:
+    """Belgenin sayfa sayısı; okunamıyorsa 0. OCR işi tüm belgeyi kapsadığı için gerekiyor."""
+    if not looks_like_pdf(path):
+        return 0
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(str(path))
+        if reader.is_encrypted and not reader.decrypt(""):
+            return 0
+        return len(reader.pages)
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def ocr_page_range(
+    path: Path,
+    first: int,
+    last: int,
+    *,
+    lang: str | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> dict:
+    """Sayfa aralığını görüntüye çevirip OCR'lar.
+
+    Metin katmanı okumaktan farkı, sonucun bir TAHMİN olması: `confidence` alanı Tesseract'ın
+    kelime bazlı güvenlerinin ortalaması (0-1). Çağıran bunu saklamalı — OCR metnini
+    çıkarılmış metinle aynı güvenilirlikte sunmak, bu fazın önlemek istediği şeyin ta kendisi."""
+    durum = ocr_status()
+    if not durum["available"]:
+        return {"status": FAILED, "text": "", "page_count": 0, "pages_done": 0,
+                "confidence": None, "lang": None, "error": durum["error"]}
+
+    if not path.is_file():
+        return {"status": FAILED, "text": "", "page_count": 0, "pages_done": 0,
+                "confidence": None, "lang": None, "error": "Dosya bulunamadı: %s" % path.name}
+    if not looks_like_pdf(path):
+        return {"status": UNSUPPORTED, "text": "", "page_count": 0, "pages_done": 0,
+                "confidence": None, "lang": None, "error": "Dosya PDF değil."}
+
+    # numpy GEREKMİYOR: pytesseract PIL görüntüsüyle doğrudan çalışıyor.
+    import pypdfium2 as pdfium
+    import pytesseract
+
+    prefix = _tessdata_prefix()
+    if prefix:
+        os.environ["TESSDATA_PREFIX"] = prefix
+    pytesseract.pytesseract.tesseract_cmd = tesseract_cmd()
+    kullanilan = lang or durum["lang"]
+
+    try:
+        doc = pdfium.PdfDocument(str(path))
+        page_count = len(doc)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": CORRUPT, "text": "", "page_count": 0, "pages_done": 0,
+                "confidence": None, "lang": kullanilan,
+                "error": "PDF açılamadı: %s" % type(exc).__name__}
+
+    if first < 1 or last < first or last > page_count:
+        return {"status": FAILED, "text": "", "page_count": page_count, "pages_done": 0,
+                "confidence": None, "lang": kullanilan,
+                "error": "Geçersiz sayfa aralığı %s-%s; belge %s sayfa." % (first, last, page_count)}
+
+    if on_progress is not None:
+        on_progress(0, last - first + 1)
+
+    parcalar: list[str] = []
+    guvenler: list[float] = []
+    for sira, index in enumerate(range(first - 1, last), start=1):
+        try:
+            img = doc[index].render(scale=OCR_DPI / 72).to_pil()
+            veri = pytesseract.image_to_data(
+                img, lang=kullanilan, output_type=pytesseract.Output.DICT
+            )
+        except Exception:  # noqa: BLE001 — tek bozuk sayfa aralığın tamamını düşürmemeli
+            logger.exception("OCR: sayfa %s okunamadı", index + 1)
+            continue
+        kelimeler = []
+        for metin, guven in zip(veri.get("text", []), veri.get("conf", [])):
+            if not str(metin).strip():
+                continue
+            kelimeler.append(str(metin))
+            try:
+                g = float(guven)
+            except (TypeError, ValueError):
+                continue
+            if g >= 0:  # Tesseract okuyamadığı kutulara -1 yazar
+                guvenler.append(g / 100.0)
+        if kelimeler:
+            parcalar.append(" ".join(kelimeler))
+        if on_progress is not None:
+            on_progress(sira, last - first + 1)
+
+    text = "\n".join(parcalar)
+    if not text.strip():
+        return {"status": NO_TEXT_LAYER, "text": "", "page_count": page_count,
+                "pages_done": last - first + 1, "confidence": None, "lang": kullanilan,
+                "error": "OCR bu sayfalarda okunabilir metin bulamadı."}
+
+    return {
+        "status": DONE,
+        "text": text,
+        "page_count": page_count,
+        "pages_done": last - first + 1,
+        "confidence": round(sum(guvenler) / len(guvenler), 3) if guvenler else None,
+        "lang": kullanilan,
+        "error": None,
+    }
 
 
 # --- Faz 15.3: belge parmak izi ---------------------------------------------------------

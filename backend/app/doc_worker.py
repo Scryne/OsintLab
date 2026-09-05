@@ -33,7 +33,8 @@ from app.db import fetch_all, fetch_one, get_connection
 
 logger = logging.getLogger(__name__)
 
-_queue: asyncio.Queue[str] | None = None
+# Kuyruk ögesi: (evidence_id, mod). Mod "extract" (metin katmanı) ya da "ocr".
+_queue: asyncio.Queue[tuple[str, str]] | None = None
 _task: asyncio.Task | None = None
 
 
@@ -52,9 +53,13 @@ def _set_status(evidence_id: str, status: str, **fields) -> None:
     )
 
 
-def process_evidence(evidence_id: str) -> str:
+def process_evidence(evidence_id: str, mode: str = "extract") -> str:
     """Tek bir Evidence'ı işler ve bitiş durumunu döndürür. Bu fonksiyon bloklar —
-    her zaman `asyncio.to_thread` içinden çağrılmalı."""
+    her zaman `asyncio.to_thread` içinden çağrılmalı.
+
+    `mode="ocr"` (Faz 15.4) belgeyi metin katmanından değil GÖRÜNTÜDEN okur. Ayrı bir mod,
+    çünkü OCR açık bir kullanıcı tercihi: taranmış 492 sayfalık bir belge dakikalar sürer,
+    sürpriz olarak başlatılmamalı."""
     # Geç import: routers.evidence -> routers.claims -> ... zincirini modül yüklenirken
     # değil çağrı anında kurar (scanning.py'deki aynı desen).
     from app.routers.evidence import _resolve_stored_file
@@ -91,7 +96,12 @@ def process_evidence(evidence_id: str) -> str:
             logger.debug("DOCINT: ilerleme yazılamadı (%s)", evidence_id[:8])
 
     try:
-        result = docint.extract(path, on_progress=on_progress)
+        if mode == "ocr":
+            sayfa_sayisi = docint.page_count_of(path)
+            result = docint.ocr_page_range(path, 1, sayfa_sayisi, on_progress=on_progress)
+            result["metadata"] = docint.extract(path)["metadata"] if sayfa_sayisi else {}
+        else:
+            result = docint.extract(path, on_progress=on_progress)
     except Exception as exc:  # noqa: BLE001 — işçi hiçbir belgede ölmemeli
         logger.exception("DOCINT: %s çıkarılırken beklenmedik hata", evidence_id[:8])
         _set_status(
@@ -124,6 +134,13 @@ def process_evidence(evidence_id: str) -> str:
         extraction_error=result["error"],
         extracted_at=datetime.now(timezone.utc),
         injection_hits=docint.hits_to_json(hits),
+        # `text_source` YALNIZCA gerçekten metin üretildiğinde yazılıyor. Aksi halde
+        # OCR'lanmaya çalışılmış ama PDF bile olmayan bir dosya kalıcı olarak "ocr kaynaklı"
+        # görünüyordu ve arayüz ona sonsuza dek "Yeniden OCR" öneriyordu (görsel turda
+        # yakalandı). Metin yoksa kaynak da yoktur.
+        text_source=(("ocr" if mode == "ocr" else "extracted") if result["status"] == docint.DONE else None),
+        ocr_confidence=result.get("confidence"),
+        ocr_lang=result.get("lang"),
     )
     logger.info(
         "DOCINT tamam (%s): %s — %s sayfa, %s karakter",
@@ -145,21 +162,21 @@ def mark_pending(evidence_id: str) -> None:
 
 # --- Kuyruk (olay döngüsünden çağrılır) -------------------------------------------------
 
-def enqueue(evidence_id: str) -> bool:
+def enqueue(evidence_id: str, mode: str = "extract") -> bool:
     """Bir kanıtı işleme kuyruğuna ekler. Olay döngüsü iş parçacığından çağrılmalı."""
     if _queue is None:
         logger.warning("DOCINT: işçi çalışmıyor, %s kuyruğa alınamadı", evidence_id[:8])
         return False
-    _queue.put_nowait(evidence_id)
+    _queue.put_nowait((evidence_id, mode))
     return True
 
 
 async def _worker() -> None:
     assert _queue is not None
     while True:
-        evidence_id = await _queue.get()
+        evidence_id, mode = await _queue.get()
         try:
-            await asyncio.to_thread(process_evidence, evidence_id)
+            await asyncio.to_thread(process_evidence, evidence_id, mode)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 — döngü hiçbir hatada ölmemeli
@@ -194,7 +211,9 @@ def start() -> bool:
         logger.exception("DOCINT: yarım kalmış işler taranamadı")
         unfinished = []
     for evidence_id in unfinished:
-        _queue.put_nowait(evidence_id)
+        # Yarım kalan iş her zaman metin katmanı modunda yeniden denenir; OCR açık bir
+        # tercih olduğu için kendiliğinden yeniden başlatılmıyor.
+        _queue.put_nowait((evidence_id, "extract"))
     if unfinished:
         logger.info("DOCINT: yarım kalmış %s belge yeniden kuyruğa alındı", len(unfinished))
     logger.info("DOCINT işçisi başladı")

@@ -65,6 +65,29 @@ ortasında yeniden açar. Ürünü kullanırken kapalı bırak, bug düzeltirken
 `cd backend; py -3.12 -m venv .venv; .venv\Scripts\pip install -r requirements.txt`
 ve `cd frontend; npm install`.
 
+### OCR (Faz 15.4) — projenin tek sistem-seviyesi bağımlılığı
+
+Taranmış belgeleri okumak Tesseract'a bağlı; geri kalan her şey venv'in içinde durur.
+`GET /health` bunun durumunu `ocr` alanında söyler — çalışmıyorsa sebebi de yazar.
+
+```powershell
+winget install UB-Mannheim.TesseractOCR
+```
+
+Dil verisi **proje içinde**: `data/tessdata/` (`eng`, `osd`, `tur`). Sebebi iki katlı —
+Tesseract'ın kendi `tessdata`sı Program Files altında ve oraya yazmak yönetici istiyor;
+ayrıca varsayılan kurulumda **Türkçe yok**. Ölçüldü: Türkçe bir taranmış belgede yalnızca
+`eng` ile 29 kelimenin 15'i doğru çıkıyor ("Büyükşehir" → "Buyuksehir"), `tur` ile 29/29.
+Klasör yoksa sistemin kendi dil verisine düşülür. Yeni bir dil eklemek için
+`https://github.com/tesseract-ocr/tessdata` içinden `<dil>.traineddata` dosyasını bu
+klasöre koymak yeterli.
+
+`tesseract.exe` **PATH'te aranmıyor**, bilinen konumlardan bulunuyor (`backend/app/docint.py`).
+Bu bilinçli: winget kurulumdan sonra PATH'i günceller ama zaten çalışan süreçler bunu görmez,
+ve bu projede backend bir Windows zamanlanmış görevi olarak oturum açılışında başlıyor —
+yani OCR "kurulu ama görünmez" olur, taranmış belgeler sebebi söylenmeden okunamazdı. Farklı
+bir konumdaysa `OSINTLAB_TESSERACT` ortam değişkeniyle yol verilebilir.
+
 ## Proje-özel not: OSINT Brain'in teknik temeli
 
 "OSINT Brain" kavramı muhtemelen ScryneOS vault'unda (`C:\Users\scryn\Documents\ScryneOS`)

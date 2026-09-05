@@ -232,6 +232,13 @@ export const api = {
       put<EvidenceFingerprint>(`/evidence/${id}/fingerprint/${entityId}`, { field }),
     unlinkFingerprint: (id: string, entityId: string, field: string) =>
       del(`/evidence/${id}/fingerprint/${entityId}?field=${encodeURIComponent(field)}`),
+    // Faz 15.4 — belgeyi metin katmanından değil görüntüden okur. Açık bir tercih: taranmış
+    // 492 sayfalık bir belge dakikalar sürer, sürpriz olarak başlatılmamalı. OCR kurulu
+    // değilse uç 503 ile SEBEBİ söyler (kurulum komutu dahil).
+    ocr: (id: string) => post<{ status: string; status_label: string; lang: string | null }>(
+      `/evidence/${id}/ocr`,
+      {}
+    ),
     upload: async (payload: { file: File; evidence_type: string; collected_at?: string | null }) => {
       const form = new FormData();
       form.append("file", payload.file);

@@ -3,7 +3,7 @@
 import { Suspense, useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FileText, Inbox as InboxIcon, Plus, X } from "lucide-react";
+import { FileText, Inbox as InboxIcon, Plus, ScanEye, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type { Observation, ObservationPromoteResult } from "@/lib/types";
@@ -179,6 +179,17 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
               {observation.from_evidence.page_from === observation.from_evidence.page_to
                 ? observation.from_evidence.page_from
                 : `${observation.from_evidence.page_from}-${observation.from_evidence.page_to}`}
+            </>
+          )}
+          {/* Faz 15.4 — metin OCR'dan geldiyse bu, promote kararının verildiği yerde
+              görünmeli: OCR bir tahmindir, belgenin kendi metni değil. */}
+          {observation.text_source === "ocr" && (
+            <>
+              {" · "}
+              <span className="inline-flex items-center gap-1 text-priority-medium">
+                <ScanEye aria-hidden className="h-3 w-3" />
+                OCR
+              </span>
             </>
           )}
         </p>

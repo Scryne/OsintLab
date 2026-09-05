@@ -144,6 +144,12 @@ export interface Evidence {
   pages_done: number | null;
   extraction_error: string | null;
   extracted_at: string | null;
+  /** Faz 15.4 — metnin kaynağı: "extracted" (belgenin kendi metin katmanı) ya da "ocr"
+   * (görüntüden TAHMİN). İkisi aynı güvenilirlikte değildir ve bu ayrım arayüzde görünür
+   * kalmalı — fazın bitti kriteri bunu şart koşuyor. */
+  text_source: "extracted" | "ocr" | null;
+  ocr_confidence: number | null;
+  ocr_lang: string | null;
 }
 
 /** Faz 15.1 — `GET /evidence/{id}/extraction` yanıtı.
@@ -164,6 +170,9 @@ export interface EvidenceExtraction {
   text_preview: string;
   /** Boş liste "temiz" demek değil, "bilinen desenlerden hiçbiri eşleşmedi" demek. */
   injection_hits: InjectionHit[];
+  text_source: "extracted" | "ocr" | null;
+  ocr_confidence: number | null;
+  ocr_lang: string | null;
 }
 
 export interface Investigation {
@@ -211,6 +220,9 @@ export interface Observation {
    * birlikte seyahat ediyor: promote kararı burada veriliyor, uyarı yalnızca kaynak belgede
    * dursaydı kullanıcı bir iddiayı grafa yükseltirken onu görmeyebilirdi. */
   injection_hits: InjectionHit[];
+  /** Faz 15.4 — gözlemin metni OCR'dan geldiyse işaret onunla birlikte seyahat eder:
+   * promote kararı bu gözlem üzerinde veriliyor. */
+  text_source: "extracted" | "ocr" | null;
 }
 
 export interface Monitor {
