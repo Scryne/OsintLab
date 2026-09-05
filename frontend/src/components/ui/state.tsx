@@ -12,14 +12,50 @@ export function LoadingState({ label = "Yükleniyor…" }: { label?: string }) {
   );
 }
 
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+/** Hata mesajı ne→neden→nasıl sırasını izler.
+ *
+ * Önceden başlık "Bir şeyler ters gitti" idi ve altında ham `error.message` duruyordu:
+ * yani sadece "neden"in yarısı vardı, "ne" belirsizdi ve "nasıl" hiç yoktu. Backend
+ * ayakta değilken en sık görülen hâli bir `fetch` hatasıdır ve kullanıcıya söylenmesi
+ * gereken şey "sunucuya ulaşılamadı, `start.ps1` çalışıyor mu" — ham mesaj bunu söylemez.
+ *
+ * `title` verilmezse mesajın şeklinden çıkarılır. Suçu kullanıcıya yüklemez. */
+function explain(message: string): { title: string; hint?: string } {
+  const m = message.toLowerCase();
+  if (m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed")) {
+    return {
+      title: "Sunucuya ulaşılamadı",
+      hint: "Backend çalışmıyor olabilir. start.ps1 ile başlatıp tekrar dene.",
+    };
+  }
+  if (m.includes("404")) return { title: "Kayıt bulunamadı", hint: "Silinmiş ya da bağlantı eski olabilir." };
+  if (m.includes("409")) return { title: "Bu işlem zaten yapılmış", hint: "Sayfayı tazeleyince güncel hâlini görürsün." };
+  if (m.includes("500")) return { title: "Sunucu isteği tamamlayamadı", hint: "Birkaç saniye sonra tekrar dene." };
+  return { title: "İstek tamamlanamadı" };
+}
+
+export function ErrorState({
+  message,
+  onRetry,
+  title,
+}: {
+  message: string;
+  onRetry?: () => void;
+  title?: string;
+}) {
+  const guess = explain(message);
   return (
-    <div className="flex flex-col items-start gap-2 rounded-lg border border-priority-critical/30 bg-priority-critical/5 p-4 text-sm">
+    <div
+      role="alert"
+      className="flex flex-col items-start gap-2 rounded-lg border border-priority-critical/30 bg-priority-critical/5 p-4 text-sm"
+    >
       <div className="flex items-center gap-2 text-priority-critical-text">
         <AlertTriangle aria-hidden className="h-4 w-4" />
-        <span className="font-medium">Bir şeyler ters gitti</span>
+        <span className="font-medium text-balance">{title ?? guess.title}</span>
       </div>
-      <p className="text-text-secondary">{message}</p>
+      {guess.hint && <p className="text-pretty text-text-secondary">{guess.hint}</p>}
+      {/* Ham mesaj atılmıyor — teşhis için gerekiyor, ama artık ikincil. */}
+      <p className="font-mono text-xs text-text-tertiary">{message}</p>
       {onRetry && (
         <Button size="sm" variant="outline" onClick={onRetry}>
           Tekrar dene

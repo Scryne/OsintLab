@@ -71,8 +71,16 @@ export default function SameAsQueuePage() {
                 <span className="font-mono text-xs tabular-nums text-text-tertiary">%{Math.round(p.confidence * 100)}</span>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                <ConfirmButton size="sm" variant="secondary" confirmLabel="Birleştir?" onConfirm={() => resolve(p.entity_a_id, p.entity_b_id, "confirm")}>
-                  Confirm
+                <ConfirmButton
+                  size="sm"
+                  variant="secondary"
+                  // "Birleştir?" yanıltıcıydı: kayıtlar birleşmiyor, aralarında bir
+                  // eşitlik bağı kuruluyor. Onay düğmesi de eylemi tekrar ediyor.
+                  confirmLabel="Aynı kayıt sayılacak, kayıtlar birleşmeyecek"
+                  confirmAction="Aynı olduğunu onayla"
+                  onConfirm={() => resolve(p.entity_a_id, p.entity_b_id, "confirm")}
+                >
+                  Aynı
                 </ConfirmButton>
                 <Button
                   size="sm"
@@ -80,7 +88,7 @@ export default function SameAsQueuePage() {
                   disabled={busyKey === key}
                   onClick={() => resolve(p.entity_a_id, p.entity_b_id, "reject")}
                 >
-                  Reject
+                  Farklı
                 </Button>
               </div>
             </div>

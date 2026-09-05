@@ -121,7 +121,12 @@ export default function MainWorkspace() {
             {inboxLoading && <SkeletonRows count={3} />}
             {inboxError && <ErrorState message={inboxError.message} />}
             {!inboxLoading && !inboxError && topInbox.length === 0 && (
-              <EmptyState title="MEDIUM+ öncelikli bekleyen bir şey yok" />
+              // "Temizlenmiş boşluk" — kullanıcıyı yönlendirmek değil rahatlatmak
+              // gerekiyor: burası boşsa acil bir şey yok demektir.
+              <EmptyState
+                title="Bekleyen acil bir şey yok"
+                description="Orta ve üstü öncelikli bir değişiklik olduğunda burada görünür."
+              />
             )}
             <div className="flex flex-col gap-2">
               {topInbox.map((item) => (
@@ -144,7 +149,10 @@ export default function MainWorkspace() {
           <div className="glass-panel rounded-lg p-3">
             {claimsLoading && <SkeletonRows count={3} />}
             {claimsError && <ErrorState message={claimsError.message} />}
-            {!claimsLoading && !claimsError && recentClaims.length === 0 && <EmptyState title="Henüz claim yok" />}
+            {!claimsLoading && !claimsError && recentClaims.length === 0 && <EmptyState
+                title="Henüz claim yok"
+                description="Bir gözlemi claim'e yükselttiğinde ya da elle claim eklediğinde burada görünür."
+              />}
             <div className="flex flex-col gap-2">
               {recentClaims.map((claim) => (
                 <div key={claim.id} className="flex items-start justify-between gap-2 rounded-md bg-surface-raised px-2.5 py-2">

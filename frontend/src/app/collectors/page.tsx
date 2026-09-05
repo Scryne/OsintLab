@@ -81,7 +81,10 @@ export default function CollectorsPage() {
         )}
         {error && <ErrorState message={error.message} onRetry={reload} />}
         {!loading && !error && (!allowlist || allowlist.hostnames.length === 0) && (
-          <EmptyState title="Allowlist boş" description="Taramak istediğin bir hostname ekle." />
+          <EmptyState
+              title="Allowlist boş"
+              description="Toplama yapılabilmesi için en az bir alan adı eklenmeli — allowlist dışındaki adresler reddedilir. Taramak istediğin bir hostname ekle."
+            />
         )}
         <div className="flex flex-wrap gap-1.5">
           {allowlist?.hostnames.map((host) => (

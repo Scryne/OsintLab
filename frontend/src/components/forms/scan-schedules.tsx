@@ -204,7 +204,8 @@ function ScheduleRow({
             {schedule.active ? "Duraklat" : "Sürdür"}
           </Button>
           <ConfirmButton
-            confirmLabel="Taramayı kaldır?"
+            confirmLabel="Bu zamanlanmış tarama duracak"
+            confirmAction="Taramayı kaldır"
             onConfirm={() => act(() => api.collectors.deleteSchedule(schedule.id), "Tarama kaldırıldı")}
             aria-label="Taramayı kaldır"
           >

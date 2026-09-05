@@ -345,7 +345,8 @@ function PairCard({
             değerli bir sinyaldir — bağımsızlık kısıtı yalnızca DOĞRULAMA için geçerli. */}
         <ConfirmButton
           onConfirm={() => onLink("CONTRADICTS")}
-          confirmLabel="İki claim de CONTRADICTED olacak"
+          confirmLabel="İki claim de çelişkili işaretlenecek"
+          confirmAction="Çelişki kur"
         >
           <GitMerge aria-hidden className="h-4 w-4" />
           Çelişir
@@ -357,6 +358,7 @@ function PairCard({
           <ConfirmButton
             onConfirm={onCloseDuplicate}
             confirmLabel="Eskisinin geçerliliği kapanacak, kayıt silinmeyecek"
+            confirmAction="Yinelemeyi kapat"
           >
             <Layers aria-hidden className="h-4 w-4" />
             Yinelemeyi kapat

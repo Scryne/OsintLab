@@ -127,7 +127,10 @@ export default function InboxPage() {
       {loading && <SkeletonRows count={4} />}
       {error && <ErrorState message={error.message} onRetry={reload} />}
       {!loading && !error && items?.length === 0 && (
-        <EmptyState title="Inbox boş" description="Bu eşiğin üzerinde bekleyen bir şey yok." />
+        <EmptyState
+            title="Inbox boş"
+            description="Bu eşiğin üzerinde bekleyen bir şey yok. İzlenen bir kaynakta değişiklik olduğunda bildirim buraya düşer."
+          />
       )}
 
       <div className="flex flex-col gap-2">

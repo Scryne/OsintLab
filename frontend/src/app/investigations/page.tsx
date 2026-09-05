@@ -26,7 +26,9 @@ export default function InvestigationsPage() {
 
       {loading && <SkeletonRows />}
       {error && <ErrorState message={error.message} onRetry={reload} />}
-      {!loading && !error && investigations?.length === 0 && <EmptyState title="Henüz investigation yok" />}
+      {!loading && !error && investigations?.length === 0 && <EmptyState
+          title="Henüz investigation yok"
+          description="Bir araştırma açtığında kapsamı, hipotezleri ve bulguları burada takip edersin." />}
 
       <div className="flex flex-col gap-2">
         {!loading && investigations?.map((inv) => (

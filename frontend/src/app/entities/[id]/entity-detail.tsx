@@ -222,7 +222,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             </div>
             <div className="min-w-0 flex-1">
               {timelineItems.length === 0 ? (
-                <EmptyState title="Timeline boş" description="Bu entity hakkında henüz kayıt yok." />
+                <EmptyState
+                  title="Timeline boş"
+                  description="Bu entity'ye bir claim ya da event bağlandığında zaman çizgisi burada oluşur."
+                />
               ) : (
                 <ol className="flex flex-col gap-3">
                   {timelineItems.map((item) => (
@@ -375,7 +378,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                     size="icon-sm"
                     variant="ghost"
                     aria-label="İlişkiyi kaldır"
-                    confirmLabel="Kaldırılsın mı?"
+                    confirmLabel="Bu ilişki graftan kalkacak"
+                    confirmAction="İlişkiyi kaldır"
                     onConfirm={async () => {
                       const [fromId, toId] =
                         r.direction === "OUTGOING" ? [entityId, r.entity_id] : [r.entity_id, entityId];
@@ -563,10 +567,11 @@ function SameAsTab({
                     <ConfirmButton
                       size="sm"
                       variant="secondary"
-                      confirmLabel="Birleştir?"
+                      confirmLabel="Aynı kayıt sayılacak, kayıtlar birleşmeyecek"
+                      confirmAction="Aynı olduğunu onayla"
                       onConfirm={() => resolve(p.entity_a_id, p.entity_b_id, "confirm")}
                     >
-                      Confirm
+                      Aynı
                     </ConfirmButton>
                     <Button
                       size="sm"
@@ -574,7 +579,7 @@ function SameAsTab({
                       disabled={busyId === p.entity_a_id + p.entity_b_id}
                       onClick={() => resolve(p.entity_a_id, p.entity_b_id, "reject")}
                     >
-                      Reject
+                      Farklı
                     </Button>
                   </div>
                 </div>
