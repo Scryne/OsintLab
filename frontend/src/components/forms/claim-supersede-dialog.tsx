@@ -116,7 +116,7 @@ export function ClaimSupersedeDialog({
             penceresi kapanır ve arşiv kaydı olarak işaretlenir. Kapanış anı, yeni claim&apos;in
             geçerli olmaya başladığı tarihtir (kayıt anı değil).
           </p>
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !newerId || !olderId || newerId === olderId}>

@@ -204,7 +204,7 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
             {/* Dosyası olmayan kanıt gizlenmiyor, işaretleniyor: elle girilmiş bir yol ya da
                 taşınmış bir dosya olabilir — sessizce "indirilebilir" göstermek yanıltırdı. */}
             {!item.has_file && (
-              <Badge variant="secondary" className="text-priority-medium">
+              <Badge variant="secondary" className="text-priority-medium-text">
                 <FileWarning aria-hidden className="h-3 w-3" />
                 dosya yok
               </Badge>
@@ -353,7 +353,7 @@ function ExtractionBadge({ item }: { item: EvidenceVaultItem }) {
     if (item.text_source === "ocr") {
       const guven = item.ocr_confidence != null ? ` · %${Math.round(item.ocr_confidence * 100)}` : "";
       return (
-        <Badge variant="secondary" className="text-priority-medium">
+        <Badge variant="secondary" className="text-priority-medium-text">
           <ScanEye aria-hidden className="h-3 w-3" />
           OCR ile okundu{guven}
         </Badge>
@@ -372,11 +372,11 @@ function ExtractionBadge({ item }: { item: EvidenceVaultItem }) {
     NO_TEXT_LAYER: {
       icon: FileWarning,
       text: "taranmış — metin yok",
-      tone: "text-priority-medium",
+      tone: "text-priority-medium-text",
     },
-    ENCRYPTED: { icon: Lock, text: "parola korumalı", tone: "text-priority-medium" },
-    CORRUPT: { icon: FileWarning, text: "okunamadı", tone: "text-priority-high" },
-    FAILED: { icon: FileWarning, text: "çıkarma başarısız", tone: "text-priority-high" },
+    ENCRYPTED: { icon: Lock, text: "parola korumalı", tone: "text-priority-medium-text" },
+    CORRUPT: { icon: FileWarning, text: "okunamadı", tone: "text-priority-high-text" },
+    FAILED: { icon: FileWarning, text: "çıkarma başarısız", tone: "text-priority-high-text" },
     // PDF olmayan bir kanıt (fotoğraf, video) için metin çıkarma anlamsız — bu bir eksiklik
     // değil, o yüzden sessiz gri.
     UNSUPPORTED: { icon: FileScan, text: "metin çıkarılmadı", tone: "text-text-tertiary" },

@@ -207,7 +207,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
               .
             </p>
 
-            {error && <p className="text-sm text-priority-critical">{error}</p>}
+            {error && <p className="text-sm text-priority-critical-text">{error}</p>}
           </div>
         )}
 

@@ -194,7 +194,7 @@ export function NewSourceDialog({ onCreated, existingTypes = [] }: { onCreated: 
               onChange={(e) => setReliability(e.target.value)}
             />
           </div>
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !name.trim()}>

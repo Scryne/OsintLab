@@ -266,9 +266,9 @@ function Stat({
 }) {
   const toneClass =
     tone === "ok"
-      ? "text-confidence-supported"
+      ? "text-confidence-supported-text"
       : tone === "warn"
-        ? "text-confidence-contradicted"
+        ? "text-confidence-contradicted-text"
         : tone === "accent"
           ? "text-[var(--brand-accent)]"
           : "text-text-secondary";
@@ -335,7 +335,7 @@ function PairCard({
             Doğrular
           </Button>
         ) : (
-          <p className="flex items-start gap-1.5 text-xs leading-relaxed text-priority-medium">
+          <p className="flex items-start gap-1.5 text-xs leading-relaxed text-priority-medium-text">
             <ShieldAlert aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Doğrulama bağı kurulamaz — bağımsız kaynak değiller. API bunu yalnızca uyarmıyor,
             reddediyor.
@@ -380,7 +380,7 @@ function ClaimSide({ claim, projected }: { claim: CandidateClaim; projected: num
         {projected !== null && (
           <span
             className={`inline-flex items-center gap-1 font-mono text-[11px] tabular-nums ${
-              crosses ? "text-confidence-supported" : "text-text-tertiary"
+              crosses ? "text-confidence-supported-text" : "text-text-tertiary"
             }`}
           >
             <ArrowRight aria-hidden className="h-3 w-3" />
@@ -403,7 +403,7 @@ function KindBadge({ kind }: { kind: CandidateKind }) {
     );
   }
   return (
-    <Badge variant="outline" className="gap-1 border-priority-medium/40 text-priority-medium">
+    <Badge variant="outline" className="gap-1 border-priority-medium/40 text-priority-medium-text">
       <AlertTriangle aria-hidden className="h-3 w-3" />
       {KIND_LABEL[kind]}
     </Badge>
@@ -446,7 +446,7 @@ function LinkResult({
                   <span className="text-text-tertiary">{claimId.slice(0, 8)}</span>
                   {before.toFixed(2)}
                   <ArrowRight aria-hidden className="h-3 w-3" />
-                  <span className={after > before ? "text-confidence-supported" : ""}>
+                  <span className={after > before ? "text-confidence-supported-text" : ""}>
                     {after.toFixed(2)}
                   </span>
                   <span className="text-text-tertiary">{state}</span>

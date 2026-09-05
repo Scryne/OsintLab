@@ -136,7 +136,7 @@ export function LineageDialog({
                       type="button"
                       onClick={() => unlink(a)}
                       aria-label={`${a.name} bağını kaldır`}
-                      className="text-text-tertiary hover:text-priority-critical"
+                      className="text-text-tertiary hover:text-priority-critical-text"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>

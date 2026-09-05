@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {label}
             </span>
             {href === "/inbox" && !!inboxCount && (
-              <span className="rounded-full bg-priority-critical/25 px-1.5 py-0.5 text-[10px] font-semibold text-priority-critical shadow-[0_0_8px_rgba(226,58,107,0.5)]">
+              <span className="rounded-full bg-priority-critical/25 px-1.5 py-0.5 text-[10px] font-semibold text-priority-critical-text shadow-[0_0_8px_rgba(226,58,107,0.5)]">
                 {inboxCount}
               </span>
             )}

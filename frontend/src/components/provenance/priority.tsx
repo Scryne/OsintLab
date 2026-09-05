@@ -13,6 +13,16 @@ export const PRIORITY_COLOR_VAR: Record<Priority, string> = {
   INFO: "var(--priority-info)",
 };
 
+/** Metin rengi zeminden AYRI bir token — bkz. globals.css'teki kontrast notu. Zemin/glow
+ * ham rengi kullanmaya devam eder (dekoratif, 3:1 eşiği yeterli), metin okunur olanı. */
+export const PRIORITY_TEXT_VAR: Record<Priority, string> = {
+  CRITICAL: "var(--priority-critical-text)",
+  HIGH: "var(--priority-high-text)",
+  MEDIUM: "var(--priority-medium-text)",
+  LOW: "var(--priority-low-text)",
+  INFO: "var(--priority-info-text)",
+};
+
 export const PRIORITY_LABEL_TR: Record<Priority, string> = {
   CRITICAL: "Kritik",
   HIGH: "Yüksek",
@@ -31,7 +41,7 @@ export function PriorityBadge({ priority, className }: { priority: Priority; cla
       )}
       style={{
         backgroundColor: `color-mix(in oklch, ${color} 22%, transparent)`,
-        color,
+        color: PRIORITY_TEXT_VAR[priority],
         boxShadow: `0 0 10px color-mix(in oklch, ${color} 35%, transparent)`,
       }}
     >

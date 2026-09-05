@@ -13,7 +13,7 @@ export function LoadingState({ label = "Yükleniyor…" }: { label?: string }) {
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-start gap-2 rounded-lg border border-priority-critical/30 bg-priority-critical/5 p-4 text-sm">
-      <div className="flex items-center gap-2 text-priority-critical">
+      <div className="flex items-center gap-2 text-priority-critical-text">
         <AlertTriangle aria-hidden className="h-4 w-4" />
         <span className="font-medium">Bir şeyler ters gitti</span>
       </div>

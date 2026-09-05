@@ -339,7 +339,7 @@ function Stat({
     tone === "accent"
       ? "text-[var(--brand-accent)]"
       : tone === "warn"
-        ? "text-priority-medium"
+        ? "text-priority-medium-text"
         : tone === "muted"
           ? "text-text-secondary"
           : "text-foreground";
@@ -409,7 +409,7 @@ function QueueRow({
             </span>
           )}
           {item.text_source === "ocr" && (
-            <span className="inline-flex items-center gap-1 text-priority-medium">
+            <span className="inline-flex items-center gap-1 text-priority-medium-text">
               <ScanEye aria-hidden className="h-3 w-3" />
               OCR
             </span>
@@ -468,7 +468,7 @@ function ReasonLine({ reason }: { reason: SignalReason }) {
     <li className="flex items-start gap-2 text-xs leading-relaxed">
       <span
         className={`mt-px shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
-          informational ? "bg-priority-medium/15 text-priority-medium" : "bg-white/10 text-text-secondary"
+          informational ? "bg-priority-medium/15 text-priority-medium-text" : "bg-white/10 text-text-secondary"
         }`}
       >
         {informational ? "uyarı" : `+${reason.weight.toFixed(2)}`}

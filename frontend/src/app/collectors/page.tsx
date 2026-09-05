@@ -90,7 +90,7 @@ export default function CollectorsPage() {
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 font-mono text-xs text-foreground"
             >
               {host}
-              <button type="button" onClick={() => removeHostname(host)} aria-label={`${host} kaldır`} className="text-text-tertiary hover:text-priority-critical">
+              <button type="button" onClick={() => removeHostname(host)} aria-label={`${host} kaldır`} className="text-text-tertiary hover:text-priority-critical-text">
                 <X className="h-3 w-3" />
               </button>
             </span>
@@ -188,7 +188,7 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
         <Rss aria-hidden className="h-4 w-4" />
         {submitting ? "Taranıyor…" : "Tara"}
       </Button>
-      {error && <p className="text-sm text-priority-critical">{error}</p>}
+      {error && <p className="text-sm text-priority-critical-text">{error}</p>}
       {result && (
         <div className="rounded-lg border border-border bg-surface-raised p-3 text-sm">
           <p className="text-foreground">

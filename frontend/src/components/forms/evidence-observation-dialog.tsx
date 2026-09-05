@@ -119,7 +119,7 @@ export function EvidenceObservationDialog({
           <p className="text-xs text-text-tertiary">
             Belge {max} sayfa. Aralık her iki uçtan dahildir.
             {!gecerli && (
-              <span className="text-priority-medium"> Geçerli bir aralık gir (1–{max}).</span>
+              <span className="text-priority-medium-text"> Geçerli bir aralık gir (1–{max}).</span>
             )}
           </p>
         </div>

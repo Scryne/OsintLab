@@ -102,7 +102,7 @@ export function DocumentFingerprint({ evidenceId }: { evidenceId: string }) {
                                 <button
                                   type="button"
                                   onClick={() => unlink(l.entity_id, l.field)}
-                                  className="text-text-tertiary hover:text-priority-high"
+                                  className="text-text-tertiary hover:text-priority-high-text"
                                   aria-label={`${l.entity_name} bağını kaldır`}
                                   title="Bağı kaldır"
                                 >

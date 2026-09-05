@@ -171,7 +171,7 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
               </SelectContent>
             </Select>
           </div>
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !canSubmit}>

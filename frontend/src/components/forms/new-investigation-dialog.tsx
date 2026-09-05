@@ -89,7 +89,7 @@ export function NewInvestigationDialog({ onCreated }: { onCreated: () => void })
               kalıcı bilgiye yükselir.
             </p>
           </div>
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !title.trim() || !question.trim()}>

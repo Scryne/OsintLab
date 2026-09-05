@@ -22,6 +22,20 @@ export const CONFIDENCE_COLOR_VAR: Record<KnowledgeState, string> = {
   CONTRADICTED: "var(--confidence-contradicted)",
 };
 
+/** Metin rengi zeminden/kenarlıktan AYRI bir token — bkz. globals.css'teki kontrast notu.
+ * Nokta ve kenarlık ham rampa rengini kullanmaya devam eder (dekoratif + UI bileşeni,
+ * 3:1 eşiğini geçiyor); sadece `text-xs` metin okunur tona çekildi. Rampa sırası ve
+ * CONTRADICTED'ın rampa dışında durması aynen korunuyor. */
+export const CONFIDENCE_TEXT_VAR: Record<KnowledgeState, string> = {
+  UNKNOWN: "var(--confidence-unknown-text)",
+  OBSERVED: "var(--confidence-observed-text)",
+  REPORTED: "var(--confidence-reported-text)",
+  SUPPORTED: "var(--confidence-supported-text)",
+  CORROBORATED: "var(--confidence-corroborated-text)",
+  HIGH_CONFIDENCE: "var(--confidence-high_confidence-text)",
+  CONTRADICTED: "var(--confidence-contradicted-text)",
+};
+
 export const CONFIDENCE_LABEL_TR: Record<KnowledgeState, string> = {
   UNKNOWN: "Bilinmiyor",
   OBSERVED: "Gözlemlendi",
@@ -48,7 +62,7 @@ export function ConfidenceBadge({
         "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium",
         className
       )}
-      style={{ borderColor: color, color }}
+      style={{ borderColor: color, color: CONFIDENCE_TEXT_VAR[state] }}
     >
       <span
         aria-hidden

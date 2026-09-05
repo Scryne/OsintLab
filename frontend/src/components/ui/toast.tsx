@@ -20,8 +20,8 @@ const VARIANT_ICON: Record<ToastVariant, typeof Info> = {
 };
 const VARIANT_COLOR: Record<ToastVariant, string> = {
   default: "text-text-secondary",
-  success: "text-confidence-supported",
-  error: "text-priority-critical",
+  success: "text-confidence-supported-text",
+  error: "text-priority-critical-text",
 };
 
 /** Bağımsızlıksız, minimal bir toast sistemi (YAGNI — react-hot-toast gibi bir kütüphaneye

@@ -30,8 +30,18 @@
 
   --brand-accent: #8b5cf6;
   --brand-accent-foreground: #14101f;
+  /* Accent'in küçük metin/link üstünde kullanılan hâli — düz #8b5cf6 cam üstünde 4.03,
+     yani `text-xs` için yetersiz. Ton aynı, sadece okunur. Buton ZEMİNİ olarak hâlâ
+     --brand-accent kullanılır (orada metin üstüne gelen renk foreground'dan gelir). */
+  --brand-accent-text: #956af7;
 
-  --confidence-unknown: #4b5768;
+  /* #4b5768 idi. Nokta/kenarlık olarak cam üstünde 2.32 veriyordu — WCAG'ın UI-bileşeni
+     eşiği 3:1'i bile geçmiyordu, yani rampanın en sönük ucu fiilen görünmezdi. Badge
+     içinde metin de olduğu için teknik olarak muaftı, ama confidence rengi kart
+     kenarında TEK BAŞINA sinyal olarak kullanılıyor; orada muafiyet yok. Ton ve
+     doygunluk sabit, açıklık 3.05'e yetecek en az miktarda yükseltildi; rampanın
+     luminans sırası (UNKNOWN hâlâ en sönük) korunuyor. */
+  --confidence-unknown: #5b697d;
   --confidence-observed: #3e6e93;
   --confidence-reported: #2f8fa6;
   --confidence-supported: #34a183;
@@ -44,6 +54,45 @@
   --priority-medium: #c4703e;
   --priority-high: #dd5a46;
   --priority-critical: #e23a6b;
+
+  /* METİN varyantları — 2026-09-05 kontrast denetimi.
+   *
+   * Yukarıdaki rampalar NOKTA/KENARLIK/RAIL için doğru renkler: dekoratif, `aria-hidden`,
+   * WCAG'ın UI-bileşeni eşiği 3:1 ve hepsi onu geçiyor. Ama badge METNİ `text-xs` (12px),
+   * yani eşik 4.5:1 — ve ölçüldüğünde 7 tanesi kalıyordu. En kötüsü şuydu: en çok
+   * görülmesi gereken iki durum, CONTRADICTED (3.61) ve CRITICAL (4.10), en zor
+   * okunanlar arasındaydı. UNKNOWN (2.32) 3:1'i bile geçmiyordu.
+   *
+   * Çözüm rampanın ANLAMINI bozmuyor: ton (hue) ve doygunluk sabit, sadece açıklık
+   * 4.6:1'i geçecek EN AZ miktarda yükseltildi. Soğuk→sıcak sırası ve CONTRADICTED'ın
+   * rampa dışında durması aynen korunuyor.
+   *
+   * Ölçüm zemini en zor durum: `.glass-panel` (rgba(255,255,255,.075) → #1b1c1e).
+   * Zaten geçen 5 token burada kendi değeriyle tekrar ediliyor — badge component'i
+   * koşulsuz olarak tek bir eşleşme kullansın diye (istisna = ileride kaçırılan token).
+   */
+  --confidence-unknown-text: #76869d; /* 2.32 -> 4.60 */
+  --confidence-observed-text: #528ab6; /* 3.13 -> 4.60 */
+  --confidence-reported-text: #2f8fa6; /* 4.55, değişmedi */
+  --confidence-supported-text: #34a183; /* 5.34, değişmedi */
+  --confidence-corroborated-text: #c99a3e; /* 6.64, değişmedi */
+  --confidence-high_confidence-text: #e8b84b; /* 9.25, değişmedi */
+  --confidence-contradicted-text: #cd6284; /* 3.61 -> 4.61 */
+
+  /* DİKKAT — priority metinleri farklı bir zemine karşı ölçüldü. `PriorityBadge`
+   * confidence badge'i gibi saydam değil: kendi rengiyle %22 tint'lenmiş bir pill.
+   * Yani metin, camın değil O TİNT'İN üzerinde duruyor ve zemin renge yaklaştıkça
+   * kontrast düşüyor. Ölçüldüğünde beş durumun HEPSİ kalıyordu (2.91–3.51) — ham renk
+   * kendi tint'i üzerinde hiçbir zaman 4.5'e ulaşmıyor.
+   *
+   * Tint'i düşürmek tek başına çözmüyor (%10'a indirilse bile tavan 4.15), o yüzden
+   * pill tasarımı olduğu gibi bırakıldı ve metin açıldı. Aşağıdaki oranlar
+   * `%22 renk + cam` zemini üzerinedir. */
+  --priority-info-text: #9099ad; /* #6b7690 tint üstünde 2.91 -> 4.62 */
+  --priority-low-text: #9993d1; /* 3.19 -> 4.62 */
+  --priority-medium-text: #cf8b63; /* 3.51 -> 4.60 */
+  --priority-high-text: #e47d6e; /* 3.47 -> 4.60 */
+  --priority-critical-text: #ea6e92; /* 3.26 -> 4.61 */
 
   --glass-bg: rgba(255, 255, 255, 0.075);
   --glass-border: rgba(255, 255, 255, 0.15);
@@ -115,6 +164,7 @@
   --color-text-tertiary: var(--text-tertiary);
   --color-brand-accent: var(--brand-accent);
   --color-brand-accent-foreground: var(--brand-accent-foreground);
+  --color-brand-accent-text: var(--brand-accent-text);
 
   --color-confidence-unknown: var(--confidence-unknown);
   --color-confidence-observed: var(--confidence-observed);
@@ -129,6 +179,22 @@
   --color-priority-medium: var(--priority-medium);
   --color-priority-high: var(--priority-high);
   --color-priority-critical: var(--priority-critical);
+
+  /* Metin varyantları — utility olarak da erişilebilsin (`text-priority-critical-text`
+     gibi), badge dışındaki yerlerde de doğru renk kullanılabilsin diye. */
+  --color-confidence-unknown-text: var(--confidence-unknown-text);
+  --color-confidence-observed-text: var(--confidence-observed-text);
+  --color-confidence-reported-text: var(--confidence-reported-text);
+  --color-confidence-supported-text: var(--confidence-supported-text);
+  --color-confidence-corroborated-text: var(--confidence-corroborated-text);
+  --color-confidence-high_confidence-text: var(--confidence-high_confidence-text);
+  --color-confidence-contradicted-text: var(--confidence-contradicted-text);
+
+  --color-priority-info-text: var(--priority-info-text);
+  --color-priority-low-text: var(--priority-low-text);
+  --color-priority-medium-text: var(--priority-medium-text);
+  --color-priority-high-text: var(--priority-high-text);
+  --color-priority-critical-text: var(--priority-critical-text);
 }
 
 @layer base {

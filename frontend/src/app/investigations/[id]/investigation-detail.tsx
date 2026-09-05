@@ -97,7 +97,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
           ))}
         </div>
         {inv.status === "RESOLVED" && !inv.conclusion && (
-          <p className="mt-2 text-xs text-priority-medium">
+          <p className="mt-2 text-xs text-priority-medium-text">
             Kapatmak için önce Sonuç yazılmalı — kapanış, doğrulanmış bulguları Knowledge
             Graph&apos;a yükselten adım.
           </p>

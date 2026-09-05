@@ -78,7 +78,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
             <span className="tabular-nums">Güvenilirlik %{Math.round(source.reliability * 100)}</span>
             {" · "}
             {isDerived ? (
-              <span className="text-priority-medium">Türetilmiş kaynak ({ancestors.length} üst kaynak)</span>
+              <span className="text-priority-medium-text">Türetilmiş kaynak ({ancestors.length} üst kaynak)</span>
             ) : (
               <span>Bağımsız kaynak</span>
             )}
@@ -143,7 +143,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
             emptyText="Bu kaynak için zamanlanmış tarama yok. Toplayıcılar sayfasından kurabilirsin."
           />
           {monitor === null && (
-            <p className="mt-3 text-xs text-priority-medium">
+            <p className="mt-3 text-xs text-priority-medium-text">
               Bu kaynak izlenmiyor — taramalar çalışsa bile Inbox&apos;a hiçbir şey düşmez. Yukarıdaki
               &quot;İzlemeye al&quot; ile açabilirsin.
             </p>
@@ -220,7 +220,7 @@ function LineagePanel({
       </div>
 
       {branching && (
-        <p className="text-xs text-priority-medium">
+        <p className="text-xs text-priority-medium-text">
           Aynı seviyede birden fazla kaynak var — bu düz bir zincir değil, dallanan bir ağaç.
           Yukarıdaki liste hop sayısına göre sıralı, ama yan yana duran iki kaynak birbirinin
           devamı olmayabilir.
@@ -322,7 +322,7 @@ function ClaimsPanel({
               />
               {superseded && <Badge variant="secondary">yerini aldı: daha yeni bir claim</Badge>}
               {!claim.about_entity_id && !claim.about_event_id && (
-                <Badge variant="secondary" className="text-priority-medium">
+                <Badge variant="secondary" className="text-priority-medium-text">
                   hiçbir şeye bağlı değil
                 </Badge>
               )}

@@ -27,9 +27,9 @@ export function InjectionWarning({
   return (
     <div className="rounded-lg border border-priority-high/40 bg-priority-high/5 p-3">
       <div className="flex items-start gap-2">
-        <ShieldAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-priority-high" />
+        <ShieldAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-priority-high-text" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-priority-high">
+          <p className="text-xs font-medium text-priority-high-text">
             {hits.length === 1
               ? "Bu içerikte talimat görünümlü bir ifade var"
               : `Bu içerikte talimat görünümlü ${hits.length} ifade var`}

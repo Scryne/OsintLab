@@ -30,9 +30,11 @@ tekrar edilmez.
 
   1. **Confidence Spectrum** (soğuk→sıcak, `knowledge_state`'in birebir karşılığı —
      imza öğe, aşağıda detay):
-     `UNKNOWN #4B5768 → OBSERVED #3E6E93 → REPORTED #2F8FA6 → SUPPORTED #34A183 →
+     `UNKNOWN #5B697D → OBSERVED #3E6E93 → REPORTED #2F8FA6 → SUPPORTED #34A183 →
      CORROBORATED #C99A3E → HIGH_CONFIDENCE #E8B84B` — `CONTRADICTED #C4466E` bu rampanın
      DIŞINDA, bilinçli bir "kırılma" rengi (mor-gül tonu, ramp'a ait değilmiş gibi durmalı).
+     (`UNKNOWN` 2026-09-06'da `#4B5768`'den yükseltildi — bkz. Kontrast Sözleşmesi. Bunlar
+     nokta/kenarlık değerleridir; **metin** için `-text` tokenları kullanılır.)
   2. **Priority/Alarm Scale** (Inbox'a özel, mor-kırmızı ailesi — confidence'ın mavi-yeşil-
      altın ailesiyle KARIŞTIRILMAMALI):
      `INFO #6B7690 → LOW #7C74C4 → MEDIUM #C4703E → HIGH #DD5A46 → CRITICAL #E23A6B`
@@ -64,6 +66,38 @@ tekrar edilmez.
   6 durumu gösteren ince bir dikey "spectrum rail" gerçek bir lejant olarak duruyor (dekoratif
   gradient değil, tıklanabilir filtre). Kullanıcı renk okumasını öğrendikçe, grafiği/timeline'ı
   taramadan "bu bilgi ne kadar sağlam" sorusunu göz ucuyla cevaplayabiliyor.
+
+## Kontrast Sözleşmesi (2026-09-06)
+
+Renk bu projede bilgi taşıyor, dolayısıyla okunabilirliği bir tercih değil bir kısıt.
+Rampaların **anlamı** (soğuk→sıcak sıra, CONTRADICTED'ın rampa dışında durması, priority'nin
+ayrı aile olması) dokunulmaz; kontrast bunun **üzerine** ton değil açıklık oynayarak sağlanır.
+
+**Kural: bir rengin zemin/nokta/kenarlık hâli ile metin hâli ayrı tokenlardır.**
+
+| Kullanım | Token | Eşik | Ölçüm zemini |
+| --- | --- | --- | --- |
+| Nokta, kenarlık, rail bloğu, kart kenarı | `--confidence-*`, `--priority-*` | 3:1 (WCAG 1.4.11, UI bileşeni) | `.glass-panel` (#1b1c1e) |
+| Badge/etiket metni (`text-xs` = 12px) | `--confidence-*-text`, `--priority-*-text` | 4.5:1 | aşağıya bkz. |
+| Link/vurgu metni | `--brand-accent-text` | 4.5:1 | cam + surface |
+| Buton zemini | `--brand-accent` | — | metin `--brand-accent-foreground`'dan |
+
+**Ölçüm zemini iki badge'de farklıdır — karıştırılmamalı:**
+- `ConfidenceBadge` saydamdır; metin doğrudan cam/surface üzerindedir.
+- `PriorityBadge` kendi rengiyle **%22 tint'lenmiş** bir pill'dir; metin o tint üzerindedir
+  ve zemin renge yaklaştığı için kontrast belirgin şekilde düşer. Bu yüzden priority metin
+  tokenları confidence'dakilerden daha açıktır. Tint'i düşürmek çözüm değildir: %10'a
+  indirilse bile ham renkle tavan 4.15'tir.
+
+**2026-09-06 denetiminde düzeltilenler.** Ölçülmeden önce yedi token kalıyordu; en kötüsü,
+en çok görülmesi gereken iki durumun (CONTRADICTED 3.61, CRITICAL 4.10) en zor okunanlar
+arasında olmasıydı. `UNKNOWN` ise nokta olarak 2.32 ile 3:1'i bile geçmiyordu — rampanın en
+sönük ucu fiilen görünmezdi; ham değeri `#4B5768 → #5B697D` yükseltildi (luminans sırası
+korunarak, tek ham değer değişikliği).
+
+**Yeni renk eklerken:** `frontend/src/app/globals.css` içindeki tokenları okuyup her eşiği
+yeniden ölçen doğrulama, Paket 1 çalışmasında kullanıldı; token eklendiğinde aynı ölçüm
+tekrarlanmalı. Değerler elle tahmin edilmez.
 
 ## Uygulama Notları
 (Component bazlı özel kararlar — bu projede nav nasıl duruyor, kart stili vb.)

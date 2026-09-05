@@ -173,7 +173,7 @@ function ScheduleRow({
             {/* Çalışan ama hiçbir şey söylemeyen bir tarama sessiz bir tuzak — Monitor
                 kapalıysa bunu listede açıkça yazıyoruz. */}
             {schedule.active && !schedule.monitored && (
-              <Badge variant="secondary" className="text-priority-medium">
+              <Badge variant="secondary" className="text-priority-medium-text">
                 <BellOff aria-hidden className="h-3 w-3" />
                 Inbox&apos;a düşmez
               </Badge>
@@ -215,7 +215,7 @@ function ScheduleRow({
 
       {failing && schedule.last_error && (
         <div className="mt-3 flex items-start gap-2 rounded-md border border-priority-critical/30 bg-priority-critical/5 p-2.5 text-xs">
-          <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-priority-critical" />
+          <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-priority-critical-text" />
           <div className="min-w-0">
             <p className="text-text-secondary">{schedule.last_error}</p>
             {schedule.consecutive_failures > 1 && (

@@ -208,7 +208,7 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
           {observation.text_source === "ocr" && (
             <>
               {" · "}
-              <span className="inline-flex items-center gap-1 text-priority-medium">
+              <span className="inline-flex items-center gap-1 text-priority-medium-text">
                 <ScanEye aria-hidden className="h-3 w-3" />
                 OCR
               </span>
@@ -356,7 +356,7 @@ function NewObservationDialog({ onCreated }: { onCreated: () => void }) {
               placeholder="https://…"
             />
           </div>
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !rawContent.trim()}>
@@ -557,7 +557,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
                 </p>
               )}
             </div>
-            {error && <p className="text-sm text-priority-critical">{error}</p>}
+            {error && <p className="text-sm text-priority-critical-text">{error}</p>}
           </div>
         )}
 

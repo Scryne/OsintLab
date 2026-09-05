@@ -175,7 +175,7 @@ function NewLinkSourceDialog({ eventId, onLinked }: { eventId: string; onLinked:
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <SearchablePicker items={items} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !sourceId}>

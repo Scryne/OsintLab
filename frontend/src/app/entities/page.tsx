@@ -175,7 +175,7 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
               Aynı kaydın bilinen diğer isimleri — olası eşleşme tespitine girdi olur.
             </p>
           </div>
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !name.trim()}>

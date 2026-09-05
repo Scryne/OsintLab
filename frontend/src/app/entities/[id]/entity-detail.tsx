@@ -229,7 +229,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                       <div className="flex min-w-0 flex-col gap-1">
                         <p className="text-sm text-foreground">{item.title}</p>
                         {item.superseded && (
-                          <p className="text-xs text-priority-high">
+                          <p className="text-xs text-priority-high-text">
                             Yerini daha yenisi aldı — arşiv kaydı.
                           </p>
                         )}
@@ -279,7 +279,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                     {/* F34: yerini almış claim gizlenmiyor (History Is Immutable) ama
                         güncel olandan ayırt edilebilir olmalı. */}
                     {claim.superseded_by_claim_id && (
-                      <p className="mt-1 text-xs text-priority-high">
+                      <p className="mt-1 text-xs text-priority-high-text">
                         Bu bilginin yerini daha yenisi aldı — arşiv kaydı, güncel bilgi değil.
                       </p>
                     )}
@@ -478,7 +478,7 @@ function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreate
               onChange={(e) => setConfidence(e.target.value)}
             />
           </div>
-          {error && <p className="text-sm text-priority-critical">{error}</p>}
+          {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !targetId || !relationType.trim()}>
