@@ -269,7 +269,17 @@ export function EntityDetail({ entityId }: { entityId: string }) {
 
         <TabsContent value="claims" className="mt-4">
           {recall.related_claims.length === 0 ? (
-            <EmptyState title="Bu entity hakkında claim yok" />
+            <EmptyState
+              title="Bu entity hakkında claim yok"
+              description="Bir iddia kaydettiğinde ya da mevcut bir claim'i bu entity'ye bağladığında burada görünür."
+              action={
+                <NewClaimDialog
+                  aboutEntityId={entityId}
+                  relatedClaims={recall.related_claims}
+                  onCreated={reloadRecall}
+                />
+              }
+            />
           ) : (
             <div className="flex flex-col gap-3">
               {recall.related_claims.map((claim) => {
@@ -321,7 +331,9 @@ export function EntityDetail({ entityId }: { entityId: string }) {
 
         <TabsContent value="events" className="mt-4">
           {recall.related_events.length === 0 ? (
-            <EmptyState title="Bu entity bir event'e karışmamış" />
+            <EmptyState
+                title="Bu entity bir event'e karışmamış"
+                description="Bir claim bu entity'yi bir olaya bağladığında olay burada listelenir." />
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {recall.related_events.map((event) => (
@@ -340,7 +352,9 @@ export function EntityDetail({ entityId }: { entityId: string }) {
 
         <TabsContent value="investigations" className="mt-4">
           {recall.related_investigations.length === 0 ? (
-            <EmptyState title="Bu entity bir investigation'a dahil değil" />
+            <EmptyState
+                title="Bu entity bir investigation'a dahil değil"
+                description="Bir araştırmanın kapsamına eklendiğinde o araştırma burada görünür." />
           ) : (
             <div className="flex flex-col gap-2">
               {recall.related_investigations.map((inv) => (

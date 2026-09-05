@@ -10,7 +10,7 @@ import { HypothesisEvidenceDialog } from "@/components/forms/hypothesis-evidence
 import { AddFindingDialog } from "@/components/forms/add-finding-dialog";
 import { InvestigationNarrative } from "@/components/forms/investigation-narrative";
 import { WorkflowRail } from "@/components/forms/workflow-rail";
-import type { InvestigationStatus, InvestigationWorkspace, KnowledgeState } from "@/lib/types";
+import type { InvestigationStatus, KnowledgeState } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorState, EmptyState } from "@/components/ui/state";
@@ -234,7 +234,11 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
           <NewHypothesisDialog investigationId={investigationId} onCreated={reloadAll} />
         </div>
         {ws.hypotheses.length === 0 ? (
-          <EmptyState title="Henüz hipotez yok" />
+          <EmptyState
+            title="Henüz hipotez yok"
+            description="Sınanabilir bir hipotez yaz; kanıtları ona bağlayarak destekleyip çürütebilirsin."
+            action={<NewHypothesisDialog investigationId={investigationId} onCreated={reloadAll} />}
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {ws.hypotheses.map((h) => (

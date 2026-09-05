@@ -143,7 +143,9 @@ function ObservationsView() {
           {loading && <SkeletonRows />}
           {error && <ErrorState message={error.message} onRetry={reload} />}
           {!loading && !error && (!observations || observations.length === 0) && (
-            <EmptyState title="Bu filtrede gözlem yok" />
+            <EmptyState
+            title="Bu filtrede gözlem yok"
+            description="Filtreyi gevşetmeyi dene ya da bir kaynağı tarayıp yeni gözlem topla." />
           )}
           {!loading && !error && observations && observations.length > 0 && filtered.length === 0 && (
             <EmptyState title="Eşleşen gözlem yok" description="Arama terimini değiştir." />

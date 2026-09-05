@@ -56,7 +56,9 @@ export function EventDetail({ eventId }: { eventId: string }) {
       <section>
         <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Bildiren Kaynaklar</h2>
         {recall.reported_by.length === 0 ? (
-          <EmptyState title="Bu event'i bildiren bir kaynak henüz yok" />
+          <EmptyState
+              title="Bu event'i bildiren bir kaynak henüz yok"
+              description="Olayı bildiren kaynağı bağladığında provenance zinciri burada kurulur." />
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {recall.reported_by.map((s) => (
@@ -71,7 +73,9 @@ export function EventDetail({ eventId }: { eventId: string }) {
       <section>
         <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">İlgili Entity&apos;ler</h2>
         {recall.related_entities.length === 0 ? (
-          <EmptyState title="Bu event'e henüz entity bağlanmadı" />
+          <EmptyState
+              title="Bu event'e henüz entity bağlanmadı"
+              description="Olaya karışan kişi ve kurumlar bağlandığında burada listelenir." />
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {recall.related_entities.map((entity) => (
@@ -91,7 +95,9 @@ export function EventDetail({ eventId }: { eventId: string }) {
       <section>
         <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Claim&apos;ler</h2>
         {recall.related_claims.length === 0 ? (
-          <EmptyState title="Bu event hakkında claim yok" />
+          <EmptyState
+            title="Bu event hakkında claim yok"
+            description="Bu olay hakkında bir iddia kaydettiğinde burada görünür." />
         ) : (
           <div className="flex flex-col gap-2">
             {recall.related_claims.map((claim) => (
@@ -113,7 +119,9 @@ export function EventDetail({ eventId }: { eventId: string }) {
       <section>
         <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Investigation&apos;lar</h2>
         {recall.related_investigations.length === 0 ? (
-          <EmptyState title="Bu event bir investigation'a dahil değil" />
+          <EmptyState
+              title="Bu event bir investigation'a dahil değil"
+              description="Bir araştırmanın kapsamına eklendiğinde o araştırma burada görünür." />
         ) : (
           <div className="flex flex-col gap-2">
             {recall.related_investigations.map((inv) => (
