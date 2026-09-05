@@ -144,14 +144,21 @@ export default function InboxPage() {
 
 function LiveIndicator({ updatedAt }: { updatedAt: Date | null }) {
   // Saniye sayacı kendi başına ilerlemeli; veri değişmese de "kaç sn önce" tazelenmeli.
-  const [, force] = useState(0);
+  //
+  // Önceden `Date.now()` render sırasında çağrılıyordu ve boş bir state sayaç turu
+  // zorluyordu. Şimdi geçen süre doğrudan state'te tutuluyor: saf olmayan çağrı
+  // effect'in içinde, render sadece hazır değeri okuyor. Aralık dolmadan da doğru
+  // görünsün diye `updatedAt` değiştiğinde hemen bir kez hesaplanıyor.
+  const [secs, setSecs] = useState(0);
   useEffect(() => {
-    const t = window.setInterval(() => force((n) => n + 1), 10_000);
+    if (!updatedAt) return;
+    const hesapla = () => setSecs(Math.max(0, Math.round((Date.now() - updatedAt.getTime()) / 1000)));
+    hesapla();
+    const t = window.setInterval(hesapla, 10_000);
     return () => window.clearInterval(t);
-  }, []);
+  }, [updatedAt]);
 
   if (!updatedAt) return null;
-  const secs = Math.max(0, Math.round((Date.now() - updatedAt.getTime()) / 1000));
   const label = secs < 60 ? `${secs} sn önce` : `${Math.round(secs / 60)} dk önce`;
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-text-tertiary">

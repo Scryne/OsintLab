@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Download,
@@ -55,9 +55,13 @@ export default function EvidencePage() {
     () => (items ?? []).filter((e) => e.extraction_status && ISLENIYOR.includes(e.extraction_status)).length,
     [items]
   );
-  useEffect(() => {
-    setLive(bekleyen > 0);
-  }, [bekleyen]);
+  // `bekleyen` bu hook'un KENDİ sonucundan türüyor, dolayısıyla çağrıdan önce
+  // hesaplanamıyor — bu yüzden bir state gerekiyor. Ama güncellemesi effect'te değil,
+  // render sırasında yapılıyor (React'ın belgelenmiş "adjusting state during render"
+  // deseni): effect'te olduğunda state ancak BİR SONRAKİ render'da değişiyordu, yani
+  // iş bittikten sonra bir tur daha 1.5 sn'lik boşa yoklama yapılıyordu.
+  const canliOlmali = bekleyen > 0;
+  if (live !== canliOlmali) setLive(canliOlmali);
 
   const filtered = useMemo(() => {
     if (!items) return [];

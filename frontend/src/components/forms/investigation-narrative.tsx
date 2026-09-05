@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, PenLine } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -35,12 +35,12 @@ export function InvestigationNarrative({
   const [draft, setDraft] = useState(value ?? "");
   const [saving, setSaving] = useState(false);
 
-  // Sunucudaki değer değişince (ör. başka bir kaydetme sonrası yeniden çekilince) taslağı
-  // tazele — ama kullanıcı yazarken üzerine yazma.
-  useEffect(() => {
-    if (!editing) setDraft(value ?? "");
-  }, [value, editing]);
-
+  // Taslak yalnızca düzenleme modunda okunuyor (görünen dal `value`'yu gösteriyor), o
+  // yüzden onu sunucu değeriyle senkron tutan bir effect'e gerek yok: düzenleme
+  // başladığı anda tohumlamak yeterli ve daha güvenli. Eski effect `value` her
+  // tazelendiğinde çalışıyordu ve "kullanıcı yazarken üzerine yazma" endişesini bir
+  // `editing` kontrolüyle savuşturmaya çalışıyordu — o kontrolün gerekmediği bir yapı
+  // bu riski tamamen ortadan kaldırıyor.
   async function save() {
     setSaving(true);
     try {
@@ -60,7 +60,15 @@ export function InvestigationNarrative({
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">{label}</h3>
         {!editing && (
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setEditing(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs"
+            onClick={() => {
+              setDraft(value ?? "");
+              setEditing(true);
+            }}
+          >
             <PenLine aria-hidden className="h-3.5 w-3.5" />
             {value ? "Düzenle" : "Yaz"}
           </Button>
