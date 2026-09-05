@@ -41,7 +41,7 @@ type DetectResult = {
 export function LineageDetectDialog({ onDetected }: { onDetected: () => void }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: claims } = useApi(() => api.claims.list(), [open]);
+  const { data: claims } = useApi(() => (open ? api.claims.list() : Promise.resolve([])), [open]);
   const [aId, setAId] = useState<string | null>(null);
   const [bId, setBId] = useState<string | null>(null);
   const [result, setResult] = useState<DetectResult | null>(null);

@@ -38,7 +38,7 @@ export function ClaimContradictDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: claims } = useApi(() => api.claims.list(), [open]);
+  const { data: claims } = useApi(() => (open ? api.claims.list() : Promise.resolve([])), [open]);
   const [claimId, setClaimId] = useState<string | null>(null);
   const [otherId, setOtherId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

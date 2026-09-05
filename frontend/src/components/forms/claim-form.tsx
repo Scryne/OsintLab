@@ -40,7 +40,7 @@ export function NewClaimDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: sources } = useApi(() => api.sources.list(), [open]);
+  const { data: sources } = useApi(() => (open ? api.sources.list() : Promise.resolve([])), [open]);
 
   const [text, setText] = useState("");
   const [sourceId, setSourceId] = useState<string | null>(null);

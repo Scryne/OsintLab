@@ -34,7 +34,7 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"existing" | "new">("existing");
-  const { data: evidenceList } = useApi(() => api.evidence.list(), [open]);
+  const { data: evidenceList } = useApi(() => (open ? api.evidence.list() : Promise.resolve([])), [open]);
 
   const [evidenceId, setEvidenceId] = useState<string | null>(null);
   const [evidenceType, setEvidenceType] = useState(EVIDENCE_TYPE_SUGGESTIONS[0]);

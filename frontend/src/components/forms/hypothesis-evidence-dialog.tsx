@@ -55,7 +55,7 @@ export function HypothesisEvidenceDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: evidence } = useApi(() => api.evidence.list(), [open]);
+  const { data: evidence } = useApi(() => (open ? api.evidence.list() : Promise.resolve([])), [open]);
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [evidenceId, setEvidenceId] = useState<string | null>(null);
   const [evidenceType, setEvidenceType] = useState(EVIDENCE_TYPE_SUGGESTIONS[0]);

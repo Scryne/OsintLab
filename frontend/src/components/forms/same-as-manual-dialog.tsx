@@ -40,7 +40,7 @@ export function SameAsManualDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: entities } = useApi(() => api.entities.list(), [open]);
+  const { data: entities } = useApi(() => (open ? api.entities.list() : Promise.resolve([])), [open]);
   const [otherId, setOtherId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

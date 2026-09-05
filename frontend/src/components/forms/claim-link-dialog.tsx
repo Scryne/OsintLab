@@ -28,7 +28,7 @@ import { useToast } from "@/components/ui/toast";
 export function ClaimLinkDialog({ entityId, onLinked }: { entityId: string; onLinked: () => void }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: claims } = useApi(() => api.claims.list(), [open]);
+  const { data: claims } = useApi(() => (open ? api.claims.list() : Promise.resolve([])), [open]);
   const [claimId, setClaimId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

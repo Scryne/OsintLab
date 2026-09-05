@@ -94,7 +94,16 @@ function ObservationsView() {
         <div className="flex items-center gap-2">
           {/* Faz 16: değerlendirme kuyruğu ayrı bir ekran — bu sayfa tekil kayıt üzerinde
               çalışmak için, kuyruk biriken yığını eritmek için. */}
-          <Button size="sm" variant="outline" render={<Link href="/observations/queue" />}>
+          {/* Bir <a> olarak render edildiği için `nativeButton={false}` şart: Base UI
+              varsayılan olarak native <button> bekliyor ve aksi halde konsola hata basıp
+              native buton semantiğinin sessizce kaybolduğunu bildiriyor. Aynı kalıp
+              evidence sayfasındaki indirme bağlantılarında da uygulanıyor. */}
+          <Button
+            size="sm"
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/observations/queue" />}
+          >
             <ListChecks aria-hidden className="h-4 w-4" />
             Promote Kuyruğu
           </Button>
@@ -375,11 +384,20 @@ function NewObservationDialog({ onCreated }: { onCreated: () => void }) {
 function PromoteDialog({ observation, onPromoted }: { observation: Observation; onPromoted: () => void }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: sources } = useApi(() => api.sources.list(), [open]);
-  const { data: entities } = useApi(() => api.entities.list(), [open]);
-  const { data: events } = useApi(() => api.events.list(), [open]);
-  const { data: evidenceList } = useApi(() => api.evidence.list(), [open]);
-  const { data: claims } = useApi(() => api.claims.list(), [open]);
+  // Bu dialog HER gözlem satırında render ediliyor (bkz. ObservationRow), yani bu beş
+  // çağrı listedeki kayıt sayısıyla çarpılıyor. Ölçüldü (2026-09-06, 233 gözlem):
+  // sayfa açılışında backend'e 2336 istek gidiyor ve tarayıcı
+  // ERR_INSUFFICIENT_RESOURCES ile isteklerin bir kısmını düşürüyordu — hiçbiri
+  // gerekli değildi, çünkü dialogların hepsi KAPALI.
+  //
+  // `[open]` bağımlılığı zaten "açılınca tazele" niyetini taşıyordu ama `useApi`
+  // mount'ta koşulsuz çekiyor. Fetcher'ı da aynı koşula bağlamak niyeti tamamlıyor:
+  // kapalıyken hiç istek yok, açılınca tam liste geliyor.
+  const { data: sources } = useApi(() => (open ? api.sources.list() : Promise.resolve([])), [open]);
+  const { data: entities } = useApi(() => (open ? api.entities.list() : Promise.resolve([])), [open]);
+  const { data: events } = useApi(() => (open ? api.events.list() : Promise.resolve([])), [open]);
+  const { data: evidenceList } = useApi(() => (open ? api.evidence.list() : Promise.resolve([])), [open]);
+  const { data: claims } = useApi(() => (open ? api.claims.list() : Promise.resolve([])), [open]);
 
   const [sourceId, setSourceId] = useState<string | null>(null);
   // Faz 11 (dogfooding F15): varsayılan "none"du ve alan sessizce atlanabiliyordu. Atlanınca

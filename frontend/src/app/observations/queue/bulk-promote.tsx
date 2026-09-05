@@ -49,8 +49,8 @@ export function BulkPromoteDialog({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ObservationPromoteBatchResult | null>(null);
 
-  const { data: sources } = useApi(() => api.sources.list(), [open]);
-  const { data: entities } = useApi(() => api.entities.list(), [open]);
+  const { data: sources } = useApi(() => (open ? api.sources.list() : Promise.resolve([])), [open]);
+  const { data: entities } = useApi(() => (open ? api.entities.list() : Promise.resolve([])), [open]);
 
   /** Kümenin önizlemesi: hangi kayıt hangi kaynak+entity ile gidecek, hangileri atlanacak.
    * Backend'in kararını burada tekrar etmiyoruz — aynı önerileri kuyruk yanıtı zaten

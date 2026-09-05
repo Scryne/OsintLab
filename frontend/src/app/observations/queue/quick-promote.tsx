@@ -41,8 +41,8 @@ const PROMOTION_THRESHOLD = 0.45;
 export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPromoted: () => void }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: sources, reload: reloadSources } = useApi(() => api.sources.list(), [open]);
-  const { data: entities } = useApi(() => api.entities.list(), [open]);
+  const { data: sources, reload: reloadSources } = useApi(() => (open ? api.sources.list() : Promise.resolve([])), [open]);
+  const { data: entities } = useApi(() => (open ? api.entities.list() : Promise.resolve([])), [open]);
 
   const [sourceId, setSourceId] = useState<string | null>(item.suggested_source_id);
   const [entityId, setEntityId] = useState<string | null>(item.suggested_entity_id);

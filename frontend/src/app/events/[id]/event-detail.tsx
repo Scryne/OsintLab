@@ -144,7 +144,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
 function NewLinkSourceDialog({ eventId, onLinked }: { eventId: string; onLinked: () => void }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: sources } = useApi(() => api.sources.list(), [open]);
+  const { data: sources } = useApi(() => (open ? api.sources.list() : Promise.resolve([])), [open]);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -425,7 +425,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
 function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreated: () => void }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: entities } = useApi(() => api.entities.list(), [open]);
+  const { data: entities } = useApi(() => (open ? api.entities.list() : Promise.resolve([])), [open]);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [relationType, setRelationType] = useState("");
   const [confidence, setConfidence] = useState("0.5");

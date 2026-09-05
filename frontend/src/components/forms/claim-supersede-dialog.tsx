@@ -40,7 +40,7 @@ export function ClaimSupersedeDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: claims } = useApi(() => api.claims.list(), [open]);
+  const { data: claims } = useApi(() => (open ? api.claims.list() : Promise.resolve([])), [open]);
   const [newerId, setNewerId] = useState<string | null>(null);
   const [olderId, setOlderId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
