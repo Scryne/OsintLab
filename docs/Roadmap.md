@@ -98,6 +98,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 15.2 | DOCINT: belge → Observation → Claim hattı | ⏳ Bekliyor | Belgeden çıkan metin Observation olarak sisteme giriyor ve mevcut promote akışına katılıyor; belge metni/metadata'sı Q22 güvenilmeyen-veri sınırı içinde sunuluyor, talimat-görünümlü ifade kullanıcıya bildiriliyor. |
 | 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ⏳ Bekliyor | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
 | 15.4 | DOCINT: OCR (koşullu) | ⏳ Bekliyor | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
+| 16 | Promote Kuyruğu (değerlendirme darboğazı) | ⏳ Bekliyor | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
 
 ## Faz Detayları
 
@@ -1307,3 +1308,54 @@ ayrı" kararıyla tutarlı).
   güvenilirlikte değildir.
 - **Bitti Kriteri:** Taranmış bir belgeden metin çıkarılabiliyor ve bu metnin kaynağının OCR
   olduğu sistemde görünür kalıyor.
+
+### Faz 16: Promote Kuyruğu (değerlendirme darboğazı)
+
+- **Neden bu faz var (ölçüm, 2026-09-05).** Gecelik koşu değerlendirmesinde çıktı: 222
+  gözlemin **221'i promote edilmemiş**. Bu bir bug değil — promote, ham gözlemin Knowledge
+  Graph'a gerçek olarak girdiği adım ve bilinçli olarak insan kararı (Design Principle #7,
+  Human Remains In Control). Ama şunu gösteriyor: **Faz 12 toplama tarafını otomatikleştirdi,
+  değerlendirme tarafı elle kaldı.** Sistem kendi kendine gözlem biriktiriyor, hiçbiri
+  bilgiye dönüşmüyor. Bu haliyle OSINT Brain'in hafızası büyümüyor, sadece giriş kutusu
+  şişiyor.
+
+- **Sorun 'insan karar veriyor' değil, kararın pahalı olması.** Mevcut arayüzde promote tek
+  gözlem üzerinden, tam form doldurarak veriliyor (Faz 10'da böyle tasarlandı, çünkü o zaman
+  gözlemler elle ve teker teker giriliyordu). 221 kayıt için bu yol fiilen kapalı. Faz 16
+  kararı insandan ALMIYOR; kararı ucuzlatıyor.
+
+- **İşler:**
+  - **Kuyruk görünümü:** promote edilmemiş gözlemler tek ekranda, sinyale göre sıralı —
+    Faz 12'nin öncelik kuralı (bildiğimiz bir entity'ye değiyor mu) zaten var, kuyruk onu
+    kullanır. Yüksek sinyalli olan üste çıkar, gürültü dibe iner.
+  - **Toplu eleme:** ilgisiz gözlemler tek tek değil seçilerek elenebilir. Elenen gözlem
+    SİLİNMEZ — 'değerlendirildi, bilgiye dönüştürülmedi' olarak işaretlenir. (Faz 3'ün
+    Q17 disiplininin aynısı: yükselmeyen şey de kaybolmaz.) Bu, elenmiş gözlemin kuyruğa
+    geri düşmemesi için de gerekli.
+  - **Hızlı promote:** yüksek sinyalli bir gözlem için tam form yerine kısa yol — entity
+    bağı ve claim metni önerilir, kullanıcı onaylar/düzeltir. Faz 11/F15-F16'nın dersi
+    burada geçerli: entity bağı atlanabiliyorsa sonradan onarılabilir olmalı.
+  - **Kuyruk sağlığı görünür olsun:** kaç gözlem bekliyor, en eskisi ne kadar bekledi. Şu
+    an bu sayıyı görmenin hiçbir yolu yok — 221 rakamı ancak API'ye elle sorulunca çıktı.
+
+- **Açık karar: otomatik promote kuralı.** Bu fazda karara bağlanacak, şimdiden
+  varsayılmayacak. Argüman şu: bir kuralı **bir kez** tanımlamak da insanın kontrolüdür,
+  221 kez tıklamak da — Design Principle #7 'her kaydı insan görsün' demiyor, 'kritik kararı
+  insan versin' diyor. Dar ve kullanıcının kendi yazdığı bir kural (ör. 'izlediğim bir
+  entity'ye değen ve X eşiğini geçen gözlem otomatik promote olsun') ilkeyi çiğnemeyebilir.
+  **Ama bu faza girerken doğru varsayım 'hayır'dır**: önce kuyruk kurulur, kullanıcı gerçek
+  kuyruğu bir kez eritir, ve ancak o deneyimden sonra hangi kuralın güvenli olduğu bilinir.
+  Kuralı deneyimden ÖNCE yazmak, Faz 12'de yapılan hatanın (roadmap'in 'otomatik geçer'
+  varsayımının yanlış çıkması) aynısı olur.
+
+- **Bitti Kriteri:** Promote edilmemiş gözlemler tek ekranda sinyale göre sıralı görünüyor;
+  ilgisiz olanlar toplu elenebiliyor ve elenen gözlem kaybolmadan 'değerlendirildi'
+  işaretini taşıyor; yüksek sinyalli bir gözlem kısa yoldan promote edilebiliyor; kuyrukta
+  kaç gözlem beklediği arayüzde görünüyor. **Ve fazın asıl sınavı:** birikmiş gerçek kuyruk
+  (2026-09-05 itibarıyla 222 gözlem) fiilen eritilmiş olmalı — bitti kriteri özelliğin
+  varlığı değil, darboğazın gerçekten açılmış olması.
+
+- **Sıra notu:** Faz 15.1-15.4'ten (DOCINT) sonra. Gerekçe: DOCINT belgeden yeni gözlem
+  üretecek, yani kuyruğu BESLEYEN bir faz. Kuyruk mekanizmasını DOCINT'ten sonra kurmak,
+  onu iki farklı gözlem kaynağıyla (collector + belge) birlikte tasarlamayı sağlar; önce
+  kurulsaydı DOCINT geldiğinde yeniden ele alınması gerekirdi.
