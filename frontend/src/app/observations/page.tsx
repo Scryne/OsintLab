@@ -3,7 +3,7 @@
 import { Suspense, useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Inbox as InboxIcon, Plus, X } from "lucide-react";
+import { FileText, Inbox as InboxIcon, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type { Observation, ObservationPromoteResult } from "@/lib/types";
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ErrorState, EmptyState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
+import { InjectionWarning } from "@/components/provenance/injection-warning";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -144,7 +145,7 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm text-foreground">{observation.raw_content}</p>
+        <ObservationText text={observation.raw_content} />
         {/* F32: üç durum var, iki rozet yetmiyordu — "işlendi ama eşiği geçmedi" hâli
             "hiç işlenmemiş" gibi görünüyordu. */}
         <Badge
@@ -158,13 +159,66 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
               : "bekliyor"}
         </Badge>
       </div>
+      {/* Q22 — uyarı metinle birlikte seyahat ediyor: promote kararı BU ekranda veriliyor,
+          uyarı yalnızca kaynak belgede dursaydı burada görünmezdi. */}
+      <InjectionWarning hits={observation.injection_hits} />
+
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-[11px] text-text-tertiary">
           {new Date(observation.created_at).toLocaleString("tr-TR")}
           {observation.source_url && <> · {observation.source_url}</>}
+          {/* Faz 15.2 — belge tabanlı gözlemin provenance'ı: hangi belgenin hangi sayfaları.
+              "Hangi belgeden" tek başına yetmez; 492 sayfalık bir raporda iddianın nereden
+              çıktığı kaybolursa kanıt zinciri kopar. */}
+          {observation.from_evidence && (
+            <>
+              {" · "}
+              <FileText aria-hidden className="mr-1 inline h-3 w-3 align-[-2px]" />
+              {observation.from_evidence.file_name ?? "belge"}
+              {" · s"}
+              {observation.from_evidence.page_from === observation.from_evidence.page_to
+                ? observation.from_evidence.page_from
+                : `${observation.from_evidence.page_from}-${observation.from_evidence.page_to}`}
+            </>
+          )}
         </p>
         <PromoteDialog observation={observation} onPromoted={onPromoted} />
       </div>
+    </div>
+  );
+}
+
+/** Faz 15.2 — gözlem metni artık çok daha uzun olabiliyor.
+ *
+ * RSS'ten gelen gözlemler 200-400 karakterdi ve tamamını basmak sorun değildi; belgeden
+ * üretilen bir gözlem tek sayfada bile ~2.900 karakter (arXiv 1. sayfa ölçüldü). Hepsini
+ * basmak listeyi kaydırılamaz hale getiriyordu — tek gözlem ekranın tamamını dolduruyor,
+ * yanındaki gözlemler görünmez oluyordu. Kırpma yalnızca GÖRÜNTÜDE: metnin tamamı grafta
+ * duruyor ve promote edildiğinde claim metnine olduğu gibi giriyor. */
+const OBSERVATION_CLAMP = 600;
+
+function ObservationText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const uzun = text.length > OBSERVATION_CLAMP;
+  if (!uzun) return <p className="text-sm text-foreground">{text}</p>;
+  return (
+    <div className="min-w-0 flex-1">
+      {/* Kırpılmış önizlemede satır sonları TOPLANIYOR (pre-wrap yok), açılmış halde
+          korunuyor. Sebebi ölçüldü: PDF metninde her yazar/başlık ayrı satırda geliyor,
+          pre-wrap ile 600 karakterlik bir önizleme 30 satır kaplıyordu — kırpmanın amacı
+          tam da bunu engellemekti. Açıldığında belgenin gerçek yapısı görünmeli. */}
+      <p className={`text-sm text-foreground ${expanded ? "whitespace-pre-wrap" : ""}`}>
+        {expanded ? text : `${text.slice(0, OBSERVATION_CLAMP).trimEnd()}…`}
+      </p>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="mt-1 text-xs text-text-tertiary underline decoration-white/20 underline-offset-2 hover:text-foreground"
+      >
+        {expanded
+          ? "Kısalt"
+          : `Tümünü göster (${text.length.toLocaleString("tr-TR")} karakter)`}
+      </button>
     </div>
   );
 }

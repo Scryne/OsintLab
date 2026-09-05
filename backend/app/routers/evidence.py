@@ -14,8 +14,10 @@ from app.models import (
     EvidenceClaimLink,
     EvidenceCreate,
     EvidenceExtraction,
+    EvidenceObservationCreate,
     EvidenceVaultItem,
 )
+from app.models import Observation
 from app.monitoring import claim_headline
 from app.routers.claims import _claim_about, _node_exists, _notify_change, _recompute_and_store, get_claim
 from app.vault import safe_render_vault
@@ -236,7 +238,8 @@ def get_evidence_extraction(evidence_id: str) -> EvidenceExtraction:
             "MATCH (ev:Evidence {id: $id}) RETURN ev.extraction_status AS status, "
             "ev.doc_metadata AS doc_metadata, ev.page_count AS page_count, "
             "ev.pages_done AS pages_done, ev.extraction_error AS error, "
-            "ev.extracted_at AS extracted_at, ev.extracted_text AS text",
+            "ev.extracted_at AS extracted_at, ev.extracted_text AS text, "
+            "ev.injection_hits AS injection_hits",
             {"id": evidence_id},
         )
     )
@@ -254,6 +257,7 @@ def get_evidence_extraction(evidence_id: str) -> EvidenceExtraction:
         metadata=docint.metadata_from_json(row["doc_metadata"]),
         text_chars=len(text),
         text_preview=text[:PREVIEW_CHARS],
+        injection_hits=docint.hits_from_json(row["injection_hits"]),
     )
 
 
@@ -285,6 +289,67 @@ def get_evidence_text(evidence_id: str) -> PlainTextResponse:
         media_type="text/plain; charset=utf-8",
         headers={"X-Content-Type-Options": "nosniff"},
     )
+
+
+@router.post("/{evidence_id}/observations", response_model=Observation, status_code=201)
+def create_observation_from_evidence(
+    evidence_id: str, payload: EvidenceObservationCreate
+) -> Observation:
+    """Faz 15.2 — belgenin bir sayfa aralığından Observation üretir.
+
+    **Neden tüm belge değil, neden otomatik değil.** Promote, `raw_content`'i doğrudan claim
+    metnine çeviriyor (`observations.py`); NIST SP 800-53r5 tek gözlem olsaydı 1,65 milyon
+    karakterlik bir claim üretirdi. Her sayfayı otomatik gözleme çevirmek ise tek dosyadan
+    492 gözlem demekti — Faz 16'nın açmaya çalıştığı değerlendirme darboğazını tek yüklemeyle
+    tıkamak. Bu yüzden birim, kullanıcının seçtiği sayfa aralığı ve adım açıkça tetikleniyor
+    (Design Principle #7: kritik kararı insan verir).
+
+    **DOCINT ayrı bir boru hattı kurmuyor.** Üretilen gözlem, collector'dan gelen her gözlemle
+    aynı: aynı `create_observation_record`, aynı daily log, aynı promote akışı (Q1/Q8). Tek
+    farkı provenance'ının URL değil belge olması — o da EXTRACTED_FROM kenarında duruyor."""
+    from app.routers.observations import create_observation_record, get_observation
+
+    conn = get_connection()
+    evidence = get_evidence(evidence_id)
+    path = _resolve_stored_file(evidence.file_path)
+    if path is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Bu kanıtın vault'ta yüklenmiş bir dosyası yok, gözlem üretilemez.",
+        )
+
+    result = docint.extract_page_range(path, payload.page_from, payload.page_to)
+    if result["status"] != docint.DONE:
+        # Sessizce boş bir gözlem üretmektense reddediyoruz: bu fazın tamamı, içeriği
+        # olmayan bir kaydın "işlenmiş" gibi görünmesini engellemek üzerine kurulu.
+        raise HTTPException(
+            status_code=422,
+            detail=result["error"] or docint.STATUS_LABELS.get(result["status"], "Metin çıkarılamadı."),
+        )
+
+    observation = create_observation_record(
+        result["text"],
+        observed_at=evidence.collected_at or evidence.created_at,
+        source_url=None,
+        log_extra={
+            "evidence_id": evidence_id,
+            "page_from": payload.page_from,
+            "page_to": payload.page_to,
+        },
+    )
+    conn.execute(
+        "MATCH (o:Observation {id: $oid}), (ev:Evidence {id: $eid}) "
+        "CREATE (o)-[:EXTRACTED_FROM {page_from: $pf, page_to: $pt, created_at: $now}]->(ev)",
+        {
+            "oid": observation.id,
+            "eid": evidence_id,
+            "pf": payload.page_from,
+            "pt": payload.page_to,
+            "now": datetime.now(timezone.utc),
+        },
+    )
+    # Kenar kurulduktan SONRA yeniden okunuyor ki dönen nesne `from_evidence` taşısın.
+    return get_observation(observation.id)
 
 
 @router.post("/{evidence_id}/extract", status_code=202)

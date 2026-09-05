@@ -97,6 +97,28 @@ class EvidenceExtraction(BaseModel):
     metadata: dict[str, str] = Field(default_factory=dict)
     text_chars: int = 0
     text_preview: str = ""
+    # Faz 15.2 (Q22): belgede/metadata'da bulunan talimat-görünümlü ifadeler. Boş liste
+    # "temiz" demek değil, "bilinen desenlerden hiçbiri eşleşmedi" demek — asıl koruma
+    # tespit değil, bu metnin hiçbir katmanda komut olarak yürütülmemesi.
+    injection_hits: list[dict] = Field(default_factory=list)
+
+
+class ObservationFromEvidence(BaseModel):
+    """Faz 15.2 — bir gözlem bir belgeden geldiyse hangi belgenin hangi sayfalarından
+    geldiği. "Hangi belgeden" tek başına yetmez: bir iddianın 492 sayfalık raporun neresinden
+    çıktığı kaybolursa kanıt zinciri kopar."""
+
+    evidence_id: str
+    page_from: int
+    page_to: int
+    file_name: str | None = None
+
+
+class EvidenceObservationCreate(BaseModel):
+    """Belgenin bir sayfa aralığından gözlem üretme isteği (1 tabanlı, `page_to` dahil)."""
+
+    page_from: int = Field(1, ge=1)
+    page_to: int = Field(1, ge=1)
 
 
 class EvidenceVaultItem(Evidence):
@@ -186,6 +208,13 @@ class Observation(ObservationCreate):
     # işlenmemiş" ile "işlendi, eşiği geçmedi"yi ayırt edemiyordu: Promote butonu duruyor,
     # tekrar basılınca 409 geliyordu.
     produced_claim_id: str | None = None
+    # Faz 15.2 — belgeden gelen gözlemler için provenance. Collector'dan gelenlerde None
+    # (onların provenance'ı `source_url`); belge tabanlı gözlemlerin URL'i YOKTUR, o yüzden
+    # source_url'e uydurma bir değer yazmak yerine ayrı bir alan kullanılıyor.
+    from_evidence: ObservationFromEvidence | None = None
+    # Faz 15.2 (Q22) — bu gözlemin KENDİ metninde bulunan talimat-görünümlü ifadeler.
+    # Kaynağı belge de olabilir collector da: toplanan hiçbir metin talimat değildir.
+    injection_hits: list[dict] = Field(default_factory=list)
 
 
 INVESTIGATION_STATUSES = ("OPEN", "ACTIVE", "PAUSED", "RESOLVED", "CLOSED", "ARCHIVED")

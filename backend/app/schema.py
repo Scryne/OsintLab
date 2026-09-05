@@ -82,6 +82,7 @@ NODE_TABLES = [
         pages_done INT64,
         extraction_error STRING,
         extracted_at TIMESTAMP,
+        injection_hits STRING,
         PRIMARY KEY(id)
     )
     """,
@@ -107,6 +108,7 @@ NODE_TABLES = [
         promoted BOOLEAN,
         source_url STRING,
         created_at TIMESTAMP,
+        injection_hits STRING,
         PRIMARY KEY(id)
     )
     """,
@@ -199,6 +201,11 @@ REL_TABLES = [
     "CREATE REL TABLE IF NOT EXISTS INCLUDES(FROM Investigation TO Entity)",
     "CREATE REL TABLE IF NOT EXISTS INVESTIGATES(FROM Investigation TO Event)",
     "CREATE REL TABLE IF NOT EXISTS PRODUCED(FROM Observation TO Claim)",
+    # Faz 15.2 (DOCINT): bir gozlem bir belgenin BELIRLI SAYFALARINDAN geldiyse bagi
+    # burada durur. Sayfa bilgisi kenarin uzerinde: "hangi belgeden" yetmez, iddianin
+    # 492 sayfalik bir raporun neresinden ciktigi kaybolursa kanit zinciri kopar
+    # (Faz 6 lineage disiplininin belge tarafi).
+    "CREATE REL TABLE IF NOT EXISTS EXTRACTED_FROM(FROM Observation TO Evidence, page_from INT64, page_to INT64, created_at TIMESTAMP)",
     # Faz 2 — Q4 confidence girdisi (corroboration) ve Q9 (temporal versiyonlama / çelişki)
     "CREATE REL TABLE IF NOT EXISTS CORROBORATES(FROM Claim TO Claim)",
     "CREATE REL TABLE IF NOT EXISTS CLAIM_CONTRADICTS(FROM Claim TO Claim, status STRING, detected_at TIMESTAMP)",
@@ -243,6 +250,12 @@ COLUMN_ADDITIONS = [
     "ALTER TABLE Evidence ADD IF NOT EXISTS pages_done INT64",
     "ALTER TABLE Evidence ADD IF NOT EXISTS extraction_error STRING",
     "ALTER TABLE Evidence ADD IF NOT EXISTS extracted_at TIMESTAMP",
+    # Faz 15.2 (Q22): belgede/metadata'da bulunan talimat-gorunumlu ifadeler (JSON).
+    "ALTER TABLE Evidence ADD IF NOT EXISTS injection_hits STRING",
+    # Faz 15.2: uyari metinle birlikte seyahat etmeli. Promote karari gozlem uzerinde
+    # veriliyor; uyari yalnizca kaynak belgede dursaydi, kullanici bir iddiayi Knowledge
+    # Graph'a yukseltirken onu gormeyebilirdi.
+    "ALTER TABLE Observation ADD IF NOT EXISTS injection_hits STRING",
 ]
 
 

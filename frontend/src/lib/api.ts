@@ -220,6 +220,10 @@ export const api = {
       `/evidence/${id}/extract`,
       {}
     ),
+    // Faz 15.2: belgenin seçilen sayfa aralığından Observation üretir. Tüm belge değil —
+    // promote gözlemin metnini doğrudan claim metni yapıyor.
+    createObservation: (id: string, payload: { page_from: number; page_to: number }) =>
+      post<Observation>(`/evidence/${id}/observations`, payload),
     upload: async (payload: { file: File; evidence_type: string; collected_at?: string | null }) => {
       const form = new FormData();
       form.append("file", payload.file);

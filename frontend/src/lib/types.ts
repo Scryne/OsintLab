@@ -80,6 +80,18 @@ export type ExtractionStatus =
   | "UNSUPPORTED"
   | "FAILED";
 
+/** Faz 15.2 (Q22) — toplanan içerikte bulunan talimat-görünümlü bir ifade.
+ *
+ * Bu bir güvenlik sınırı değil, bir HABER VERME mekanizması: asıl koruma, bu metnin hiçbir
+ * katmanda komut olarak yürütülmemesi. `where` ifadenin nereden geldiğini söyler ("metin",
+ * "metadata:Subject", "gözlem metni") — Faz 15 spike'ı aynı ifadenin hem belge metninde hem
+ * metadata alanında taşınabildiğini doğruladı. */
+export interface InjectionHit {
+  where: string;
+  match: string;
+  snippet: string;
+}
+
 export interface Evidence {
   id: string;
   evidence_type: string;
@@ -113,6 +125,8 @@ export interface EvidenceExtraction {
   metadata: Record<string, string>;
   text_chars: number;
   text_preview: string;
+  /** Boş liste "temiz" demek değil, "bilinen desenlerden hiçbiri eşleşmedi" demek. */
+  injection_hits: InjectionHit[];
 }
 
 export interface Investigation {
@@ -147,6 +161,19 @@ export interface Observation {
   // de claim üretir; bu alan olmadan "hiç işlenmemiş" ile "işlendi, eşiği geçmedi" ayırt
   // edilemiyordu.
   produced_claim_id: string | null;
+  /** Faz 15.2 — gözlem bir belgeden geldiyse hangi belgenin hangi sayfalarından geldiği.
+   * Collector'dan gelen gözlemlerde null (onların provenance'ı `source_url`). Belge tabanlı
+   * gözlemlerin URL'i YOKTUR; `source_url`'e uydurma bir değer yazmak yerine ayrı alan. */
+  from_evidence: {
+    evidence_id: string;
+    page_from: number;
+    page_to: number;
+    file_name: string | null;
+  } | null;
+  /** Faz 15.2 (Q22) — bu gözlemin KENDİ metnindeki talimat-görünümlü ifadeler. Uyarı metinle
+   * birlikte seyahat ediyor: promote kararı burada veriliyor, uyarı yalnızca kaynak belgede
+   * dursaydı kullanıcı bir iddiayı grafa yükseltirken onu görmeyebilirdi. */
+  injection_hits: InjectionHit[];
 }
 
 export interface Monitor {

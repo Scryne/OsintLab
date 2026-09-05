@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Callable
 
@@ -238,6 +239,157 @@ def extract(path: Path, *, on_progress: Callable[[int, int], None] | None = None
         pages_done=pages_done,
         error=" ".join(notes) or None,
     )
+
+
+# --- Q22: talimat-görünümlü ifade tespiti ---------------------------------------------
+#
+# **Bu bir güvenlik sınırı DEĞİL.** Asıl koruma, çıkarılan metnin hiçbir katmanda komut
+# olarak yürütülmemesi (`.claude/CLAUDE.md`, Q22). Buradaki tespit yalnızca İNSANA HABER
+# VERMEK için: Faz 11'in tekrar eden dersi, sistemin fark ettiği şeyi söyleyebilmesiydi.
+# Bir desen kaçarsa güvenlik açığı oluşmaz; yalnızca kullanıcı uyarılmamış olur.
+#
+# Desenler bilerek DAR tutuldu. "act as" ya da tek başına "system" gibi sık geçen ifadeler
+# listede yok — yanlış alarm, hiç alarm vermemekten daha zararlı olurdu: her belgede uyarı
+# gören kullanıcı uyarıları okumayı bırakır, ve o noktada gerçek bir deneme de görünmez olur.
+_INJECTION_PATTERNS = [
+    r"ignore\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above|preceding)\s+instructions",
+    r"disregard\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above|preceding)\s+instructions",
+    r"forget\s+(?:everything|all)\s+(?:above|before|you)",
+    r"you\s+are\s+now\s+(?:an?\s+)?(?:unrestricted|jailbroken|different)",
+    r"^\s*SYSTEM\s*:",
+    r"<\|im_(?:start|end)\|>",
+    r"reveal\s+your\s+(?:system\s+)?prompt",
+    r"new\s+instructions\s*:",
+]
+
+_INJECTION_RE = re.compile(
+    "|".join("(?:%s)" % p for p in _INJECTION_PATTERNS), re.IGNORECASE | re.MULTILINE
+)
+
+# Uyarı başına gösterilecek bağlam. Tam paragrafı taşımak, güvenilmeyen metni gereğinden
+# fazla dolaştırmak olurdu.
+_HIT_CONTEXT = 90
+
+# Bir belgede bundan fazla uyarı zaten "bu belgeye güvenme" demek; listeyi şişirmenin
+# kullanıcıya faydası yok.
+MAX_INJECTION_HITS = 20
+
+
+def find_instruction_like(text: str, *, where: str) -> list[dict]:
+    """Metinde talimat-görünümlü ifadeleri bulur ve bağlamıyla döndürür.
+
+    `where` bulgunun nereden geldiğini söyler ("metin", "metadata:Subject" gibi) — Faz 15
+    spike'ı aynı ifadenin hem metin katmanında hem metadata alanında taşınabildiğini
+    doğruladı, dolayısıyla "nerede" bilgisi kullanıcı için anlamlı."""
+    if not text:
+        return []
+
+    # Üst üste binen eşleşmeler TEK uyarıda birleştiriliyor. Gerçek bir injection denemesi
+    # tipik olarak aynı cümlede birden çok desene uyar ("SYSTEM:" + "ignore all previous
+    # instructions" + "you are now an unrestricted..."); bunları ayrı ayrı göstermek
+    # kullanıcıya aynı cümleyi üç kez okutuyordu. Uyarıyı bilgi olmaktan çıkarıp gürültüye
+    # çevirir, ve gürültüyü öğrenen kullanıcı bir dahakine hiç okumaz.
+    groups: list[list] = []
+    for m in _INJECTION_RE.finditer(text):
+        if groups and m.start() <= groups[-1][1] + _HIT_CONTEXT:
+            groups[-1][1] = max(groups[-1][1], m.end())
+            groups[-1][2].append(m.group(0))
+        else:
+            groups.append([m.start(), m.end(), [m.group(0)]])
+        if len(groups) >= MAX_INJECTION_HITS:
+            break
+
+    hits: list[dict] = []
+    for gs, ge, matches in groups:
+        window = text[max(0, gs - _HIT_CONTEXT // 2) : ge + _HIT_CONTEXT]
+        # Satır sonlarını ve fazla boşluğu tek boşluğa indiriyoruz: alıntı tek satırda,
+        # okunabilir bir blok olarak görünsün.
+        snippet = " ".join(window.split())
+        etiketler = list(dict.fromkeys(" ".join(x.split()) for x in matches))
+        hits.append({
+            "where": where,
+            "match": " · ".join(etiketler)[:160],
+            "snippet": snippet[:300],
+        })
+    return hits
+
+
+def scan_for_injection(text: str, metadata: dict[str, str]) -> list[dict]:
+    """Belge metnini VE metadata'sını tarar — ikisi de güvenilmeyen veridir (spike'ta
+    `/Subject` alanında gerçek bir örnek doğrulandı)."""
+    hits = find_instruction_like(text, where="metin")
+    for key, value in metadata.items():
+        hits += find_instruction_like(value, where="metadata:%s" % key)
+    return hits[:MAX_INJECTION_HITS]
+
+
+def extract_page_range(path: Path, first: int, last: int) -> dict:
+    """Belirli bir sayfa aralığının metnini çıkarır (1 tabanlı, `last` dahil).
+
+    Faz 15.2 — gözlem birimi tüm belge DEĞİL, kullanıcının seçtiği sayfa aralığı. Sebebi
+    ölçülmüş: promote `raw_content`'i doğrudan claim metni yapıyor, dolayısıyla NIST belgesi
+    tek gözlem olsaydı 1,65 milyon karakterlik bir claim üretirdi; her sayfa otomatik gözlem
+    olsaydı da tek dosya 492 gözlem yaratıp Faz 16'nın açmaya çalıştığı darboğazı tıkardı.
+
+    Metin depodaki `extracted_text`ten dilimlenmiyor, dosyadan YENİDEN çıkarılıyor: tek
+    doğruluk kaynağı dosyanın kendisi olsun (sayfa sınırı offset'leri saklamak, çıkarma
+    mantığı değiştiğinde sessizce kayan ikinci bir kopya yaratırdı). Maliyet önemsiz —
+    spike'ta açılış 0,11 sn, sayfa başına ~0,022 sn."""
+    if not path.is_file():
+        return {"status": FAILED, "text": "", "page_count": 0,
+                "error": "Dosya bulunamadı: %s" % path.name}
+    if not looks_like_pdf(path):
+        return {"status": UNSUPPORTED, "text": "", "page_count": 0,
+                "error": "Dosya PDF değil."}
+
+    from pypdf import PdfReader
+    from pypdf.errors import PyPdfError
+
+    try:
+        reader = PdfReader(str(path))
+        if reader.is_encrypted and not reader.decrypt(""):
+            return {"status": ENCRYPTED, "text": "", "page_count": 0,
+                    "error": "Belge parola korumalı."}
+        page_count = len(reader.pages)
+    except PyPdfError as exc:
+        return {"status": CORRUPT, "text": "", "page_count": 0,
+                "error": "PDF ayrıştırılamadı: %s" % exc}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": CORRUPT, "text": "", "page_count": 0,
+                "error": "PDF açılamadı: %s" % type(exc).__name__}
+
+    if first < 1 or last < first or last > page_count:
+        return {"status": FAILED, "text": "", "page_count": page_count,
+                "error": "Geçersiz sayfa aralığı %s-%s; belge %s sayfa." % (first, last, page_count)}
+
+    parts = []
+    for index in range(first - 1, last):
+        try:
+            parts.append(reader.pages[index].extract_text() or "")
+        except Exception:  # noqa: BLE001 — tek bozuk sayfa aralığın tamamını düşürmemeli
+            parts.append("")
+    text = "\n".join(p for p in parts if p)
+    if not text.strip():
+        return {"status": NO_TEXT_LAYER, "text": "", "page_count": page_count,
+                "error": "%s-%s sayfa aralığında çıkarılabilir metin yok." % (first, last)}
+    return {"status": DONE, "text": text, "page_count": page_count, "error": None}
+
+
+def hits_to_json(hits: list[dict]) -> str:
+    try:
+        return json.dumps(hits, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return "[]"
+
+
+def hits_from_json(raw: str | None) -> list[dict]:
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return value if isinstance(value, list) else []
 
 
 def metadata_to_json(metadata: dict[str, str]) -> str:

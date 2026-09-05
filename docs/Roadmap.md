@@ -95,7 +95,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 14 | Deploy/Erişim Kolaylığı | ✅ Tamamlandı | Kullanıcı tek bir komut/kısayolla hem backend API'yi hem frontend dashboard'u ayağa kaldırabiliyor. |
 | 15 | Deneysel Domain Keşfi (GEOINT/SOCMINT/DOCINT/MEDIAINT) | ✅ Tamamlandı | Proje-Fikri.md madde 73'teki Phase 4+ vizyonundan öncelikli domain seçildi (**DOCINT**); spike yapıldı (2026-09-05, gerçek PDF'lerle) ve alt-roadmap'i (15.1–15.4) yazıldı. |
 | 15.1 | DOCINT: metin + metadata çıkarma | ✅ Tamamlandı | Evidence Vault'a yüklenen bir PDF'in metni ve metadata'sı çıkarılıp saklanıyor; 492 sayfalık belge API'yi bloklamıyor (arka plan işi); metin katmanı olmayan (taranmış) belge sessizce boş geçmiyor, açıkça işaretleniyor. |
-| 15.2 | DOCINT: belge → Observation → Claim hattı | ⏳ Bekliyor | Belgeden çıkan metin Observation olarak sisteme giriyor ve mevcut promote akışına katılıyor; belge metni/metadata'sı Q22 güvenilmeyen-veri sınırı içinde sunuluyor, talimat-görünümlü ifade kullanıcıya bildiriliyor. |
+| 15.2 | DOCINT: belge → Observation → Claim hattı | ✅ Tamamlandı | Belgeden çıkan metin Observation olarak sisteme giriyor ve mevcut promote akışına katılıyor; belge metni/metadata'sı Q22 güvenilmeyen-veri sınırı içinde sunuluyor, talimat-görünümlü ifade kullanıcıya bildiriliyor. |
 | 15.3 | DOCINT: belge parmak izi (metadata → OSINT sinyali) | ⏳ Bekliyor | Bir belgenin /Author, /Creator, /Company, ContentTypeId gibi alanları UI'da ayrı bir "belge parmak izi" bloğu olarak görünüyor; buradan çıkan kişi/kurum bir Entity'ye bağlanabiliyor. |
 | 15.4 | DOCINT: OCR (koşullu) | ⏳ Bekliyor | Taranmış belgeden metin çıkarılabiliyor. **Ön koşul:** Tesseract sistem kurulumu kabul edildi (pip ile çözülmüyor — bkz. Faz 15 spike bulgu 6). Kabul edilmezse bu satır kapatılır, 15.1'deki açık işaretleme nihai davranış olarak kalır. |
 | 16 | Promote Kuyruğu (değerlendirme darboğazı) | ⏳ Bekliyor | Biriken gözlemler tek tek değil kuyruk halinde değerlendirilebiliyor: sinyale göre sıralanmış, gürültü toplu elenebilir, promote kararı birkaç saniyede verilebiliyor. Otomatik promote kuralı bu fazda açık bir karar olarak ele alınır (bkz. Faz 16 detayı). Bitti sayılması için gerçek birikmiş kuyruğun (222 gözlem) fiilen eritilmiş olması gerekir. |
@@ -1345,6 +1345,84 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Bir PDF'ten çıkan metin Observation olarak görünüyor ve promote
   edilebiliyor; injection taşıyan bir belge yüklendiğinde ifade sessizce yok sayılmıyor,
   kullanıcıya açıkça bildiriliyor.
+
+- **Notlar:** 2026-09-05 tamamlandı.
+
+  **Fazın belirleyici kararı: bir belge, bir gözlem DEĞİL.** Promote (`observations.py`)
+  gözlemin `raw_content`'ini doğrudan claim metnine çeviriyor. Bu iki uç seçeneği de
+  elemiyor: tüm belge tek gözlem olsaydı NIST SP 800-53r5 **1,65 milyon karakterlik bir
+  claim** üretirdi; her sayfa otomatik gözlem olsaydı tek dosya **492 gözlem** yaratıp
+  Faz 16'nın açmaya çalıştığı değerlendirme darboğazını tek yüklemeyle tıkardı. Birim bu
+  yüzden **kullanıcının seçtiği sayfa aralığı** ve adım açıkça tetikleniyor
+  (`POST /evidence/{id}/observations`) — Design Principle #7.
+
+  **DOCINT ayrı bir boru hattı kurmuyor.** Üretilen gözlem collector'dan gelen her gözlemle
+  aynı: aynı `create_observation_record`, aynı append-only daily log, aynı promote akışı
+  (Q1/Q8). Tek farkı provenance'ının URL değil belge olması.
+
+  **Provenance sayfa düzeyinde.** Yeni rel: `Observation -[:EXTRACTED_FROM {page_from,
+  page_to}]-> Evidence`. Sayfa bilgisi kenarın üzerinde, çünkü "hangi belgeden" tek başına
+  yetmiyor: 492 sayfalık bir raporda iddianın nereden çıktığı kaybolursa kanıt zinciri
+  kopar (Faz 6 lineage disiplininin belge tarafı). `source_url`'e `evidence://...` gibi
+  uydurma bir değer yazmak yerine ayrı bir alan kullanıldı — belge tabanlı bir gözlemin
+  URL'i **yoktur**, ve olmayan bir şeyi varmış gibi göstermek bu projenin tekrar tekrar
+  kapattığı hata sınıfı.
+
+  **Sayfa metni depodan dilimlenmiyor, dosyadan yeniden çıkarılıyor.** Sayfa sınırı
+  offset'lerini saklamak, çıkarma mantığı değiştiğinde sessizce kayan ikinci bir kopya
+  yaratırdı; tek doğruluk kaynağı dosyanın kendisi. Maliyet önemsiz (açılış 0,11 sn, sayfa
+  başına ~0,022 sn).
+
+  **Q22 sınırı — ve kapsamı bilerek genişletildi.** Talimat-görünümlü ifade tespiti
+  (`docint.find_instruction_like`) yalnızca belgeye değil, `create_observation_record`'a
+  kondu: **her gözlemin ham metni** güvenilmeyen veridir, kaynağı belge de olsa RSS de olsa.
+  Belge tarafında ayrıca metadata da taranıyor (spike `/Subject` alanında gerçek bir örnek
+  doğrulamıştı).
+
+  **Uyarı metinle BİRLİKTE seyahat ediyor.** İlk uygulamada uyarı yalnızca kaynak Evidence'ta
+  duruyordu; testte görüldü ki promote kararı **gözlem ekranında** veriliyor, yani kullanıcı
+  bir iddiayı Knowledge Graph'a yükseltirken uyarıyı hiç görmeyebilirdi. `Observation`'a da
+  `injection_hits` eklendi.
+
+  **Tespit bir güvenlik sınırı değil, haber verme mekanizması.** Asıl koruma bu metnin hiçbir
+  katmanda komut olarak yürütülmemesi; desenler kaçarsa açık oluşmaz, yalnızca kullanıcı
+  uyarılmamış olur. Bu yüzden desenler bilerek DAR: yanlış alarm, hiç alarm vermemekten
+  zararlı olurdu — her belgede uyarı gören kullanıcı uyarıları okumayı bırakır. Ölçüldü:
+  NIST SP 800-53r5'in **1,65 milyon karakterlik** güvenlik standardı metninde ("instructions",
+  "system", "controls" kelimeleriyle dolu) **0 yanlış alarm**; arXiv makalesinde 0; injection
+  fikstüründe hem metin hem metadata yakalandı.
+
+  **Doğrulama (izole backend, 8421):** injection belgesi yüklendiğinde uyarı üretiliyor;
+  temiz belgelerde üretilmiyor; arXiv 1. sayfasından gözlem üretildi (2.857 karakter, tüm
+  belge 39.510), `/observations` listesinde `from_evidence` ile göründü, promote edilip claim
+  üretti (REPORTED, eşik altı — tek kaynak/kanıtsız olduğu için doğru); geçersiz aralık
+  (99-99), ters aralık (5-3) ve metin katmanı olmayan belge 422 ile reddedildi ve **sessizce
+  boş gözlem üretilmedi**; injection taşıyan belgeden üretilen gözlem engellenmedi, metniyle
+  ve uyarısıyla birlikte sisteme girdi.
+
+  **Görsel turda bulunan iki gerçek sorun (ikisi de ancak sayfa render edilince çıktı):**
+  1. **Uyarı kutuları tekrar ediyordu.** Gerçek bir injection denemesi aynı cümlede birden
+     çok desene uyuyor ("SYSTEM:" + "ignore all previous instructions" + "you are now an
+     unrestricted..."), ve üçü ayrı kutu olarak basılıyordu — kullanıcı aynı cümleyi üç kez
+     okuyordu. Üst üste binen eşleşmeler tek uyarıda birleştirildi (4 uyarı → 2). Gürültüyü
+     öğrenen kullanıcı bir dahakine hiç okumaz; uyarının değeri seyrekliğinde.
+  2. **Belge gözlemleri listeyi kullanılamaz hale getiriyordu.** RSS gözlemleri 200-400
+     karakterken belge gözlemi tek sayfada ~2.900 karakter; tek gözlem ekranın tamamını
+     dolduruyordu. 600 karakterde kırpma + "Tümünü göster" eklendi. İlk denemede kırpılmış
+     önizlemeye `whitespace-pre-wrap` konmuştu ve PDF'in satır sonları korunduğu için 600
+     karakter yine 30 satır kaplıyordu — önizlemede boşluklar toplanıyor, yalnızca açılmış
+     halde belgenin gerçek yapısı korunuyor.
+
+  **Arayüz:** Kanıt Kasası'nda metin çıkarılmış belgelerde **Gözlem üret** (sayfa aralığı
+  seçimi) ve belgede uyarı varsa Q22 bloğu; Gözlemler sayfasında belge provenance'ı
+  (`injection.pdf · s1`) ve uyarı bloğu promote butonunun hemen üstünde. Uyarı bloğu
+  (`InjectionWarning`) alıntıyı kesikli çerçeve, monospace ve "GÜVENİLMEYEN İÇERİK · nereden"
+  başlığıyla gösteriyor — `.claude/CLAUDE.md`'deki sınır kuralının arayüzdeki karşılığı.
+
+  **Göç:** `Evidence.injection_hits`, `Observation.injection_hits`, `EXTRACTED_FROM` rel
+  tablosu. Gerçek grafta doğrulandı — sayımlar birebir aynı (evidence 3, observation 222,
+  claim 8, entity 5), 15.2 öncesi gözlemler `from_evidence: null` / `injection_hits: []` ile
+  sorunsuz okunuyor.
 
 ### Faz 15.3: DOCINT — belge parmak izi (metadata → OSINT sinyali)
 - **İşler:**

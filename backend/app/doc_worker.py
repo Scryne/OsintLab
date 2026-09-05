@@ -102,6 +102,18 @@ def process_evidence(evidence_id: str) -> str:
         )
         return docint.FAILED
 
+    # Q22 (Faz 15.2): belge metni ve metadata'sı talimat-görünümlü ifade taşıyabiliyor —
+    # Faz 15 spike'ı ikisinde de gerçek örnek doğruladı. Tarama çıkarmanın parçası, çünkü
+    # sonucun kullanıcıya ulaşması için ayrı bir adım beklenmemeli.
+    hits = docint.scan_for_injection(result["text"], result["metadata"])
+    if hits:
+        logger.warning(
+            "DOCINT (%s): belgede %s talimat-görünümlü ifade bulundu — veri olarak işlendi, "
+            "komut olarak DEĞİL",
+            evidence_id[:8],
+            len(hits),
+        )
+
     _set_status(
         evidence_id,
         result["status"],
@@ -111,6 +123,7 @@ def process_evidence(evidence_id: str) -> str:
         pages_done=result["pages_done"],
         extraction_error=result["error"],
         extracted_at=datetime.now(timezone.utc),
+        injection_hits=docint.hits_to_json(hits),
     )
     logger.info(
         "DOCINT tamam (%s): %s — %s sayfa, %s karakter",

@@ -26,6 +26,8 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { TypeCombo } from "@/components/forms/type-combo";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { EvidenceClaimLinkDialog } from "@/components/forms/evidence-claim-link-dialog";
+import { EvidenceObservationDialog } from "@/components/forms/evidence-observation-dialog";
+import { InjectionWarning } from "@/components/provenance/injection-warning";
 import { useToast } from "@/components/ui/toast";
 
 // Öneri listesi — kural DEĞİL (bkz. TypeCombo).
@@ -253,12 +255,23 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
               }
             />
           )}
+          {item.extraction_status === "DONE" && (
+            <EvidenceObservationDialog
+              evidenceId={item.id}
+              pageCount={item.page_count}
+              onCreated={onChanged}
+            />
+          )}
           {item.has_file && CIKARILABILIR_DEGIL.includes(item.extraction_status ?? "PENDING") && (
             <ReextractButton evidenceId={item.id} onDone={onChanged} />
           )}
           <EvidenceClaimLinkDialog evidenceId={item.id} onLinked={onChanged} />
         </div>
       </div>
+
+      {/* Q22 — belge metni/metadata'sı talimat-görünümlü ifade taşıyorsa kullanıcı BUNU
+          promote etmeden önce görmeli. Uyarı satırın gövdesinde, aksiyonların hemen altında. */}
+      <EvidenceInjectionNotice evidenceId={item.id} status={item.extraction_status} />
 
       <div className="mt-3 border-t border-border pt-3">
         {item.linked_claims.length === 0 ? (
@@ -377,5 +390,28 @@ function ReextractButton({ evidenceId, onDone }: { evidenceId: string; onDone: (
       <RefreshCw aria-hidden className="h-3.5 w-3.5" />
       Yeniden dene
     </Button>
+  );
+}
+
+/** Q22 uyarısı liste ucunda taşınmıyor (uyarı metni uzun olabilir ve her satır için
+ * gereksiz), bu yüzden yalnızca metin çıkarılmış belgeler için ayrıca çekiliyor. Çekilen
+ * veri küçük: durum + metadata + önizleme + uyarılar. */
+function EvidenceInjectionNotice({
+  evidenceId,
+  status,
+}: {
+  evidenceId: string;
+  status: ExtractionStatus | null;
+}) {
+  const terminal = status === "DONE" || status === "NO_TEXT_LAYER";
+  const { data } = useApi(
+    () => (terminal ? api.evidence.extraction(evidenceId) : Promise.resolve(null)),
+    [evidenceId, terminal]
+  );
+  if (!data?.injection_hits?.length) return null;
+  return (
+    <div className="mt-3">
+      <InjectionWarning hits={data.injection_hits} />
+    </div>
   );
 }
