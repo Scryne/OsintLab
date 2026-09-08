@@ -190,6 +190,23 @@ NODE_TABLES = [
         PRIMARY KEY(id)
     )
     """,
+    # Faz 20 — entity adayı kararlarının hafızası. Adayların KENDİSİ burada saklanmaz;
+    # onlar her seferinde claim metinlerinden yeniden çıkarılır (deterministik, bkz.
+    # app/entityextract.py). Burada duran şey KARARDIR: elenen bir aday bir daha
+    # önerilmemeli, yoksa aynı 40 gürültü her taramadan sonra yeniden karşına çıkar (Q17).
+    #
+    # Anahtar normalize edilmiş AD ("openai's" -> "openai"), uuid değil: aday yeniden
+    # çıkarıldığında aynı anahtara düşmesi gerekiyor, aksi halde karar kaybolurdu.
+    """
+    CREATE NODE TABLE IF NOT EXISTS EntityCandidate(
+        key STRING,
+        name STRING,
+        status STRING,
+        decided_at TIMESTAMP,
+        promoted_entity_id STRING,
+        PRIMARY KEY(key)
+    )
+    """,
 ]
 
 REL_TABLES = [

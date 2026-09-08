@@ -202,7 +202,7 @@ versiyon meselesi değil.
 | --- | --- | --- | --- |
 | 18 | Event Katmanı | ✅ Tamamlandı | Event arayüzden listelenebiliyor, oluşturulabiliyor ve nav'dan erişilebiliyor; bir claim bir olaya bağlanabiliyor; doğrulama kümelerinden olay adayı öneriliyor; bir entity'nin olayları zaman çizgisinde görülebiliyor. Bitti sayılması için ölçülen 4 gerçek kümenin (15 claim) fiilen Event'e dönüşmüş olması gerekir. |
 | 19 | Entity İlişkileri | ✅ Tamamlandı | Birlikte geçen entity'ler ilişki adayı olarak öneriliyor; ilişkinin TÜRÜNÜ kullanıcı veriyor; kurulan ilişki entity sayfasında ve vault notunda görünüyor. Bitti sayılması için graf'ta gerçek kenarların (en az `OpenAI ↔ Astra`) bulunması gerekir — 5 izole düğüm olmaktan çıkmalı. |
-| 20 | Entity Adayı Çıkarma (deterministik) | ⏳ Bekliyor | Claim metinlerinden yeni entity adayları sinyale göre sıralı olarak öneriliyor, toplu elenebiliyor/onaylanabiliyor. Bitti sayılması için gerçek 79 adaylık listenin eritilmiş **ve kaçırma oranının ölçülmüş** olması gerekir (LLM kararının girdisi bu sayıdır). |
+| 20 | Entity Adayı Çıkarma (deterministik) | ✅ Tamamlandı | Claim metinlerinden yeni entity adayları sinyale göre sıralı olarak öneriliyor, toplu elenebiliyor/onaylanabiliyor. Bitti sayılması için gerçek 79 adaylık listenin eritilmiş **ve kaçırma oranının ölçülmüş** olması gerekir (LLM kararının girdisi bu sayıdır). |
 
 **v3 ikinci hat — ertelenen domain'ler (GEOINT / SOCMINT / MEDIAINT):** planlaması Faz 20
 bittikten SONRA yapılacak. Gerekçe Faz 15'in kendi dersi: bir domain'in nereye bağlanacağı,
@@ -2280,3 +2280,57 @@ ayrı" kararıyla tutarlı).
   onaylanabiliyor, elenen kayboluyor değil işaretleniyor. **Fazın sınavı:** gerçek 79
   adaylık liste fiilen eritilmiş **ve kaçırma oranı ölçülüp kaydedilmiş** olmalı — ikincisi
   olmadan faz bitmiş sayılmaz, çünkü LLM kararının tek girdisi o sayıdır.
+
+- **Notlar:** 2026-09-08 tamamlandı.
+
+  **Ne eklendi.** `app/entityextract.py` + `EntityCandidate` node tablosu (kararların
+  hafızası) + `/entities/candidates` router'ı (liste, toplu eleme, geri alma, entity'ye
+  çevirme) + `/entities/candidates` sayfası ve "Entity Adayları" nav girişi.
+
+  **Adaylar SAKLANMIYOR, her istekte yeniden çıkarılıyor** — deterministik olmanın anlamı bu:
+  aynı veri aynı listeyi verir. Saklanan tek şey KARAR. Anahtar normalize edilmiş ad (uuid
+  değil), çünkü aday yeniden çıkarıldığında aynı anahtara düşmesi gerekiyor; yoksa elenen bir
+  aday her taramadan sonra geri gelirdi (Q17).
+
+  **Çıkarıcı, tek bir ilkeden türeyen filtrelerle kuruldu:** *büyük harf ancak küçük harfin
+  de mümkün olduğu yerde kanıttır.* Ölçüm sırasında bulunan ve düzeltilen dört hata sınıfı:
+
+  | Hata | Örnek | Çözüm |
+  | --- | --- | --- |
+  | Title Case başlıklar | "AI Agents Hijacked German Wiki to Cheat, OpenAI Delayed Disclosure" tek "ad" sayılıyordu | O satırlarda büyük harf sinyal taşımıyor — hiç taranmıyor |
+  | Cümle başı taşıyıcı kelime | "Introducing GPT-6 Astra", "In August OpenAI" | Baştaki kelime cümle ortasında hiç büyük harfle görülmediyse atılır |
+  | Sahiplik eki | "OpenAI's ChatGPT" → "OpenAI ChatGPT" (var olmayan ad) | Ek öbeği kapatır → "OpenAI" + "ChatGPT" |
+  | Noktalama ve "and" | "OpenAI, AIRPPU and WAN-IFRA" tek öbek | Noktalama kapatır; "and" bağlayıcı listesinden çıkarıldı |
+
+  **Fazın sınavı — iki parça da yapıldı.**
+
+  1. **Liste eritildi:** 79 aday, 0 bekleyen. **53 entity'ye çevrildi**, 26 elendi (6'sı
+     elenmeden önce var olan bir entity'ye **alias** olarak eklendi — "GPT-6 Astra" → Astra,
+     "NYT" → The New York Times, "AFP" → Australian Federal Police, "CEO Sam Altman" → Sam
+     Altman, "Governor Abbott" → Greg Abbott, "Daybreak AI" → Daybreak). Aynı şeyin ikinci
+     bir kaydını açmak, sonradan SAME_AS ile onarılacak bir borç yaratırdı (Q7).
+     Entity sayısı **5 → 58**: 11 Location, 9 Organization, 9 Company, 7 AI Model, 6 Product,
+     5 Person, 4 Program, 3 Exploit, 3 Tehdit Aktörü, 1 Framework.
+     Bir aday adı ELLE düzeltilerek promote edildi: metinde yalnızca "Israel-based" olarak
+     geçen ad "Israel" olarak kaydedildi — aday adının düzenlenebilir olmasının sebebi tam
+     olarak bu.
+  2. **Kaçırma oranı ölçüldü: %7.4** (14 claim'lik deterministik örnekte gözle bulunan 27
+     addan 2'si listede yoktu). İkisi de adı konabilir birer SINIF, tek tük hata değil:
+     - **Küçük harfle başlayan marka adları** — `xAI`. Büyük-harf temelli bir taramanın
+       yapısal körlüğü; kara listeyle çözülmez.
+     - **Yalnızca tireli sıfat biçiminde geçen adlar** — "Israel-based" içindeki `Israel`.
+
+  **LLM kararı (Faz 15/16 disiplini: ölçümden sonra):** %92.6 isabetle deterministik çıkarma,
+  bir ÖNERİ listesi olarak yeterli çalışıyor ve toplanan metni hâlâ hiçbir modele girdi
+  yapmıyor (Q22 yüzeyi kapalı). Kaçırılan iki sınıf da dar ve tarif edilebilir. **Karar:
+  LLM'e şimdi geçilmiyor.** Yeniden değerlendirme koşulu ölçülebilir olsun: kaçırma oranı
+  %15'in üstüne çıkarsa ya da kaçırılan adlar "sınıf" olmaktan çıkıp dağınık hale gelirse.
+
+  **Faz 20, Faz 19'u besledi — öngörüldüğü gibi.** Entity sayısı 5'ten 58'e çıkınca OpenAI'ın
+  ilişki adayı **0'dan 41'e** yükseldi (Astra 4, Microsoft 3). "Faz 20'nin ürettiği her yeni
+  entity bu mekanizmaya kendiliğinden akar" notu birebir doğrulandı.
+
+  **Yan etki, kayda geçiyor:** `scanning.match_entities_in_text` artık 58 entity ile
+  eşleştiriyor ve aralarında "Windows", "United States" gibi geniş adlar var. Inbox
+  önceliklendirmesi ve promote kuyruğunun sinyal skoru aynı fonksiyonu kullanıyor — bir
+  sonraki dogfooding turunda kuyruğun gürültü seviyesi ölçülmeli.

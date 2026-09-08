@@ -669,3 +669,30 @@ export interface RelationCandidate {
   shared_events: { id: string; title: string }[];
   evidence: { claim_id: string; excerpt: string; matched_on: string }[];
 }
+
+
+/** Faz 20 — claim metninden deterministik olarak çıkarılmış entity adayı.
+ *
+ * `key` normalize edilmiş addır ve kararın kalıcı anahtarı: adaylar saklanmaz, her istekte
+ * yeniden çıkarılır; saklanan tek şey kullanıcının verdiği karardır (elenen bir aday tekrar
+ * önerilmez).
+ *
+ * `claim_count` ile `source_count` ayrı: tek bir haberde geçen özel isim ile beş farklı
+ * kaynakta geçen kurum aynı ağırlıkta olmamalı. */
+export interface ExtractedEntityCandidate {
+  key: string;
+  name: string;
+  claim_count: number;
+  source_count: number;
+  source_names: string[];
+  evidence: { claim_id: string; excerpt: string }[];
+  status: "PENDING" | "DISMISSED" | "PROMOTED";
+  promoted_entity_id: string | null;
+}
+
+export interface EntityCandidateDecisionResult {
+  dismissed: number;
+  promoted: number;
+  restored: number;
+  entities: Entity[];
+}

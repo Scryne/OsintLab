@@ -6,8 +6,10 @@ import type {
   CorroborationCandidate,
   Entity,
   EntityRecall,
+  EntityCandidateDecisionResult,
   EntityRelation,
   Evidence,
+  ExtractedEntityCandidate,
   EvidenceExtraction,
   EvidenceFingerprint,
   EvidenceVaultItem,
@@ -126,6 +128,17 @@ export const api = {
         { to_entity_id: toEntityId }
       ),
     pendingSameAs: () => get<SameAsPending[]>("/entities/same-as/pending"),
+    // Faz 20: claim metinlerinden deterministik entity adayı çıkarma. Adaylar saklanmaz,
+    // her çağrıda yeniden çıkarılır; saklanan tek şey karardır.
+    extractedCandidates: (includeDecided = false) =>
+      get<ExtractedEntityCandidate[]>(`/entities/candidates?include_decided=${includeDecided}`),
+    dismissCandidates: (keys: string[]) =>
+      post<EntityCandidateDecisionResult>("/entities/candidates/dismiss", { keys }),
+    restoreCandidates: (keys: string[]) =>
+      post<EntityCandidateDecisionResult>("/entities/candidates/restore", { keys }),
+    promoteCandidates: (
+      items: { key: string; name?: string; entity_type: string; aliases?: string[] }[]
+    ) => post<EntityCandidateDecisionResult>("/entities/candidates/promote", { items }),
     confirmSameAs: (fromId: string, toId: string) =>
       post<{ status: string }>(`/entities/same-as/${fromId}/${toId}/confirm`),
     rejectSameAs: (fromId: string, toId: string) =>

@@ -1,15 +1,20 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.db import fetch_all, fetch_one, get_connection
 from app.dedup import find_candidates, pair_score
+from app.entityextract import entity_candidates
 from app.entityrelations import relation_candidates
 from app.models import (
     Entity,
+    EntityCandidateDecisionResult,
+    EntityCandidateDismiss,
+    EntityCandidatePromote,
     EntityCreate,
     EntityRelationCreate,
+    ExtractedEntityCandidate,
     RelationCandidate,
     SameAsSuggestRequest,
 )
@@ -18,6 +23,7 @@ from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 same_as_router = APIRouter(prefix="/entities/same-as", tags=["same-as"])
+candidates_router = APIRouter(prefix="/entities/candidates", tags=["entity-candidates"])
 
 _FIELDS = "e.id AS id, e.entity_type AS entity_type, e.name AS name, e.aliases AS aliases, e.created_at AS created_at"
 
@@ -277,3 +283,96 @@ def reject_same_as(from_entity_id: str, to_entity_id: str) -> dict:
         raise HTTPException(status_code=404, detail="PENDING bir SAME_AS önerisi bulunamadı")
     safe_render_vault(conn)
     return {"from_entity_id": from_entity_id, "to_entity_id": to_entity_id, "status": "REJECTED"}
+
+
+# ---- Faz 20: Entity adayı çıkarma (deterministik) ------------------------------------------
+#
+# Ayrı bir router, `same_as_router` ile aynı gerekçeyle: `/entities/candidates` yolu
+# `/entities/{entity_id}`den ÖNCE eşleşmeli, yoksa "candidates" bir entity id'si sanılır.
+# main.py bu router'ları `entities.router`dan önce include ediyor.
+
+
+def _set_candidate_status(conn, key: str, name: str, status: str, entity_id: str | None = None) -> None:
+    """Kararı yaz/güncelle. Aday DÜĞÜMÜ silinmez, durumu değişir — "elenen kaybolmaz,
+    işaretlenir" (Q17): geri alma yolu ancak kayıt durursa mümkün."""
+    now = datetime.now(timezone.utc)
+    exists = fetch_one(
+        conn.execute("MATCH (c:EntityCandidate {key: $key}) RETURN c.key AS key", {"key": key})
+    )
+    if exists:
+        conn.execute(
+            "MATCH (c:EntityCandidate {key: $key}) SET c.status = $status, c.decided_at = $now, "
+            "c.promoted_entity_id = $eid, c.name = $name",
+            {"key": key, "status": status, "now": now, "eid": entity_id or "", "name": name},
+        )
+    else:
+        conn.execute(
+            "CREATE (:EntityCandidate {key: $key, name: $name, status: $status, "
+            "decided_at: $now, promoted_entity_id: $eid})",
+            {"key": key, "name": name, "status": status, "now": now, "eid": entity_id or ""},
+        )
+
+
+@candidates_router.get("", response_model=list[ExtractedEntityCandidate])
+def list_entity_candidates(
+    include_decided: bool = Query(False, description="Karar verilmiş adaylar da dönsün mü"),
+) -> list[ExtractedEntityCandidate]:
+    """Faz 20 — claim metinlerinden çıkarılmış entity adayları (bkz. app/entityextract.py).
+
+    Adaylar saklanmıyor, her çağrıda yeniden çıkarılıyor; saklanan tek şey kullanıcının
+    kararı. Sıralama sinyali: kaç FARKLI kaynak, sonra kaç claim."""
+    conn = get_connection()
+    return [
+        ExtractedEntityCandidate(**c) for c in entity_candidates(conn, include_decided=include_decided)
+    ]
+
+
+@candidates_router.post("/dismiss", response_model=EntityCandidateDecisionResult)
+def dismiss_entity_candidates(payload: EntityCandidateDismiss) -> EntityCandidateDecisionResult:
+    """Toplu eleme. Elenen aday listeden kalkar ama SİLİNMEZ — `include_decided=true` ile
+    görülebilir ve `/restore` ile geri alınabilir."""
+    conn = get_connection()
+    known = {c["key"]: c["name"] for c in entity_candidates(conn, include_decided=True)}
+    count = 0
+    for key in payload.keys:
+        _set_candidate_status(conn, key, known.get(key, key), "DISMISSED")
+        count += 1
+    return EntityCandidateDecisionResult(dismissed=count)
+
+
+@candidates_router.post("/restore", response_model=EntityCandidateDecisionResult)
+def restore_entity_candidates(payload: EntityCandidateDismiss) -> EntityCandidateDecisionResult:
+    """Elemeyi geri alır. PROMOTED bir aday geri alınmaz: karşılığında bir Entity yaratıldı
+    ve o Entity silinmeden aday listesine dönmek iki kaydı aynı anda canlı tutardı."""
+    conn = get_connection()
+    count = 0
+    for key in payload.keys:
+        row = fetch_one(
+            conn.execute(
+                "MATCH (c:EntityCandidate {key: $key}) RETURN c.status AS status", {"key": key}
+            )
+        )
+        if row is None or row["status"] != "DISMISSED":
+            continue
+        conn.execute("MATCH (c:EntityCandidate {key: $key}) DELETE c", {"key": key})
+        count += 1
+    return EntityCandidateDecisionResult(restored=count)
+
+
+@candidates_router.post("/promote", response_model=EntityCandidateDecisionResult)
+def promote_entity_candidates(payload: EntityCandidatePromote) -> EntityCandidateDecisionResult:
+    """Adayı gerçek bir Entity'ye çevirir. Tür serbest metin (F8) — sabit bir listeye
+    kilitlenmiş tür alanı gerçek araştırmada hep yanlış kovaya zorluyor."""
+    conn = get_connection()
+    known = {c["key"]: c["name"] for c in entity_candidates(conn, include_decided=True)}
+    created: list[Entity] = []
+    for item in payload.items:
+        name = (item.name or known.get(item.key) or item.key).strip()
+        if not name:
+            continue
+        entity = create_entity(
+            EntityCreate(name=name, entity_type=item.entity_type.strip() or "Organization", aliases=item.aliases)
+        )
+        _set_candidate_status(conn, item.key, name, "PROMOTED", entity.id)
+        created.append(entity)
+    return EntityCandidateDecisionResult(promoted=len(created), entities=created)

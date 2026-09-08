@@ -17,6 +17,7 @@ import {
   Menu,
   Radar,
   Rss,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -43,6 +44,9 @@ const NAV = [
   { href: "/corroboration", label: "Doğrulama", icon: Link2 },
   { href: "/evidence", label: "Kanıt Kasası", icon: FileCheck },
   { href: "/collectors", label: "Toplayıcılar", icon: Rss },
+  // Faz 20: entity'ler bugüne kadar yalnızca ELLE yaratıldı (5 tane); claim metinlerindeki
+  // düzinelerce ad hiçbir yerde önerilmiyordu.
+  { href: "/entities/candidates", label: "Entity Adayları", icon: UserPlus },
   { href: "/entities/same-as", label: "Olası Eşleşmeler", icon: GitMerge },
   { href: "/inbox", label: "Inbox", icon: InboxIcon },
 ] as const;

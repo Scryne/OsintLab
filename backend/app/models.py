@@ -46,6 +46,58 @@ class RelationCandidate(BaseModel):
     evidence: list[RelationCandidateEvidence] = Field(default_factory=list)
 
 
+class EntityCandidateEvidence(BaseModel):
+    claim_id: str
+    excerpt: str
+
+
+class ExtractedEntityCandidate(BaseModel):
+    """Faz 20 — claim metninden deterministik olarak çıkarılmış entity adayı.
+
+    `key` normalize edilmiş ad ve kararların kalıcı anahtarı: aday her çağrıda yeniden
+    çıkarılır (saklanmaz), saklanan tek şey kullanıcının verdiği karardır.
+
+    `claim_count` ile `source_count` ayrı: tek bir haberde geçen bir özel isim ile beş
+    farklı kaynakta geçen bir kurum aynı ağırlıkta olmamalı. Tek skora çevrilmiyorlar —
+    Faz 19'daki kararın aynısı."""
+
+    key: str
+    name: str
+    claim_count: int
+    source_count: int
+    source_names: list[str] = Field(default_factory=list)
+    evidence: list[EntityCandidateEvidence] = Field(default_factory=list)
+    status: str = "PENDING"
+    promoted_entity_id: str | None = None
+
+
+class EntityCandidateDismiss(BaseModel):
+    """Toplu eleme — Faz 16 kuyruğunun birebir deseni: tekil bir uç bırakılsaydı 79 adaylık
+    liste yeni bir darboğaz olurdu."""
+
+    keys: list[str]
+
+
+class EntityCandidatePromoteItem(BaseModel):
+    key: str
+    # Ad düzeltilebilir: çıkarma sınır hatası yapmış olabilir ("The New York Times" yerine
+    # "New York Times" istenebilir). Boşsa adayın kendi adı kullanılır.
+    name: str | None = None
+    entity_type: str = "Organization"
+    aliases: list[str] = Field(default_factory=list)
+
+
+class EntityCandidatePromote(BaseModel):
+    items: list[EntityCandidatePromoteItem]
+
+
+class EntityCandidateDecisionResult(BaseModel):
+    dismissed: int = 0
+    promoted: int = 0
+    restored: int = 0
+    entities: list[Entity] = Field(default_factory=list)
+
+
 SAME_AS_STATUSES = ("PENDING", "CONFIRMED", "REJECTED")
 
 
