@@ -412,6 +412,41 @@ function KindBadge({ kind }: { kind: CandidateKind }) {
   );
 }
 
+/** Toplu bağlamanın claim BAŞINA net etkisi.
+ *
+ * Backend her ÇİFT için ayrı bir sonuç döndürüyor ve bir claim aynı turda birden çok çifte
+ * girebiliyor (A–B ve A–C seçilmişse A iki sonuçta da var). Liste bunu düzleştirip her
+ * sonucu ayrı satır yapınca iki sorun çıkıyordu: React'ta yinelenen `key` (aynı claim iki
+ * kez, aynı anahtarla) ve daha kötüsü, aynı claim'in iki farklı ara değerle iki satırda
+ * görünmesi — 0.30→0.42 ve 0.30→0.55 gibi, ikisi de "doğru" ama hiçbiri o claim'in gerçek
+ * son hâli değil.
+ *
+ * Doğru okuma net değişim: ilk sonuçtaki `before` (bağlar kurulmadan önceki hâl) ile son
+ * sonuçtaki `after` (hepsi kurulduktan sonraki hâl). Sonuçlar gönderim sırasını koruduğu
+ * için sıra bu bilgiyi zaten taşıyor. */
+function netChanges(linked: ClaimLinkBatchResult["results"]) {
+  const byClaim = new Map<
+    string,
+    { claimId: string; before: number; after: number; state: string; pairCount: number }
+  >();
+  for (const r of linked) {
+    for (const claimId of Object.keys(r.confidence_after)) {
+      const before = r.confidence_before[claimId] ?? 0;
+      const after = r.confidence_after[claimId] ?? 0;
+      const state = r.state_after[claimId];
+      const existing = byClaim.get(claimId);
+      if (existing) {
+        existing.after = after;
+        existing.state = state;
+        existing.pairCount += 1;
+      } else {
+        byClaim.set(claimId, { claimId, before, after, state, pairCount: 1 });
+      }
+    }
+  }
+  return [...byClaim.values()];
+}
+
 function LinkResult({
   result,
   onDismiss,
@@ -435,34 +470,33 @@ function LinkResult({
 
       {linked.length > 0 && (
         <ul className="flex flex-col gap-1">
-          {linked.flatMap((r) =>
-            Object.keys(r.confidence_after).map((claimId) => {
-              const before = r.confidence_before[claimId] ?? 0;
-              const after = r.confidence_after[claimId] ?? 0;
-              const state = r.state_after[claimId];
-              return (
-                <li
-                  key={`${r.claim_a_id}-${claimId}`}
-                  className="flex items-center gap-2 font-mono text-[11px] tabular-nums text-text-secondary"
-                >
-                  <span className="text-text-tertiary">{claimId.slice(0, 8)}</span>
-                  {before.toFixed(2)}
-                  <ArrowRight aria-hidden className="h-3 w-3" />
-                  <span className={after > before ? "text-confidence-supported-text" : ""}>
-                    {after.toFixed(2)}
-                  </span>
-                  <span className="text-text-tertiary">{state}</span>
-                </li>
-              );
-            })
-          )}
+          {netChanges(linked).map((change) => (
+            <li
+              key={change.claimId}
+              className="flex items-center gap-2 font-mono text-[11px] tabular-nums text-text-secondary"
+            >
+              <span className="text-text-tertiary">{change.claimId.slice(0, 8)}</span>
+              {change.before.toFixed(2)}
+              <ArrowRight aria-hidden className="h-3 w-3" />
+              <span className={change.after > change.before ? "text-confidence-supported-text" : ""}>
+                {change.after.toFixed(2)}
+              </span>
+              <span className="text-text-tertiary">{change.state}</span>
+              {change.pairCount > 1 && (
+                <span className="text-text-tertiary">· {change.pairCount} bağdan</span>
+              )}
+            </li>
+          ))}
         </ul>
       )}
 
       {skipped.length > 0 && (
         <ul className="flex flex-col gap-1.5">
-          {skipped.map((r) => (
-            <li key={`${r.claim_a_id}-${r.claim_b_id}`} className="text-xs leading-relaxed text-text-tertiary">
+          {skipped.map((r, i) => (
+            <li
+              key={`${r.claim_a_id}-${r.claim_b_id}-${i}`}
+              className="text-xs leading-relaxed text-text-tertiary"
+            >
               {r.message}
             </li>
           ))}
