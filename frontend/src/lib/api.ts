@@ -7,6 +7,7 @@ import type {
   Entity,
   EntityRecall,
   EntityCandidateDecisionResult,
+  EntityGraphData,
   EntityRelation,
   Evidence,
   ExtractedEntityCandidate,
@@ -30,6 +31,8 @@ import type {
   ObservationPromoteResult,
   ObservationQueue,
   RelationCandidate,
+  RelationBatchResult,
+  RelationPairCandidate,
   SameAsCandidate,
   SameAsPending,
   LineageNode,
@@ -121,6 +124,18 @@ export const api = {
     // kullanıcı yazar, sistem tahmin etmez.
     relationCandidates: (entityId: string) =>
       get<RelationCandidate[]>(`/entities/${entityId}/relation-candidates`),
+    // Faz 22: graf'ın tamamı için aday çiftler — entity entity gezmek kararı pahalı yapıyordu.
+    relationPairCandidates: () => get<RelationPairCandidate[]>("/entities/relations/candidates"),
+    decideRelations: (
+      decisions: {
+        from_entity_id: string;
+        to_entity_id: string;
+        action: "CREATE" | "REJECT";
+        relation_type?: string;
+        confidence?: number;
+      }[]
+    ) => post<RelationBatchResult>("/entities/relations/batch", { decisions }),
+    graph: () => get<EntityGraphData>("/entities/relations/graph"),
     deleteRelation: (entityId: string, toEntityId: string, relationType: string) =>
       del(`/entities/${entityId}/relations/${toEntityId}?relation_type=${encodeURIComponent(relationType)}`),
     sameAsCandidates: (entityId: string) => get<SameAsCandidate[]>(`/entities/${entityId}/same-as/candidates`),

@@ -739,3 +739,44 @@ export interface MentionedInClaim {
   about_event_id: string | null;
   about_event_title: string | null;
 }
+
+
+/** Faz 22 — graf'ın tamamı için ilişki adayı çifti.
+ *
+ * `shared_claim_count` zayıf kanıt (aynı haberde iki ad anılmış olabilir),
+ * `shared_event_count` güçlü (kullanıcının kendi kurduğu bağ). Ayrı tutuluyorlar. */
+export interface RelationPairCandidate {
+  a: { entity_id: string; name: string; entity_type: string };
+  b: { entity_id: string; name: string; entity_type: string };
+  shared_claim_count: number;
+  shared_event_count: number;
+  shared_events: { id: string; title: string }[];
+  evidence: { claim_id: string; excerpt: string; kinds: string }[];
+}
+
+export interface RelationBatchResult {
+  created: number;
+  rejected: number;
+}
+
+export interface GraphNode {
+  id: string;
+  kind: "entity" | "event";
+  label: string;
+  entity_type: string;
+  degree: number;
+  knowledge_state: KnowledgeState | null;
+  confidence: number | null;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  kind: "relation" | "involved_in" | "same_as";
+  label: string;
+}
+
+export interface EntityGraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}

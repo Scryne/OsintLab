@@ -98,6 +98,81 @@ class EntityCandidateDecisionResult(BaseModel):
     entities: list[Entity] = Field(default_factory=list)
 
 
+class RelationPairSide(BaseModel):
+    entity_id: str
+    name: str
+    entity_type: str
+
+
+class RelationPairEvidence(BaseModel):
+    claim_id: str
+    excerpt: str
+    # "ÖZNE/DEĞME" gibi — hangi tarafın claim'in öznesi, hangisinin yalnızca değdiği.
+    # Yön hakkında kullanıcıya fikir verir ama sistem yön ÖNERMEZ.
+    kinds: str
+
+
+class RelationPairCandidate(BaseModel):
+    """Faz 22 — graf'ın tamamı için "bu iki entity ilişkili olabilir" önerisi.
+
+    `shared_claim_count` ile `shared_event_count` bilerek ayrı: ilki zayıf (aynı haberde iki
+    ad anılmış olabilir), ikincisi güçlü (kullanıcının kendi kurduğu bağ). Tek skora
+    karıştırılsalardı fark kaybolurdu. `relation_type` alanı YOK: türü sistem tahmin etmez."""
+
+    a: RelationPairSide
+    b: RelationPairSide
+    shared_claim_count: int
+    shared_event_count: int
+    shared_events: list[dict] = Field(default_factory=list)
+    evidence: list[RelationPairEvidence] = Field(default_factory=list)
+
+
+class RelationDecision(BaseModel):
+    from_entity_id: str
+    to_entity_id: str
+    # CREATE | REJECT
+    action: str
+    # CREATE için zorunlu; REJECT için yok sayılır.
+    relation_type: str = ""
+    confidence: float = Field(0.5, ge=0.0, le=1.0)
+
+
+class RelationBatch(BaseModel):
+    """Toplu karar — 109 çiftlik bir listede tekil uç bırakmak, Faz 22'yi kendi çözdüğü
+    darboğazın bir kopyası yapardı."""
+
+    decisions: list[RelationDecision]
+
+
+class RelationBatchResult(BaseModel):
+    created: int = 0
+    rejected: int = 0
+
+
+class GraphNode(BaseModel):
+    id: str
+    # entity | event
+    kind: str
+    label: str
+    entity_type: str
+    degree: int = 0
+    knowledge_state: str | None = None
+    confidence: float | None = None
+
+
+class GraphEdge(BaseModel):
+    source: str
+    target: str
+    # relation | involved_in | same_as
+    kind: str
+    label: str
+
+
+class EntityGraph(BaseModel):
+    nodes: list[GraphNode] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
+
+
 SAME_AS_STATUSES = ("PENDING", "CONFIRMED", "REJECTED")
 
 

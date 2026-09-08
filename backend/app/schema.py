@@ -212,6 +212,12 @@ NODE_TABLES = [
 REL_TABLES = [
     "CREATE REL TABLE IF NOT EXISTS ENTITY_RELATION(FROM Entity TO Entity, relation_type STRING, confidence DOUBLE, valid_from TIMESTAMP, valid_to TIMESTAMP, status STRING)",
     "CREATE REL TABLE IF NOT EXISTS SAME_AS(FROM Entity TO Entity, confidence DOUBLE, status STRING, created_at TIMESTAMP)",
+    # Faz 22 — "bu iki entity ilişkisiz" kararı. `ENTITY_RELATION`a bir status olarak
+    # eklenmedi bilerek: o tablo KURULMUŞ bir ilişkiyi taşıyor (relation_type zorunlu,
+    # okuyan uçlar onu bekliyor) ve "ilişki yok" kaydını oraya sokmak her okumayı bir
+    # istisnayla kirletirdi. Reddedilen aday silinmez, işaretlenir — yoksa aynı çift her
+    # aday hesabında geri gelirdi (Faz 20/21'in aynı kararı).
+    "CREATE REL TABLE IF NOT EXISTS RELATION_REJECTED(FROM Entity TO Entity, created_at TIMESTAMP)",
     "CREATE REL TABLE IF NOT EXISTS INVOLVED_IN(FROM Entity TO Event, role STRING)",
     "CREATE REL TABLE IF NOT EXISTS REPORTED_BY(FROM Event TO Source)",
     "CREATE REL TABLE IF NOT EXISTS ASSERTS(FROM Source TO Claim)",

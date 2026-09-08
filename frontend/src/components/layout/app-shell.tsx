@@ -15,8 +15,10 @@ import {
   Link2,
   ListChecks,
   Menu,
+  Network,
   Radar,
   Rss,
+  Share2,
   UserPlus,
   Users,
   Waypoints,
@@ -51,6 +53,12 @@ const NAV = [
   // Faz 21: entity sayısı 58'e çıktı ama 53'ü izole kaldı — bir claim yalnızca TEK bir şey
   // "hakkında" olabildiği için ölçülen 134 değmenin 129'u graf'a giremiyordu.
   { href: "/claims/mentions", label: "Bağ Adayları", icon: Waypoints },
+  // Faz 22: 109 aday çifte karşılık graf'ta 1 kenar vardı; adayları tek tek entity
+  // sayfalarında gezmek kararı pahalı yapan şeyin ta kendisiydi.
+  { href: "/entities/relations", label: "İlişki Adayları", icon: Share2 },
+  // Faz 22: Faz 8'in "Entity Graph paneli duruyor" notunun yanlış olduğu 2026-09-02'de
+  // bulunmuş ve o günden beri kapanmamıştı.
+  { href: "/graph", label: "Graf", icon: Network },
   { href: "/entities/same-as", label: "Olası Eşleşmeler", icon: GitMerge },
   { href: "/inbox", label: "Inbox", icon: InboxIcon },
 ] as const;

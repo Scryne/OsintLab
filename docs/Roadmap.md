@@ -279,7 +279,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
 | 21 | Claim ↔ Entity Çoklu Bağ | ✅ Tamamlandı | Bir claim birden çok entity'ye bağlanabiliyor (özne bağı `ABOUT_ENTITY` tekil kalır); bağ adayları claim metninden deterministik olarak öneriliyor ve toplu onaylanabiliyor. Bitti sayılması için ölçülen 134 değmenin fiilen graf'a girmiş **ve tamamen izole entity sayısının 53'ten belirgin biçimde düşmüş** olması gerekir. |
-| 22 | İlişki Adaylarının Eritilmesi + Graf Görünümü | ⏳ Bekliyor | 109 aday çifti toplu olarak karara bağlanabiliyor (kurma VE eleme); kurulan ilişkiler bir graf görünümünde geziliyor. Bitti sayılması için graf'taki kenar sayısının 1'den çıkmış **ve aday listesinin eritilmiş** olması gerekir. |
+| 22 | İlişki Adaylarının Eritilmesi + Graf Görünümü | ✅ Tamamlandı | 109 aday çifti toplu olarak karara bağlanabiliyor (kurma VE eleme); kurulan ilişkiler bir graf görünümünde geziliyor. Bitti sayılması için graf'taki kenar sayısının 1'den çıkmış **ve aday listesinin eritilmiş** olması gerekir. |
 | 23 | Kullanılmayan Katmanların Hesabı (Inbox + Investigation) | ⏳ Bekliyor | Biriken 59 Inbox öğesi fiilen karara bağlanmış; Inbox'ın ve Investigation katmanının kalıp kalmayacağı — kalacaksa hangi iş akışıyla — açık bir karar olarak roadmap'e yazılmış olmalı. "Duruyor ama kullanılmıyor" bir sonuç değildir. |
 | 24 | Kaynak Tabanını Genişletme | ⏳ Bekliyor | Yeni bağımsız kaynaklar eklenip taramaya alınmış; **bağımsız kök sayısının arttığı ve bunun confidence'a yansıdığı ölçülmüş** olmalı (en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED üstüne çıkmalı). |
 
@@ -2500,6 +2500,66 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Aday çiftler toplu karara bağlanabiliyor (kurma VE eleme); elenen aday
   tekrar önerilmiyor ama kaybolmuyor; kurulan ilişkiler bir graf görünümünde geziliyor.
   **Fazın sınavı:** kenar sayısı 1'den çıkmış ve aday listesi eritilmiş olmalı.
+
+- **Notlar:** 2026-09-08 tamamlandı.
+
+  **Ne eklendi.** `RELATION_REJECTED` rel tablosu + `entityrelations.py`'a
+  `relation_pair_candidates` ve `entity_graph` + `/entities/relations` router'ı (global aday
+  listesi, toplu karar, graf verisi) + `/entities/relations` sayfası ("İlişki Adayları") ve
+  `/graph` sayfası ("Graf"), ikisi de nav'da.
+
+  **Sinyalin KAYNAĞI değişti: metin taraması → karar kayıtları.** Faz 19'da adaylar claim
+  metnini yeniden tarayarak üretiliyordu. Faz 21'de `MENTIONS` kurulunca bu hem gereksiz hem
+  YANLIŞ oldu: kullanıcı bir değmeyi reddettiyse, o reddedilen değmeden ilişki adayı üretmek
+  kullanıcının kararını arkadan dolanmak olurdu. Artık iki entity aynı claim'e **karar
+  verilmiş** bir bağla (özne ya da onaylanmış değme) bağlıysa birlikte geçiyor sayılıyor.
+  `relation_candidates` (entity sayfası) da global hesabın üstünde bir filtreye indirgendi —
+  iki ayrı aday tanımı olsaydı entity sayfası ile toplu ekran aynı çifte farklı cevap verirdi.
+
+  **Reddetme yolu eklendi — asıl eksik buydu.** Faz 19'da yalnızca KURMA vardı; ilgisiz bir
+  çift aday listesinde sonsuza kadar kalıyordu, yani liste yapısal olarak hiç erimiyordu.
+  `RELATION_REJECTED` ayrı bir tablo, `ENTITY_RELATION`a status olarak eklenmedi: o tablo
+  KURULMUŞ bir ilişkiyi taşıyor (relation_type zorunlu, okuyan uçlar onu bekliyor) ve "ilişki
+  yok" kaydını oraya sokmak her okumayı bir istisnayla kirletirdi.
+
+  **Fazın sınavı geçildi: kenar 1 → 80, aday 105 → 0.**
+
+  | | Öncesi | Sonrası |
+  | --- | --- | --- |
+  | Entity ilişki kenarı | 1 | **80** |
+  | Toplam graf kenarı | 10 | **89** |
+  | Açık aday çifti | 105 | **0** |
+  | Bağlantısız düğüm (64 düğümde) | 54 | **1** |
+
+  79 ilişki kuruldu, 26 çift "ilgisiz" işaretlendi. Eleme ölçütü açıktı: ilişki **yalnızca
+  iddia doğrudan metinden okunuyorsa** kuruldu. Dolaylı olanlar reddedildi — "aynı üreticinin
+  iki ürünü" (Codex ~ ChatGPT), "aynı haberde geçti" (Israel ~ Russia, Tumbler Ridge ~ Chris
+  Lehane), "zincirin ortası atlanmış" (OpenAI ~ Amazon Bedrock — bağ Daybreak üzerinden).
+  Graf'ı her şeyin her şeye bağlı olduğu bir buluta çevirmek, hiç kenar olmamasından kötüdür.
+  En yoğun düğüm OpenAI (43 bağ), onu Chaotic Eclipse (7) ve Daybreak (6) izliyor.
+
+  **Graf görünümü: bağımlılık eklenmedi.** 64 düğüm / 89 kenar için d3-force ya da cytoscape,
+  çözdüğü problemden fazla paket ve bakım yüzeyi getirirdi. Yerleşim 260 adımlık basit bir
+  Fruchterman-Reingold (`components/graph/force-graph.tsx`) ve **deterministik**: başlangıç
+  konumları rastgele değil, düğüm id'sinin hash'inden türetiliyor — aynı graf her açılışta
+  farklı yerleşseydi kullanıcı "dün burada duruyordu" diye hatırladığı düğümü bulamazdı.
+
+  Görsel dil bilgi taşıyor: entity daire / olay kare (renk körlüğünde de ayrılsın), kalın
+  çizgi kullanıcının kurduğu ilişki, soluk çizgi olaya karışma, **kesik çizgi aynılık** —
+  `SAME_AS` bir ilişki değildir ve öyle görünmemeli. Erişilebilirlik: her düğüm klavyeyle
+  gezilebiliyor ve graf'ın altında aynı veriyi taşıyan bir metin listesi duruyor; görsel
+  yerleşim tek erişim yolu değil.
+
+  **Yan onarım — toplu uç vault'u 76 kez render ediyordu.** İlk koşuda 79 ilişkilik batch iki
+  dakikadan uzun sürdü: `create_entity_relation` her çağrıda `safe_render_vault` yapıyor ve o
+  da Entity/Event/Source/Investigation klasörlerinin TAMAMINI silip yeniden yazıyor.
+  `_write_entity_relation` ayrıldı (render etmez); render artık çağıranın sorumluluğunda ve
+  iş bitince bir kez yapılıyor. Aynı desen Faz 20'de 53 entity promote edilirken de vardı —
+  orada fark edilmemişti çünkü tek tek yapılmıştı.
+
+  **Faz 23 için not:** graf artık okunabilir olduğuna göre, Inbox'ın gösterdiği "yeni bir
+  entity'ye değindi" bildirimlerinin graf üzerinde zaten görülebilir olup olmadığı Faz 23'ün
+  sorusunun bir parçası.
 
 ### Faz 23: Kullanılmayan Katmanların Hesabı (Inbox + Investigation)
 

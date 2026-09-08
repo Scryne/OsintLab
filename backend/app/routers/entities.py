@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.db import fetch_all, fetch_one, get_connection
 from app.dedup import find_candidates, pair_score
 from app.entityextract import entity_candidates
-from app.entityrelations import relation_candidates
+from app.entityrelations import entity_graph, relation_candidates, relation_pair_candidates
 from app.models import (
     Entity,
     EntityCandidateDecisionResult,
@@ -14,8 +14,12 @@ from app.models import (
     EntityCandidatePromote,
     EntityCreate,
     EntityRelationCreate,
+    EntityGraph,
     ExtractedEntityCandidate,
+    RelationBatch,
+    RelationBatchResult,
     RelationCandidate,
+    RelationPairCandidate,
     SameAsSuggestRequest,
 )
 from app.recall import entity_recall
@@ -24,6 +28,7 @@ from app.vault import safe_render_vault
 router = APIRouter(prefix="/entities", tags=["entities"])
 same_as_router = APIRouter(prefix="/entities/same-as", tags=["same-as"])
 candidates_router = APIRouter(prefix="/entities/candidates", tags=["entity-candidates"])
+relations_router = APIRouter(prefix="/entities/relations", tags=["entity-relations"])
 
 _FIELDS = "e.id AS id, e.entity_type AS entity_type, e.name AS name, e.aliases AS aliases, e.created_at AS created_at"
 
@@ -111,22 +116,37 @@ def delete_entity(entity_id: str) -> None:
 # ---- ENTITY_RELATION (Entity <-> Entity) ---------------------------------------------------
 
 
-@router.post("/{entity_id}/relations", status_code=201)
-def create_entity_relation(entity_id: str, payload: EntityRelationCreate) -> dict:
-    conn = get_connection()
+def _write_entity_relation(conn, entity_id: str, payload: EntityRelationCreate) -> None:
+    """İlişkiyi yazar — vault RENDER ETMEZ.
+
+    Faz 22'de ayrıldı: toplu karar ucu 76 ilişkiyi tek çağrıda kuruyor ve her biri için
+    vault'u baştan render etmek (Entity/Event/Source/Investigation klasörlerinin tamamı
+    siliniyor ve yeniden yazılıyor) işlemi dakikalarca sürdürüyordu. Render, çağıranın
+    sorumluluğunda ve iş bitince BİR KEZ yapılıyor."""
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
         raise HTTPException(status_code=404, detail="Entity not found")
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": payload.to_entity_id})) is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {payload.to_entity_id}")
     if entity_id == payload.to_entity_id:
         raise HTTPException(status_code=422, detail="Bir entity kendisiyle ilişkilendirilemez")
-    now = datetime.now(timezone.utc)
     conn.execute(
         "MATCH (a:Entity {id: $aid}), (b:Entity {id: $bid}) "
         "CREATE (a)-[:ENTITY_RELATION {relation_type: $rt, confidence: $conf, "
         "valid_from: $now, valid_to: NULL, status: 'ACTIVE'}]->(b)",
-        {"aid": entity_id, "bid": payload.to_entity_id, "rt": payload.relation_type, "conf": payload.confidence, "now": now},
+        {
+            "aid": entity_id,
+            "bid": payload.to_entity_id,
+            "rt": payload.relation_type,
+            "conf": payload.confidence,
+            "now": datetime.now(timezone.utc),
+        },
     )
+
+
+@router.post("/{entity_id}/relations", status_code=201)
+def create_entity_relation(entity_id: str, payload: EntityRelationCreate) -> dict:
+    conn = get_connection()
+    _write_entity_relation(conn, entity_id, payload)
     safe_render_vault(conn)
     return {
         "from_entity_id": entity_id,
@@ -376,3 +396,76 @@ def promote_entity_candidates(payload: EntityCandidatePromote) -> EntityCandidat
         _set_candidate_status(conn, item.key, name, "PROMOTED", entity.id)
         created.append(entity)
     return EntityCandidateDecisionResult(promoted=len(created), entities=created)
+
+
+# ---- Faz 22: İlişki adaylarını toplu eritme + graf ------------------------------------------
+#
+# Ayrı router, `/entities/{entity_id}`den önce eşleşmesi için (same_as_router deseni).
+
+
+@relations_router.get("/candidates", response_model=list[RelationPairCandidate])
+def list_relation_pair_candidates() -> list[RelationPairCandidate]:
+    """Graf'ın tamamı için ilişki adayı çiftleri (bkz. app/entityrelations.py).
+
+    Faz 19 yalnızca entity başına aday veriyordu; 109 çiftin tamamını eritmek için entity
+    entity gezmek gerekiyordu ve kararı pahalı yapan şey buydu (Faz 16'nın dersi)."""
+    conn = get_connection()
+    return [RelationPairCandidate(**c) for c in relation_pair_candidates(conn)]
+
+
+@relations_router.post("/batch", response_model=RelationBatchResult)
+def decide_relations(payload: RelationBatch) -> RelationBatchResult:
+    """Toplu karar: ilişki kur ya da "bu ikisi ilgisiz" de.
+
+    Reddetme Faz 22'de eklendi: Faz 19'da yalnızca KURMA yolu vardı, dolayısıyla ilgisiz bir
+    çift aday listesinde sonsuza kadar kalıyordu ve liste hiç erimiyordu (Faz 20/21'in aynı
+    kararı: reddedilen kaybolmaz, işaretlenir)."""
+    conn = get_connection()
+    now = datetime.now(timezone.utc)
+    created = rejected = 0
+    for decision in payload.decisions:
+        action = decision.action.upper()
+        for entity_id in (decision.from_entity_id, decision.to_entity_id):
+            if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
+                raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+        if action == "CREATE":
+            if not decision.relation_type.strip():
+                raise HTTPException(status_code=422, detail="İlişki türü boş olamaz — türü sistem tahmin etmez")
+            _write_entity_relation(
+                conn,
+                decision.from_entity_id,
+                EntityRelationCreate(
+                    to_entity_id=decision.to_entity_id,
+                    relation_type=decision.relation_type.strip(),
+                    confidence=decision.confidence,
+                ),
+            )
+            created += 1
+        elif action == "REJECT":
+            already = fetch_one(
+                conn.execute(
+                    "MATCH (a:Entity {id: $aid})-[:RELATION_REJECTED]->(b:Entity {id: $bid}) RETURN a.id AS id",
+                    {"aid": decision.from_entity_id, "bid": decision.to_entity_id},
+                )
+            )
+            if already is None:
+                conn.execute(
+                    "MATCH (a:Entity {id: $aid}), (b:Entity {id: $bid}) "
+                    "CREATE (a)-[:RELATION_REJECTED {created_at: $now}]->(b)",
+                    {"aid": decision.from_entity_id, "bid": decision.to_entity_id, "now": now},
+                )
+            rejected += 1
+        else:
+            raise HTTPException(status_code=422, detail=f"Geçersiz aksiyon: {decision.action}")
+    safe_render_vault(conn)
+    return RelationBatchResult(created=created, rejected=rejected)
+
+
+@relations_router.get("/graph", response_model=EntityGraph)
+def get_entity_graph() -> EntityGraph:
+    """Graf görünümünün verisi: entity ve event düğümleri + aralarındaki kenarlar.
+
+    Faz 8'in "Entity Graph paneli duruyor" notunun yanlış olduğu 2026-09-02'de bulunmuştu ve
+    o günden beri kapanmamıştı — Faz 22'de kapanıyor."""
+    conn = get_connection()
+    return EntityGraph(**entity_graph(conn))
