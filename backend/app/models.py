@@ -20,6 +20,32 @@ class EntityRelationCreate(BaseModel):
     confidence: float = Field(0.5, ge=0.0, le=1.0)
 
 
+class RelationCandidateEvidence(BaseModel):
+    claim_id: str
+    excerpt: str
+    # Hangi ad/alias üzerinden eşleşti — Auditability: "neden bu aday" sorusunun cevabı
+    # "bir skor" değil, metindeki fiili eşleşme olmalı.
+    matched_on: str
+
+
+class RelationCandidate(BaseModel):
+    """Faz 19 — "bu iki entity ilişkili olabilir" önerisi.
+
+    `co_mention_count` ile `shared_event_count` ayrı: biri metinde birlikte anılma (aynı
+    haberde iki ad geçebilir, zayıf), diğeri kullanıcının kendi kurduğu ortak olay bağı
+    (güçlü). Tek bir skora karıştırılsalardı ikisinin farkı kaybolurdu.
+
+    `relation_type` alanı YOK ve olmayacak: türü sistem tahmin etmez (Design Principle #7)."""
+
+    entity_id: str
+    name: str
+    entity_type: str
+    co_mention_count: int
+    shared_event_count: int
+    shared_events: list[dict] = Field(default_factory=list)
+    evidence: list[RelationCandidateEvidence] = Field(default_factory=list)
+
+
 SAME_AS_STATUSES = ("PENDING", "CONFIRMED", "REJECTED")
 
 

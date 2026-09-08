@@ -196,15 +196,31 @@ def _entity_investigations(conn, entity_id: str) -> list[dict]:
 def _entity_relations(conn, entity_id: str) -> list[dict]:
     # Faz 10: ENTITY_RELATION artık yazılıyor (bkz. routers/entities.py). SUPERSEDED
     # kenarlar (silinmiş/eskimiş ilişkiler) vault notunda görünmemeli.
-    return fetch_all(
+    #
+    # Faz 19: GELEN kenarlar da eklendi. Kenar tek yön saklanıyor ("OpenAI -geliştirdi->
+    # Astra") ama not iki uçta da okunuyor — yalnızca giden yön render edilseydi Astra'nın
+    # notu, OpenAI'ın notundan görülebilen bir ilişkiyi göstermezdi. Bağlantılı düşünmeyi
+    # taşıyan şey wikilink'ler; tek yönlü bir wikilink Obsidian graph'ında kopuk bir uç
+    # bırakırdı. Yön `direction` ile korunuyor: "geliştirdi" ile "geliştirildi" aynı şey değil.
+    outgoing = fetch_all(
         conn.execute(
             "MATCH (:Entity {id: $id})-[r:ENTITY_RELATION]->(other:Entity) "
             "WHERE r.status <> 'SUPERSEDED' "
-            "RETURN other.id AS id, other.name AS name, r.relation_type AS relation_type "
-            "ORDER BY r.valid_from",
+            "RETURN other.id AS id, other.name AS name, r.relation_type AS relation_type, "
+            "r.valid_from AS valid_from, 'OUTGOING' AS direction",
             {"id": entity_id},
         )
     )
+    incoming = fetch_all(
+        conn.execute(
+            "MATCH (other:Entity)-[r:ENTITY_RELATION]->(:Entity {id: $id}) "
+            "WHERE r.status <> 'SUPERSEDED' "
+            "RETURN other.id AS id, other.name AS name, r.relation_type AS relation_type, "
+            "r.valid_from AS valid_from, 'INCOMING' AS direction",
+            {"id": entity_id},
+        )
+    )
+    return sorted(outgoing + incoming, key=lambda r: r["valid_from"])
 
 
 def _entity_monitor(conn, entity_id: str) -> dict | None:
@@ -258,7 +274,10 @@ def render_entity_note(conn, entity: dict) -> str:
     lines.append("## Known Relationships")
     if relations:
         for r in relations:
-            lines.append(f"- {r['relation_type']} → {wikilink('entities', r['id'], r['name'])}")
+            if r["direction"] == "OUTGOING":
+                lines.append(f"- {r['relation_type']} → {wikilink('entities', r['id'], r['name'])}")
+            else:
+                lines.append(f"- {wikilink('entities', r['id'], r['name'])} → {r['relation_type']} → bu kayıt")
     else:
         lines.append("_Henüz kaydedilmiş bir ilişki yok._")
     lines.append("")

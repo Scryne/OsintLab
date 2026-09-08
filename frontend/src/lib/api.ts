@@ -25,6 +25,7 @@ import type {
   ObservationPromoteBatchResult,
   ObservationPromoteResult,
   ObservationQueue,
+  RelationCandidate,
   SameAsCandidate,
   SameAsPending,
   LineageNode,
@@ -112,6 +113,10 @@ export const api = {
     createRelation: (entityId: string, payload: { to_entity_id: string; relation_type: string; confidence?: number }) =>
       post<EntityRelation & { from_entity_id: string }>(`/entities/${entityId}/relations`, payload),
     listRelations: (entityId: string) => get<EntityRelation[]>(`/entities/${entityId}/relations`),
+    // Faz 19: birlikte geçen entity'ler ilişki adayı olarak önerilir. Öneridir — türü
+    // kullanıcı yazar, sistem tahmin etmez.
+    relationCandidates: (entityId: string) =>
+      get<RelationCandidate[]>(`/entities/${entityId}/relation-candidates`),
     deleteRelation: (entityId: string, toEntityId: string, relationType: string) =>
       del(`/entities/${entityId}/relations/${toEntityId}?relation_type=${encodeURIComponent(relationType)}`),
     sameAsCandidates: (entityId: string) => get<SameAsCandidate[]>(`/entities/${entityId}/same-as/candidates`),

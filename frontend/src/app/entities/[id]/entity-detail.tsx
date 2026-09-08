@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Bell, BellOff, Calendar, GitBranchPlus, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
-import type { Claim, SameAsCandidate, Source } from "@/lib/types";
+import type { Claim, RelationCandidate, SameAsCandidate, Source } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -93,6 +93,12 @@ export function EntityDetail({ entityId }: { entityId: string }) {
   }
 
   const { data: relations, reload: reloadRelations } = useApi(() => api.entities.listRelations(entityId), [entityId]);
+  // Faz 19: graf üç faz boyunca kenarsız kaldı çünkü "kiminle ilişkili olabilir" sorusunun
+  // cevabı hiçbir yerde durmuyordu — ilişki kurmak 5 entity'yi gözle taramak demekti.
+  const { data: relationCandidates, reload: reloadRelationCandidates } = useApi(
+    () => api.entities.relationCandidates(entityId),
+    [entityId]
+  );
   const { data: sameAsCandidates, reload: reloadSameAs } = useApi(
     () => api.entities.sameAsCandidates(entityId),
     [entityId]
@@ -214,7 +220,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             <TabsTrigger value="claims">Claim&apos;ler ({recall.related_claims.length})</TabsTrigger>
             <TabsTrigger value="events">Event&apos;ler ({recall.related_events.length})</TabsTrigger>
             <TabsTrigger value="investigations">Investigation&apos;lar ({recall.related_investigations.length})</TabsTrigger>
-            <TabsTrigger value="relations">İlişkiler ({relations?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="relations">
+            İlişkiler ({relations?.length ?? 0})
+            {(relationCandidates?.length ?? 0) > 0 && ` · ${relationCandidates?.length} aday`}
+          </TabsTrigger>
             <TabsTrigger value="same-as">Olası Eşleşmeler ({sameAsCandidates?.length ?? 0})</TabsTrigger>
           </TabsList>
         </div>
@@ -389,9 +398,11 @@ export function EntityDetail({ entityId }: { entityId: string }) {
           )}
         </TabsContent>
 
-        <TabsContent value="relations" className="mt-4">
+        <TabsContent value="relations" className="mt-4 flex flex-col gap-6">
           {!relations || relations.length === 0 ? (
-            <EmptyState title="Henüz kayıtlı bir ilişki yok" description="Yukarıdaki 'İlişki Ekle' butonuyla ilk ilişkiyi kur." />
+            <EmptyState
+              title="Henüz kayıtlı bir ilişki yok"
+              description="Aşağıdaki adaylardan birini kur, ya da yukarıdaki 'İlişki Ekle' butonuyla elle ekle." />
           ) : (
             <div className="flex flex-col gap-2">
               {relations.map((r) => (
@@ -430,6 +441,15 @@ export function EntityDetail({ entityId }: { entityId: string }) {
               ))}
             </div>
           )}
+
+          <RelationCandidates
+            entityId={entityId}
+            candidates={relationCandidates ?? []}
+            onCreated={() => {
+              reloadRelations();
+              reloadRelationCandidates();
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="same-as" className="mt-4">
@@ -658,6 +678,154 @@ function SameAsTab({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Faz 19 — ilişki adayları.
+ *
+ * Ölçüm (2026-09-05): 5 entity, aralarında 0 ilişki. `ENTITY_RELATION` Faz 10'da yazılabilir
+ * hale gelmişti ve gerçek kullanımda hiç yazılmadı — Faz 16/17/18'in aynı deseni: mekanizma
+ * var, onu tetikleyecek iş akışı yok. Eksik olan şuydu: "bu entity kiminle ilişkili olabilir"
+ * sorusunun cevabı hiçbir yerde durmuyordu.
+ *
+ * Kart bilerek iki ayrı kanıt gösteriyor ve tek bir skora indirgemiyor: ortak olay
+ * kullanıcının kendi kurduğu bir bağ (güçlü), metinde birlikte anılma ise aynı haberde iki
+ * adın geçmesi olabilir (zayıf). İlişkinin TÜRÜNÜ sistem önermiyor — "OpenAI Astra'yı
+ * geliştirdi" ile "Astra OpenAI'ın ürünü" arasındaki fark anlamsal bir karar.
+ */
+function RelationCandidates({
+  entityId,
+  candidates,
+  onCreated,
+}: {
+  entityId: string;
+  candidates: RelationCandidate[];
+  onCreated: () => void;
+}) {
+  if (candidates.length === 0) return null;
+  return (
+    <section>
+      <h3 className="mb-1 text-sm font-medium uppercase tracking-wide text-text-tertiary">
+        İlişki adayları ({candidates.length})
+      </h3>
+      <p className="mb-3 max-w-2xl text-xs leading-relaxed text-text-secondary">
+        Bu kayıtlar bu entity ile aynı claim metninde ya da aynı olayda geçiyor. Sistem
+        yalnızca &quot;bu ikisi birbiriyle ilgili olabilir&quot; der; ilişkinin ne olduğunu sen
+        yazarsın. Aynı olduğu onaylanmış kayıtlar ve zaten ilişkisi kurulmuş olanlar burada
+        görünmez.
+      </p>
+      <div className="flex flex-col gap-2">
+        {candidates.map((candidate) => (
+          <RelationCandidateCard
+            key={candidate.entity_id}
+            entityId={entityId}
+            candidate={candidate}
+            onCreated={onCreated}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RelationCandidateCard({
+  entityId,
+  candidate,
+  onCreated,
+}: {
+  entityId: string;
+  candidate: RelationCandidate;
+  onCreated: () => void;
+}) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [relationType, setRelationType] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const inputId = `relation-candidate-${candidate.entity_id}`;
+
+  async function submit() {
+    if (!relationType.trim()) return;
+    setSubmitting(true);
+    try {
+      await api.entities.createRelation(entityId, {
+        to_entity_id: candidate.entity_id,
+        relation_type: relationType.trim(),
+      });
+      toast(`İlişki kuruldu: ${relationType.trim()} → ${candidate.name}`, "success");
+      setRelationType("");
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "İlişki kurulamadı", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Link href={`/entities/${candidate.entity_id}`} className="text-sm font-medium text-foreground hover:underline">
+            {candidate.name}
+          </Link>
+          <Badge variant="secondary">{candidate.entity_type}</Badge>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          {open ? "Vazgeç" : "İlişki kur"}
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+        {candidate.shared_event_count > 0 && (
+          <Badge variant="outline">{candidate.shared_event_count} ortak olay</Badge>
+        )}
+        {candidate.co_mention_count > 0 && (
+          <Badge variant="outline">{candidate.co_mention_count} claim&apos;de birlikte</Badge>
+        )}
+      </div>
+
+      {candidate.shared_events.length > 0 && (
+        <ul className="flex flex-col gap-0.5">
+          {candidate.shared_events.map((ev) => (
+            <li key={ev.id}>
+              <Link href={`/events/${ev.id}`} className="text-xs text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
+                {ev.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Kanıt SOURCE_FACT değil, sistemin eşleşmesi: "neden bu aday" sorusunun cevabı
+          bir skor değil, metindeki fiili eşleşme olmalı (Auditability). */}
+      {candidate.evidence.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {candidate.evidence.map((ev) => (
+            <li key={ev.claim_id} className="text-xs leading-relaxed text-pretty text-text-tertiary">
+              <span className="font-mono text-[10px] text-text-secondary">{ev.matched_on}</span> — {ev.excerpt}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {open && (
+        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Label htmlFor={inputId}>Bu ilişki ne? (türü sen yazarsın)</Label>
+            <Input
+              id={inputId}
+              value={relationType}
+              onChange={(e) => setRelationType(e.target.value)}
+              placeholder="ör. geliştirdi, sahibi, ortak, hedef aldı"
+            />
+          </div>
+          <Button onClick={submit} disabled={submitting || !relationType.trim()}>
+            {submitting ? "Kuruluyor…" : "Kaydet"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

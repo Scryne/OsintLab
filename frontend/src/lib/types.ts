@@ -651,3 +651,21 @@ export interface ClaimExplain {
     counts_for_independence: boolean;
   }[];
 }
+
+
+/** Faz 19 — "bu iki entity ilişkili olabilir" önerisi.
+ *
+ * `co_mention_count` (claim metninde birlikte anılma) ile `shared_event_count` (aynı olaya
+ * karışma) bilerek AYRI alanlar: ilki zayıf kanıt — aynı haberde iki ad geçebilir; ikincisi
+ * güçlü — kullanıcının kendi kurduğu bir bağ. Tek skora karıştırılsalardı fark kaybolurdu.
+ *
+ * İlişkinin TÜRÜ burada YOK ve olmayacak: sistem tahmin etmez, kullanıcı yazar. */
+export interface RelationCandidate {
+  entity_id: string;
+  name: string;
+  entity_type: string;
+  co_mention_count: number;
+  shared_event_count: number;
+  shared_events: { id: string; title: string }[];
+  evidence: { claim_id: string; excerpt: string; matched_on: string }[];
+}

@@ -5,7 +5,14 @@ from fastapi import APIRouter, HTTPException
 
 from app.db import fetch_all, fetch_one, get_connection
 from app.dedup import find_candidates, pair_score
-from app.models import Entity, EntityCreate, EntityRelationCreate, SameAsSuggestRequest
+from app.entityrelations import relation_candidates
+from app.models import (
+    Entity,
+    EntityCreate,
+    EntityRelationCreate,
+    RelationCandidate,
+    SameAsSuggestRequest,
+)
 from app.recall import entity_recall
 from app.vault import safe_render_vault
 
@@ -148,6 +155,18 @@ def list_entity_relations(entity_id: str) -> list[dict]:
         )
     )
     return outgoing + incoming
+
+
+@router.get("/{entity_id}/relation-candidates", response_model=list[RelationCandidate])
+def list_relation_candidates(entity_id: str) -> list[RelationCandidate]:
+    """Faz 19 — bu entity ile ilişkili OLABİLECEK entity'ler (bkz. app/entityrelations.py).
+
+    Öneridir: sistem "bu ikisi birbiriyle ilgili" der, ilişkinin TÜRÜNÜ kullanıcı yazar.
+    Zaten ACTIVE ilişkisi olanlar ve CONFIRMED SAME_AS grubundakiler listede yer almaz."""
+    conn = get_connection()
+    if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return [RelationCandidate(**c) for c in relation_candidates(conn, entity_id)]
 
 
 @router.delete("/{entity_id}/relations/{to_entity_id}", status_code=204)

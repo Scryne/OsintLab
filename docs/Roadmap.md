@@ -201,7 +201,7 @@ versiyon meselesi değil.
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
 | 18 | Event Katmanı | ✅ Tamamlandı | Event arayüzden listelenebiliyor, oluşturulabiliyor ve nav'dan erişilebiliyor; bir claim bir olaya bağlanabiliyor; doğrulama kümelerinden olay adayı öneriliyor; bir entity'nin olayları zaman çizgisinde görülebiliyor. Bitti sayılması için ölçülen 4 gerçek kümenin (15 claim) fiilen Event'e dönüşmüş olması gerekir. |
-| 19 | Entity İlişkileri | ⏳ Bekliyor | Birlikte geçen entity'ler ilişki adayı olarak öneriliyor; ilişkinin TÜRÜNÜ kullanıcı veriyor; kurulan ilişki entity sayfasında ve vault notunda görünüyor. Bitti sayılması için graf'ta gerçek kenarların (en az `OpenAI ↔ Astra`) bulunması gerekir — 5 izole düğüm olmaktan çıkmalı. |
+| 19 | Entity İlişkileri | ✅ Tamamlandı | Birlikte geçen entity'ler ilişki adayı olarak öneriliyor; ilişkinin TÜRÜNÜ kullanıcı veriyor; kurulan ilişki entity sayfasında ve vault notunda görünüyor. Bitti sayılması için graf'ta gerçek kenarların (en az `OpenAI ↔ Astra`) bulunması gerekir — 5 izole düğüm olmaktan çıkmalı. |
 | 20 | Entity Adayı Çıkarma (deterministik) | ⏳ Bekliyor | Claim metinlerinden yeni entity adayları sinyale göre sıralı olarak öneriliyor, toplu elenebiliyor/onaylanabiliyor. Bitti sayılması için gerçek 79 adaylık listenin eritilmiş **ve kaçırma oranının ölçülmüş** olması gerekir (LLM kararının girdisi bu sayıdır). |
 
 **v3 ikinci hat — ertelenen domain'ler (GEOINT / SOCMINT / MEDIAINT):** planlaması Faz 20
@@ -2201,6 +2201,43 @@ ayrı" kararıyla tutarlı).
   kullanıcı tarafından veriliyor; kurulan ilişki entity sayfasında ve Obsidian vault notunda
   görünüyor. **Fazın sınavı:** graf'ta gerçek kenarlar var (en az `OpenAI ↔ Astra`) — 5 izole
   düğüm olmaktan çıkmış olmalı.
+
+- **Notlar:** 2026-09-08 tamamlandı.
+
+  **Ne eklendi.** `app/entityrelations.py` + `GET /entities/{id}/relation-candidates`;
+  entity detayının "İlişkiler" sekmesinde aday listesi (kanıtıyla birlikte) ve tek alanlık
+  "bu ilişki ne?" formu. Yazan/okuyan uçlar Faz 10'dan beri vardı — eksik olan tek şey
+  "bu entity kiminle ilişkili olabilir?" sorusunun cevabının bir yerde durmasıydı.
+
+  **İki deterministik sinyal, bilerek ayrı tutuldu:** (a) claim metninde birlikte anılma —
+  Faz 12/16'nın `scanning.match_entities_in_text`'i çift eksenine taşındı (ayrı bir
+  eşleştirici yazılsaydı Inbox ile bu ekran aynı claim'e ters cevap verebilirdi); (b) aynı
+  olaya `INVOLVED_IN` ile karışma — **Faz 18'in yan ürünü**, metinden bağımsız bir kanıt.
+  Tek skora karıştırılmadılar: ilki aynı haberde iki adın geçmesi olabilir (zayıf), ikincisi
+  kullanıcının kendi kurduğu bir bağ (güçlü). Confidence de önerilmiyor — birlikte geçme
+  sayısı ilişkinin gücü değil, kanıtın hacmi.
+
+  **Ölçüm 2 aday öngörmüştü, 1'i doğru çıktı — ve ikincisinin elenmesi doğru davranış.**
+  `OpenAI ↔ Astra` birebir tuttu: 10 claim'de birlikte + 1 ortak olay (GPT-6 Astra lansmanı,
+  Faz 18'de kuruldu). `Chaotic Eclipse ↔ INFINITE NIGHTMARE` ise aday ÇIKMADI, çünkü ikisi
+  **CONFIRMED `SAME_AS`** — aynı aktörün iki kaydı ("INFINITE NIGHTMARE", Chaotic Eclipse'in
+  alias'ı). Aralarında "ilişki" kurmak aynılığı ilişkiye çevirerek Q7 kararını bozardı.
+  2026-09-05 ölçümü bunu gözden kaçırmıştı; aday bulucu `same_as_group`'u dışlıyor.
+
+  **Fazın sınavı geçildi:** graf artık kenarsız değil — `OpenAI -[geliştirdi]-> Astra`
+  (confidence 0.9) kuruldu, entity sayfasında iki uçtan da (→ / ←) görünüyor.
+
+  **Yan onarım: vault yalnızca GİDEN kenarı render ediyordu.** Kenar tek yön saklanıyor ama
+  not iki uçta da okunuyor; Astra'nın vault notu, OpenAI'ın notundan görülebilen ilişkiyi
+  hiç göstermiyordu — Obsidian graph'ında kopuk bir uç. `_entity_relations` artık gelen
+  kenarları da alıyor ve yönü koruyarak yazıyor ("X → geliştirdi → bu kayıt"), çünkü
+  "geliştirdi" ile "geliştirildi" aynı şey değil.
+
+  **Bilinen boşluk (Faz 20'ye taşınmadı, kayda geçiyor):** `ENTITY_RELATION.confidence`
+  yazılıyor ve hiçbir yerde OKUNMUYOR — ne skorlamada, ne vault'ta, ne arayüzde. Aday
+  kartının hızlı yolu bu yüzden alanı sormuyor (varsayılan 0.5); değer gerçekten anlam
+  kazanacaksa önce onu okuyan bir yer olmalı. Faz 17'nin `CORROBORATES` dersinin aynısı:
+  yazılıp okunmayan alan, olmayan alandır.
 
 ### Faz 20: Entity Adayı Çıkarma (deterministik)
 
