@@ -280,7 +280,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | --- | --- | --- | --- |
 | 21 | Claim ↔ Entity Çoklu Bağ | ✅ Tamamlandı | Bir claim birden çok entity'ye bağlanabiliyor (özne bağı `ABOUT_ENTITY` tekil kalır); bağ adayları claim metninden deterministik olarak öneriliyor ve toplu onaylanabiliyor. Bitti sayılması için ölçülen 134 değmenin fiilen graf'a girmiş **ve tamamen izole entity sayısının 53'ten belirgin biçimde düşmüş** olması gerekir. |
 | 22 | İlişki Adaylarının Eritilmesi + Graf Görünümü | ✅ Tamamlandı | 109 aday çifti toplu olarak karara bağlanabiliyor (kurma VE eleme); kurulan ilişkiler bir graf görünümünde geziliyor. Bitti sayılması için graf'taki kenar sayısının 1'den çıkmış **ve aday listesinin eritilmiş** olması gerekir. |
-| 23 | Kullanılmayan Katmanların Hesabı (Inbox + Investigation) | ⏳ Bekliyor | Biriken 59 Inbox öğesi fiilen karara bağlanmış; Inbox'ın ve Investigation katmanının kalıp kalmayacağı — kalacaksa hangi iş akışıyla — açık bir karar olarak roadmap'e yazılmış olmalı. "Duruyor ama kullanılmıyor" bir sonuç değildir. |
+| 23 | Kullanılmayan Katmanların Hesabı (Inbox + Investigation) | ✅ Tamamlandı | Biriken 59 Inbox öğesi fiilen karara bağlanmış; Inbox'ın ve Investigation katmanının kalıp kalmayacağı — kalacaksa hangi iş akışıyla — açık bir karar olarak roadmap'e yazılmış olmalı. "Duruyor ama kullanılmıyor" bir sonuç değildir. |
 | 24 | Kaynak Tabanını Genişletme | ⏳ Bekliyor | Yeni bağımsız kaynaklar eklenip taramaya alınmış; **bağımsız kök sayısının arttığı ve bunun confidence'a yansıdığı ölçülmüş** olmalı (en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED üstüne çıkmalı). |
 
 
@@ -2580,6 +2580,84 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** 59 Inbox öğesi karara bağlanmış; her iki katman için "kalıyor mu,
   kalıyorsa hangi iş akışıyla" sorusunun cevabı gerekçesiyle roadmap'e yazılmış. "Duruyor ama
   kullanılmıyor" bir sonuç değildir.
+
+- **Notlar:** 2026-09-08 tamamlandı.
+
+  **Yöntem: önce 59 öğe elden geçirildi, karar sonra yazıldı** (Faz 11'in dogfooding
+  disiplini). Veriye bakınca "kullanılmıyor" teşhisinin eksik olduğu görüldü — Inbox
+  kullanılmıyordu ÇÜNKÜ üç ölçülebilir kusuru vardı, üçü de düzeltilebilirdi.
+
+  **Ölçüm — 59 öğenin dağılımı:**
+
+  | Tür | Adet | Değerlendirme |
+  | --- | --- | --- |
+  | `NEW_OBSERVATION` | 38 (%64) | Promote Kuyruğu'nun daha zayıf bir kopyası |
+  | `SIGNIFICANT_CHANGE` | 11 | Gerçek sinyal — ama yinelenmiş |
+  | `CONTRADICTION` | 4 | Gerçek sinyal — **başlığı yanlış** |
+  | `INVESTIGATION_UPDATE` | 3 | Kullanıcının kendi eylemi |
+  | `NEW_EVENT` | 2 | Gerçek sinyal |
+  | `NEW_RELATIONSHIP` | 1 | Kullanıcının kendi eylemi |
+
+  **Kusur 1 — %64'ü Faz 16'dan beri gereksizdi.** "TechCrunch: 17 yeni içerik" bildirimi Faz
+  12'de doğru bir karardı: yeni içeriğin geldiğini söyleyen TEK yer Inbox'tı. Faz 16 Promote
+  Kuyruğu'nu ve nav'daki canlı sayaç rozetini getirince bu bildirim gereksizleşti — üstelik
+  kuyruk daha iyisini söylüyor: hangi gözlem, hangi sinyalle, hangi entity'ye değerek.
+  Inbox'ın üçte ikisi, iki ölçümdür kimsenin fark etmediği bir kopyaydı.
+
+  **Kusur 2 — aynı olgu defalarca bildiriliyordu.** Bir claim'in confidence'ı her yeniden
+  hesaplandığında (yeni doğrulama bağı, yeni kanıt) YENİ bir Inbox öğesi yaratılıyordu; dedup
+  yoktu. Tek bir claim 4 kez, bir diğeri 3 kez düşmüştü. **17 "sinyal" öğesi aslında 9 ayrı
+  olguydu.**
+
+  **Kusur 3 — en yüksek öncelikli öğeler tam tersini söylüyordu.** 4 `CONTRADICTION` öğesinin
+  dördünün de başlığı **"Claim bağımsız olarak doğrulandı"**ydı. Sebep: `_notify_change`
+  `item_type`'ı SONUÇTAN türetiyor ama başlığı ÇAĞIRANDAN alıyordu ve toplu bağlama ucu
+  (`links-batch`) iki tarafa da aynı doğrulama başlığını geçiyordu. Inbox'ı açan biri, bir
+  çelişkiyi doğrulama diye okuyordu — Inbox'ın hiç kullanılmamış olmasının en olası tek
+  sebebi bu.
+
+  **Kusur 4 — "Araştır" bir çıkmazdı.** Düğme yalnızca öğeye `INVESTIGATING` statüsünü
+  yazıyor, HİÇBİR investigation yaratmıyordu. Investigation katmanının 0 aktif kayıtla
+  durmasının sebebi bu: Inbox'tan araştırmaya giden yol yoktu. İki ölü katmanın tek bir
+  ortak sebebi vardı.
+
+  **KARAR — Inbox KALIYOR, Investigation KALIYOR.** Kaldırma gerekçesi ("bir işe yaramıyor")
+  ölçümde doğrulanmadı: gürültü çıkarıldığında geriye 9 ayrı, başka hiçbir yerde proaktif
+  olarak görünmeyen olgu kalıyor ("son baktığımdan beri ne değişti"). Yapılanlar:
+
+  1. **`NEW_OBSERVATION` artık Inbox'a düşmüyor** (`scanning._notify_new_observations` boş
+     bırakıldı, gerekçesi gövdede duruyor). Kaybolan bilgi yok: koşu sonucu
+     `ScanSchedule.last_new_count`'ta ve Toplayıcılar ekranında, bekleyen gözlem sayısı nav
+     rozetinde. **Source monitor'ları işlevsiz KALMADI** — `SCAN_FAILED` bildirimi onlardan
+     geliyor ve o gerçek sinyal: üst üste başarısız olan bir feed başka hiçbir yerde
+     kendini duyurmuyor. Yani Source izleme "gürültü üreticisi"nden "arıza alarmı"na indi.
+  2. **`INVESTIGATION_UPDATE` artık üretilmiyor.** Tek kullanıcılı bir araçta kişinin bir
+     saniye önce kendi tıkladığı durum geçişini ona haber vermek tanım gereği gürültü —
+     "more signal, less noise" (madde 25). Geçiş kaybolmuyor: `Investigation.status` graf'ta,
+     geçiş vault'un günlük notunda.
+  3. **Dedup eklendi** (`monitoring.notify_if_monitored`). Anahtar (hedef, tür, konu): aynı
+     claim hakkında bekleyen (NEW) bir öğe varsa ikincisi yaratılmaz, mevcut öğe güncellenir.
+     Karara bağlanmış bir öğe engel DEĞİL — kullanıcı baktıktan sonra durum yeniden
+     değiştiyse bu gerçekten yeni bir haberdir. Aynı claim hakkındaki bir doğrulama ile bir
+     çelişki de ayrı haberlerdir; anahtar bu yüzden türü içeriyor.
+  4. **Başlık artık türle birlikte, tek yerde türetiliyor.** Çelişki durumunda çağıranın
+     metni eziliyor ve başlık claim'in kendi ilk satırını taşıyor ("Çelişki: …").
+  5. **"Araştır" gerçekten investigation açıyor**: öğenin hedefi (entity/event) yeni
+     araştırmanın kapsamına ekleniyor ve kullanıcı doğrudan o sayfaya gidiyor. Araştırma boş
+     bir kabuk olarak değil, sorusuyla ve konusuyla başlıyor.
+
+  **Doğrulama izole grafta yapıldı** (`OSINTLAB_DATA_DIR`, gerçek veriye dokunulmadan): (a)
+  aynı claim ikinci kez doğrulandığında `SIGNIFICANT_CHANGE` öğesi 1 → 1 kaldı; (b) çelişki
+  öğesinin başlığı artık "Çelişki: …" diyor, "doğrulandı" geçmiyor. Yeni bağımlılık
+  eklenmedi — projede test çatısı yok, router fonksiyonları doğrudan çağrıldı.
+
+  **Fazın sınavı geçildi: 59 NEW → 0.** 9 öğe CONFIRMED (her ayrı olgunun en güncel hâli),
+  50 öğe IGNORED (38 kuyruk kopyası + 4 kendi eylemi + 8 yinelenmiş eski hâl). "Duruyor ama
+  kullanılmıyor" bir sonuç değildi; artık Inbox'ta bekleyen her öğe bir olgudur.
+
+  **Faz 24 için not:** Source izleme artık yalnızca `SCAN_FAILED` üretiyor. Faz 24 yeni
+  kaynaklar eklerken bu alarmın gerçekten çalıştığını da doğrulamalı — bugüne kadar hiç
+  tetiklenmedi (5 programın beşi de OK).
 
 ### Faz 24: Kaynak Tabanını Genişletme
 

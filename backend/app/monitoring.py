@@ -187,6 +187,36 @@ def create_inbox_item(
     return {"id": item_id, "created_at": now}
 
 
+def _subject_id(detail: dict) -> str:
+    """Bildirimin KONUSU olan nesnenin id'si — dedup anahtarının ikinci yarısı.
+
+    Hedef (`target_id`) tek başına yetmiyor: aynı entity hakkında iki farklı claim değişirse
+    ikisi de bildirilmeli. Konu, detayda taşınan claim/event/investigation id'sidir."""
+    for key in ("claim_id", "event_id", "investigation_id", "schedule_id"):
+        value = detail.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def _pending_item_for(conn, target_type: str, target_id: str, item_type: str, subject_id: str) -> dict | None:
+    rows = fetch_all(
+        conn.execute(
+            "MATCH (n:InboxItem) WHERE n.status = 'NEW' AND n.target_type = $tt AND n.target_id = $tid "
+            "AND n.item_type = $it RETURN n.id AS id, n.detail AS detail",
+            {"tt": target_type, "tid": target_id, "it": item_type},
+        )
+    )
+    for row in rows:
+        try:
+            detail = json.loads(row["detail"] or "{}")
+        except (TypeError, ValueError):
+            detail = {}
+        if _subject_id(detail) == subject_id:
+            return row
+    return None
+
+
 def notify_if_monitored(
     conn,
     *,
@@ -231,6 +261,31 @@ def notify_if_monitored(
         "independence": independence,
         "active_investigation": active_investigation,
     }
+    # Faz 23: aynı olgu birden çok kez bildirilmez.
+    #
+    # Ölçüm (2026-09-08): Inbox'taki 17 "sinyal" öğesi aslında ~7 ayrı olguydu — bir
+    # claim'in confidence'ı her yeniden hesaplandığında (yeni doğrulama bağı, yeni kanıt)
+    # YENİ bir Inbox öğesi yaratılıyordu. Tek bir claim 4 kez, bir diğeri 3 kez düşmüştü.
+    # Kullanıcının henüz karar vermediği (NEW) bir öğe varsa, ikincisini yaratmak yerine onu
+    # güncelliyoruz: bildirilen şey aynı olgunun GÜNCEL hâli, ikinci bir haber değil.
+    #
+    # Karara bağlanmış (IGNORED/CONFIRMED/...) bir öğe engel değil — kullanıcı ona baktıktan
+    # sonra durum yeniden değiştiyse bu gerçekten yeni bir haberdir.
+    existing = _pending_item_for(conn, target_type, target_id, item_type, _subject_id(detail))
+    if existing is not None:
+        conn.execute(
+            "MATCH (n:InboxItem {id: $id}) SET n.priority = $priority, n.title = $title, "
+            "n.detail = $detail, n.created_at = $now",
+            {
+                "id": existing["id"],
+                "priority": priority,
+                "title": title,
+                "detail": json.dumps(detail, ensure_ascii=False),
+                "now": datetime.now(timezone.utc),
+            },
+        )
+        return {"id": existing["id"], "priority": priority, "monitor_id": monitor["id"], "deduped": True}
+
     item = create_inbox_item(
         conn,
         item_type=item_type,

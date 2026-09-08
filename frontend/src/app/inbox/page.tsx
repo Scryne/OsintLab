@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Eye, Flag, Star, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -12,6 +13,7 @@ import { ErrorState, EmptyState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { PriorityBadge, PRIORITY_ORDER, PRIORITY_LABEL_TR } from "@/components/provenance/priority";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 const TARGET_HREF: Record<string, (id: string) => string> = {
@@ -169,6 +171,8 @@ function LiveIndicator({ updatedAt }: { updatedAt: Date | null }) {
 }
 
 function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void }) {
+  const toast = useToast();
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const href = TARGET_HREF[item.target_type]?.(item.target_id);
   const acted = item.status !== "NEW";
@@ -178,6 +182,36 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
     try {
       await api.inbox.updateStatus(item.id, status);
       onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Faz 23: "Araştır" ARTIK gerçekten bir investigation açıyor.
+   *
+   * Ölçüm (2026-09-08): Investigation katmanında 0 aktif kayıt vardı ve sebebi bulundu —
+   * bu düğme yalnızca öğeye "INVESTIGATING" statüsünü YAZIYOR, hiçbir şey yaratmıyordu.
+   * Inbox'tan araştırmaya giden yol yoktu; iki katmanın da ölü olmasının aynı sebebi bu.
+   * Artık öğenin hedefi (entity/event) yeni investigation'ın kapsamına ekleniyor —
+   * araştırma boş bir kabuk olarak değil, sorusuyla ve konusuyla başlıyor. */
+  async function investigate() {
+    setBusy(true);
+    try {
+      const investigation = await api.investigations.create({
+        title: item.title.split("\n")[0].slice(0, 120),
+        research_question: `Bu bildirim ne anlama geliyor? (${item.item_type})`,
+      });
+      if (item.target_type === "Entity") {
+        await api.investigations.addEntity(investigation.id, item.target_id);
+      } else if (item.target_type === "Event") {
+        await api.investigations.addEvent(investigation.id, item.target_id);
+      }
+      await api.inbox.updateStatus(item.id, "INVESTIGATING");
+      toast(`Araştırma açıldı: ${investigation.title}`, "success");
+      onChanged();
+      router.push(`/investigations/${investigation.id}`);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Araştırma açılamadı", "error");
     } finally {
       setBusy(false);
     }
@@ -212,7 +246,7 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
             size="sm"
             variant={item.status === status ? "secondary" : "outline"}
             disabled={busy}
-            onClick={() => act(status)}
+            onClick={() => (status === "INVESTIGATING" ? investigate() : act(status))}
             className={cn("h-7 px-2 text-xs")}
           >
             <Icon className="h-3.5 w-3.5" />

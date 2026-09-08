@@ -196,6 +196,16 @@ def _notify_change(
     is_novel = _is_first_claim_about(conn, about_entity_id, about_event_id, claim_id)
     if has_contradiction:
         item_type = "CONTRADICTION"
+        # Faz 23 hata düzeltmesi: `item_type` SONUÇTAN türetiliyordu ama başlık ÇAĞIRANDAN
+        # geliyordu ve ikisi çelişebiliyordu. Ölçümde Inbox'taki 4 CONTRADICTION öğesinin
+        # dördü de "Claim bağımsız olarak doğrulandı" diyordu — çünkü toplu bağlama ucu
+        # (links-batch) iki tarafa da aynı doğrulama başlığını geçiyor. En yüksek öncelikli
+        # öğeler tam tersini söyleyen bir başlıkla duruyordu; Inbox'ın hiç kullanılmamış
+        # olmasının muhtemel sebeplerinden biri bu. Başlık artık türle birlikte, tek yerde
+        # türetiliyor — çağıranın metni çelişki durumunda eziliyor.
+        row = fetch_one(conn.execute("MATCH (c:Claim {id: $id}) RETURN c.text AS text", {"id": claim_id}))
+        excerpt = claim_headline(row["text"]) if row else ""
+        title = f"Çelişki: {excerpt}" if excerpt else "Bir claim çelişkili duruma düştü"
     elif is_novel:
         item_type = "NEW_RELATIONSHIP"
     else:

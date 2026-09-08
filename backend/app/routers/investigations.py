@@ -136,8 +136,21 @@ def update_narrative(investigation_id: str, payload: InvestigationNarrativeUpdat
 
 
 def _notify_investigation_update(conn, investigation_id: str, from_status: str, to_status: str) -> None:
-    """Faz 7 — bir investigation'ın kendisi VEYA ona dahil edilmiş (INCLUDES/INVESTIGATES)
-    entity/event'ler izleniyorsa, durum geçişi Intelligence Inbox'a düşer."""
+    """Faz 23: bu bildirim ARTIK ÜRETİLMİYOR — fonksiyon bilerek boş bırakıldı.
+
+    Ölçüm (2026-09-08): Inbox'taki 59 öğenin 3'ü buydu ve üçü de kullanıcının kendi yaptığı
+    durum geçişiydi ("OPEN -> ACTIVE"). Tek kullanıcılı bir araçta, kişinin bir saniye önce
+    kendi tıkladığı işlemi ona haber vermek tanım gereği gürültüdür — ve Inbox'ın işi
+    "more signal, less noise" (madde 25). Geçiş kaybolmuyor: `Investigation.status` graf'ta,
+    geçiş de vault'un günlük notunda duruyor.
+
+    Fonksiyon SİLİNMEDİ, çünkü çağrı noktaları durum makinesinin okunmasını kolaylaştırıyor
+    ve ileride "başkasının araştırması" gibi çok kullanıcılı bir senaryo çıkarsa bildirimin
+    yeri burasıdır. Gövde boş ama gerekçe burada duruyor."""
+    return
+
+
+def _notify_investigation_update_disabled(conn, investigation_id: str, from_status: str, to_status: str) -> None:
     title = f"Investigation durumu değişti: {from_status} -> {to_status}"
     detail = {"investigation_id": investigation_id, "from_status": from_status, "to_status": to_status}
     notify_if_monitored(

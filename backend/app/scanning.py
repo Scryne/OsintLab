@@ -209,6 +209,24 @@ def _matching_entities(conn, texts: list[str]) -> list[dict]:
 
 
 def _notify_new_observations(conn, schedule: dict, observations: list[Observation]) -> dict | None:
+    """Faz 23: bu bildirim ARTIK ÜRETİLMİYOR.
+
+    Ölçüm (2026-09-08): Inbox'taki 59 öğenin **38'i** (%64) buydu — "TechCrunch: 17 yeni
+    içerik" gibi. Faz 12'de bu doğru bir karardı: yeni içeriğin geldiğini söyleyen TEK yer
+    Inbox'tı. Faz 16 Promote Kuyruğu'nu ve nav'daki canlı sayaç rozetini getirince bu
+    bildirim gereksizleşti — üstelik kuyruk daha iyisini söylüyor: hangi gözlem, hangi
+    sinyalle, hangi entity'ye değerek. Inbox'ın %64'ü, daha zayıf bir kopyaydı ve kimse fark
+    etmedi (iki ölçümde de 0 öğe işlenmişti).
+
+    Kaybolan bir şey yok: koşunun sonucu `ScanSchedule.last_new_count` alanında ve
+    Toplayıcılar ekranında duruyor, bekleyen gözlem sayısı nav rozetinde.
+
+    Fonksiyon SİLİNMEDİ, gerekçe burada dursun diye; çağrı noktası da korunuyor ki bir gün
+    kaynak-bazlı bildirim gerçekten gerekirse yeri belli olsun."""
+    return None
+
+
+def _notify_new_observations_disabled(conn, schedule: dict, observations: list[Observation]) -> dict | None:
     if not observations:
         return None
     entities = _matching_entities(conn, [o.raw_content for o in observations])
