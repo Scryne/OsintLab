@@ -90,10 +90,31 @@ def entity_recall(conn, entity_id: str) -> dict:
         ):
             events.append({**row, "via_entity_name": t["name"]})
 
+    # Faz 21: adı geçen ama öznesi olmadığı claim'ler. 52 entity metinlerde geçiyor ve
+    # sayfaları bomboştu — "bu kayıt hakkında hiçbir şey bilmiyoruz" görüntüsünden çıkılan
+    # yer burası. Aynılık grubu buraya da uygulanıyor (F31 ile aynı gerekçe).
+    mentioned_in = []
+    for t in targets:
+        for row in fetch_all(
+            conn.execute(
+                "MATCH (c:Claim)-[m:MENTIONS]->(e:Entity {id: $id}) WHERE m.status = 'CONFIRMED' "
+                "OPTIONAL MATCH (c)-[:ABOUT_ENTITY]->(subject:Entity) "
+                "OPTIONAL MATCH (c)-[:ABOUT_EVENT]->(event:Event) "
+                "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
+                "c.confidence AS confidence, c.created_at AS created_at, m.matched_on AS matched_on, "
+                "subject.id AS subject_entity_id, subject.name AS subject_entity_name, "
+                "event.id AS about_event_id, event.title AS about_event_title "
+                "ORDER BY c.created_at DESC",
+                {"id": t["id"]},
+            )
+        ):
+            mentioned_in.append({**row, "via_entity_name": t["name"]})
+
     return {
         "related_investigations": investigations,
         "related_claims": claims,
         "related_events": events,
+        "mentioned_in": mentioned_in,
         "same_as": merged,
     }
 

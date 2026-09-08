@@ -216,6 +216,15 @@ REL_TABLES = [
     "CREATE REL TABLE IF NOT EXISTS REPORTED_BY(FROM Event TO Source)",
     "CREATE REL TABLE IF NOT EXISTS ASSERTS(FROM Source TO Claim)",
     "CREATE REL TABLE IF NOT EXISTS ABOUT_ENTITY(FROM Claim TO Entity)",
+    # Faz 21 — claim'in DEĞDİĞİ entity'ler. `ABOUT_ENTITY`den ayrı bir ilişki olması bilinçli:
+    # o, claim'in ÖZNESİ ve tekil (confidence, recall ve Faz 18'in olay türetmesi buna
+    # dayanıyor). Ölçüldü (2026-09-08): bir claim ortalama 2.48 entity'ye değiyor, yani tek
+    # bir bağ değmelerin %60'ını yapısal olarak temsil edemiyordu.
+    #
+    # `status` REJECTED de olabilir: reddedilen bir öneri SİLİNMEZ, işaretlenir — yoksa aynı
+    # öneri her aday hesabında geri gelirdi (Faz 20'nin EntityCandidate kararının aynısı).
+    # `matched_on` hangi ad/alias üzerinden eşleştiğini saklar (Auditability).
+    "CREATE REL TABLE IF NOT EXISTS MENTIONS(FROM Claim TO Entity, matched_on STRING, status STRING, created_at TIMESTAMP)",
     "CREATE REL TABLE IF NOT EXISTS ABOUT_EVENT(FROM Claim TO Event)",
     "CREATE REL TABLE IF NOT EXISTS SUPPORTS(FROM Evidence TO Claim)",
     "CREATE REL TABLE IF NOT EXISTS CONTRADICTS(FROM Evidence TO Claim)",

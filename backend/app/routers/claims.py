@@ -8,6 +8,7 @@ from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
 from app.corroboration import find_candidates
 from app.eventcluster import recompute_event_confidence
+from app.mentions import claim_mentions, mention_candidates, set_mention
 from app.models import (
     CandidateClaim,
     Claim,
@@ -17,14 +18,19 @@ from app.models import (
     ClaimLinkBatch,
     ClaimLinkBatchResult,
     ClaimLinkResult,
+    ClaimMention,
+    ClaimMentionGroup,
     ClaimSupersedeAdd,
     CorroborationCandidate,
+    MentionBatch,
+    MentionBatchResult,
 )
 from app.monitoring import claim_headline, notify_if_monitored
 from app.recall import why_matters
 from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/claims", tags=["claims"])
+mentions_router = APIRouter(prefix="/claims/mentions", tags=["mentions"])
 
 # `CandidateClaim` alanlarının `corroboration._load_claims` satırından okunacak kısmı.
 _CANDIDATE_FIELDS = (
@@ -804,3 +810,64 @@ def add_claim_supersede(claim_id: str, payload: ClaimSupersedeAdd) -> Claim:
     )
     safe_render_vault(conn)
     return get_claim(claim_id)
+
+
+# ---- Faz 21: Claim'in değdiği entity'ler (MENTIONS) -----------------------------------------
+#
+# DİKKAT: bu rotalar `/{claim_id}`den ÖNCE eşleşmeli. `claims.router` prefix'i `/claims`
+# olduğu ve `/{claim_id}` yukarıda tanımlı olduğu için ayrı bir router kullanılıyor —
+# `entities.same_as_router` ile aynı desen. main.py bunu claims.router'dan önce include eder.
+
+
+@mentions_router.get("/candidates", response_model=list[ClaimMentionGroup])
+def list_mention_candidates() -> list[ClaimMentionGroup]:
+    """Faz 21 — claim metninde adı geçen ama bağı olmayan entity'ler (bkz. app/mentions.py).
+
+    Yeni bir sinyal üretmez: Faz 12'den beri var olan entity eşleştiricisini claim eksenine
+    taşır. Öneridir — metinde adın geçmesi, claim'in o entity hakkında bir şey söylediği
+    anlamına gelmez (Design Principle #7)."""
+    conn = get_connection()
+    return [ClaimMentionGroup(**g) for g in mention_candidates(conn)]
+
+
+@mentions_router.post("/batch", response_model=MentionBatchResult)
+def decide_mentions(payload: MentionBatch) -> MentionBatchResult:
+    """Toplu onay/ret. Reddedilen çift SİLİNMEZ, `REJECTED` olarak işaretlenir — yoksa aynı
+    öneri bir sonraki aday hesabında geri gelirdi (Faz 20'nin EntityCandidate kararı)."""
+    conn = get_connection()
+    confirmed = rejected = 0
+    for decision in payload.decisions:
+        action = decision.action.upper()
+        if action not in ("CONFIRM", "REJECT"):
+            raise HTTPException(status_code=422, detail=f"Geçersiz aksiyon: {decision.action}")
+        if not _node_exists(conn, "Claim", decision.claim_id):
+            raise HTTPException(status_code=404, detail=f"Claim not found: {decision.claim_id}")
+        if not _node_exists(conn, "Entity", decision.entity_id):
+            raise HTTPException(status_code=404, detail=f"Entity not found: {decision.entity_id}")
+        status = "CONFIRMED" if action == "CONFIRM" else "REJECTED"
+        set_mention(conn, decision.claim_id, decision.entity_id, status, decision.matched_on)
+        if status == "CONFIRMED":
+            confirmed += 1
+        else:
+            rejected += 1
+    safe_render_vault(conn)
+    return MentionBatchResult(confirmed=confirmed, rejected=rejected)
+
+
+@router.get("/{claim_id}/mentions", response_model=list[ClaimMention])
+def list_claim_mentions(claim_id: str) -> list[ClaimMention]:
+    conn = get_connection()
+    if not _node_exists(conn, "Claim", claim_id):
+        raise HTTPException(status_code=404, detail="Claim not found")
+    return [ClaimMention(**row) for row in claim_mentions(conn, claim_id)]
+
+
+@router.delete("/{claim_id}/mentions/{entity_id}", status_code=204)
+def remove_claim_mention(claim_id: str, entity_id: str) -> None:
+    """Onaylanmış bir değmeyi geri alır. Kenar silinmez, REJECTED'a çekilir: hem History Is
+    Immutable ile tutarlı, hem de aday listesine geri düşmesini engeller."""
+    conn = get_connection()
+    if not _node_exists(conn, "Claim", claim_id):
+        raise HTTPException(status_code=404, detail="Claim not found")
+    set_mention(conn, claim_id, entity_id, "REJECTED")
+    safe_render_vault(conn)

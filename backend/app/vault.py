@@ -113,6 +113,16 @@ def _reset_dir(path: Path) -> None:
 # Veri toplama — her tip için graph'tan gerekli her şeyi tek yerde çeker.
 # --------------------------------------------------------------------------
 
+def first_line(text: str) -> str:
+    """Claim metninin okunabilir ilk satırı (RSS başlığı). Boş satırlar atlanır — F19'un
+    bulduğu şey buydu: metin çok satırlı ve ham hali Markdown listesini kırıyor."""
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return "(boş claim)"
+
+
 def claim_bullet(text: str, tag: str, src: str | None = None) -> str:
     """Bir Claim'i okunabilir tek bir Markdown maddesine çevirir.
 
@@ -223,6 +233,24 @@ def _entity_relations(conn, entity_id: str) -> list[dict]:
     return sorted(outgoing + incoming, key=lambda r: r["valid_from"])
 
 
+def _entity_mentions(conn, entity_id: str) -> list[dict]:
+    """Faz 21: `MENTIONS` — claim'in DEĞDİĞİ entity'ler, öznesi değil. Sadece CONFIRMED
+    olanlar render edilir; reddedilmiş öneri graf'ta karar kaydı olarak durur ama Living
+    Brain'de görünmemeli."""
+    return fetch_all(
+        conn.execute(
+            "MATCH (c:Claim)-[m:MENTIONS]->(:Entity {id: $id}) WHERE m.status = 'CONFIRMED' "
+            "OPTIONAL MATCH (c)-[:ABOUT_ENTITY]->(subject:Entity) "
+            "OPTIONAL MATCH (c)-[:ABOUT_EVENT]->(event:Event) "
+            "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
+            "c.confidence AS confidence, subject.id AS subject_entity_id, "
+            "subject.name AS subject_entity_name, event.id AS about_event_id, "
+            "event.title AS about_event_title ORDER BY c.created_at DESC",
+            {"id": entity_id},
+        )
+    )
+
+
 def _entity_monitor(conn, entity_id: str) -> dict | None:
     return fetch_one(
         conn.execute(
@@ -242,6 +270,10 @@ def render_entity_note(conn, entity: dict) -> str:
     investigations = _entity_investigations(conn, entity["id"])
     relations = _entity_relations(conn, entity["id"])
     monitor = _entity_monitor(conn, entity["id"])
+    # Faz 21: adı geçen ama öznesi olmadığı claim'ler. Vault'ta ayrı bir başlık altında,
+    # çünkü ikisini karıştırmak "bu entity hakkında 5 iddia var" yanılgısı üretirdi —
+    # oysa değme, iddianın o entity HAKKINDA olduğu anlamına gelmez.
+    mentions = _entity_mentions(conn, entity["id"])
 
     fm = _frontmatter({
         "id": entity["id"],
@@ -304,6 +336,24 @@ def render_entity_note(conn, entity: dict) -> str:
                 lines.append(f"  - ⚔ Çelişiyor: «{other}»")
     else:
         lines.append("_Bu entity hakkında henüz claim yok._")
+    lines.append("")
+
+    lines.append("## Adı Geçen Claim'ler")
+    if mentions:
+        lines.append(
+            "_Bu claim'ler bu kayıt HAKKINDA değil, ona DEĞİYOR — adı metinde geçiyor. "
+            "Öznesi olduğu iddialar yukarıdaki bölümde._"
+        )
+        for m in mentions:
+            tag = confidence_tag(m["knowledge_state"], m["confidence"])
+            about = ""
+            if m.get("subject_entity_id"):
+                about = f" — öznesi: {wikilink('entities', m['subject_entity_id'], m['subject_entity_name'])}"
+            elif m.get("about_event_id"):
+                about = f" — olay: {wikilink('events', m['about_event_id'], m['about_event_title'])}"
+            lines.append(f"- **{first_line(m['text'])}** · {tag}{about}")
+    else:
+        lines.append("_Bu kaydın adı başka bir claim'de geçmiyor._")
     lines.append("")
 
     lines.append("## Investigation'lar")

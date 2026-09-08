@@ -21,6 +21,8 @@ import type {
   InboxItem,
   Investigation,
   InvestigationWorkspace,
+  ClaimMentionGroup,
+  MentionBatchResult,
   Monitor,
   Observation,
   ObservationDismissResult,
@@ -246,6 +248,16 @@ export const api = {
     }) => post<Claim>("/claims", payload),
     explain: (id: string) => get<ClaimExplain>(`/claims/${id}/explain`),
     whyMatters: (id: string) => get<{ claim_id: string; reasons: WhyMattersReason[] }>(`/claims/${id}/why-matters`),
+    // Faz 21: claim'in DEĞDİĞİ entity'ler — öznesinden (`about`) ayrı bir ilişki.
+    mentionCandidates: () => get<ClaimMentionGroup[]>("/claims/mentions/candidates"),
+    decideMentions: (
+      decisions: { claim_id: string; entity_id: string; action: "CONFIRM" | "REJECT"; matched_on?: string }[]
+    ) => post<MentionBatchResult>("/claims/mentions/batch", { decisions }),
+    mentions: (id: string) =>
+      get<{ entity_id: string; name: string; entity_type: string; matched_on: string }[]>(
+        `/claims/${id}/mentions`
+      ),
+    removeMention: (claimId: string, entityId: string) => del(`/claims/${claimId}/mentions/${entityId}`),
     // Faz 11 (F16): claim oluştuktan sonra entity/event bağını düzeltmek için.
     updateAbout: (id: string, payload: { about_entity_id?: string | null; about_event_id?: string | null }) =>
       patch<Claim>(`/claims/${id}/about`, payload),

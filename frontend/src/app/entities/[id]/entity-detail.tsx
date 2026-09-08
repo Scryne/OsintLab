@@ -218,6 +218,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
           <TabsList className="w-max">
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="claims">Claim&apos;ler ({recall.related_claims.length})</TabsTrigger>
+            {/* Faz 21: "hakkında" ile "adı geçen" AYRI sekmeler. Tek listede birleştirmek
+                "bu entity hakkında 8 iddia var" yanılgısı üretirdi — değme, iddianın o
+                entity hakkında olduğu anlamına gelmez. */}
+            <TabsTrigger value="mentions">Adı geçenler ({recall.mentioned_in.length})</TabsTrigger>
             <TabsTrigger value="events">Event&apos;ler ({recall.related_events.length})</TabsTrigger>
             <TabsTrigger value="investigations">Investigation&apos;lar ({recall.related_investigations.length})</TabsTrigger>
             <TabsTrigger value="relations">
@@ -345,6 +349,56 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                   </ProvenanceBlock>
                 );
               })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="mentions" className="mt-4">
+          {recall.mentioned_in.length === 0 ? (
+            <EmptyState
+              title="Bu kaydın adı başka bir claim'de geçmiyor"
+              description="Claim metinlerinde adı geçtiğinde 'Bağ Adayları' ekranından bağlayabilirsin."
+            />
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs leading-relaxed text-text-secondary">
+                Bu claim&apos;ler bu kayıt <span className="text-foreground">hakkında değil</span>, ona
+                değiyor — adı metinde geçiyor. Öznesi olduğu iddialar &quot;Claim&apos;ler&quot; sekmesinde.
+              </p>
+              {recall.mentioned_in.map((m) => (
+                <div key={m.claim_id} className="rounded-lg border border-border bg-surface p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm text-pretty text-foreground">{m.text.split("\n")[0]}</p>
+                    <ConfidenceBadge state={m.knowledge_state} confidence={m.confidence} className="shrink-0" />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-text-tertiary">
+                    {m.subject_entity_id ? (
+                      <span>
+                        öznesi:{" "}
+                        <Link href={`/entities/${m.subject_entity_id}`} className="text-text-secondary hover:text-foreground hover:underline">
+                          {m.subject_entity_name}
+                        </Link>
+                      </span>
+                    ) : m.about_event_id ? (
+                      <span>
+                        olay:{" "}
+                        <Link href={`/events/${m.about_event_id}`} className="text-text-secondary hover:text-foreground hover:underline">
+                          {m.about_event_title}
+                        </Link>
+                      </span>
+                    ) : null}
+                    {/* Eşleşme alias üzerinden gelmiş olabilir (Faz 20) — hangisi olduğunu
+                        söylemek denetlenebilirliğin şartı. */}
+                    {m.matched_on && <span className="font-mono">eşleşme: “{m.matched_on}”</span>}
+                    {m.via_entity_name && (
+                      <span>
+                        aynı olduğu onaylanan{" "}
+                        <span className="text-text-secondary">{m.via_entity_name}</span> kaydından
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </TabsContent>

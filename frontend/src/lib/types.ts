@@ -410,6 +410,9 @@ export interface EntityRecall {
   })[];
   // Faz 18: `occurred_at` + durum alanları eklendi — timeline olayları KAYIT tarihine göre
   // diziyordu, oysa bir olayın çizgideki yeri ne zaman OLDUĞUdur.
+  // Faz 21: adı geçen ama ÖZNESİ olmadığı claim'ler. `related_claims` ile karıştırılmamalı —
+  // değme, iddianın bu entity HAKKINDA olduğu anlamına gelmez.
+  mentioned_in: (MentionedInClaim & { via_entity_name: string | null })[];
   related_events: (Pick<
     EventItem,
     "id" | "title" | "event_type" | "occurred_at" | "knowledge_state" | "confidence" | "created_at"
@@ -695,4 +698,44 @@ export interface EntityCandidateDecisionResult {
   promoted: number;
   restored: number;
   entities: Entity[];
+}
+
+
+/** Faz 21 — bir claim'in DEĞDİĞİ entity adayı. `matched_on` hangi ad/alias üzerinden
+ *  eşleştiğini söyler; Faz 20'nin alias kararları buraya aktığı için eşleşme adın kendisi
+ *  olmayabilir ("GPT-6 Astra" → Astra). */
+export interface MentionCandidate {
+  entity_id: string;
+  name: string;
+  entity_type: string;
+  matched_on: string;
+}
+
+export interface ClaimMentionGroup {
+  claim_id: string;
+  text: string;
+  knowledge_state: KnowledgeState;
+  confidence: number;
+  source_name: string | null;
+  /** Claim'in ÖZNESİ — aday değil, bağlam. Bu olmadan "değme mi özne mi" ayırt edilemez. */
+  subject_name: string | null;
+  candidates: MentionCandidate[];
+}
+
+export interface MentionBatchResult {
+  confirmed: number;
+  rejected: number;
+}
+
+export interface MentionedInClaim {
+  claim_id: string;
+  text: string;
+  knowledge_state: KnowledgeState;
+  confidence: number;
+  created_at: string;
+  matched_on: string;
+  subject_entity_id: string | null;
+  subject_entity_name: string | null;
+  about_event_id: string | null;
+  about_event_title: string | null;
 }

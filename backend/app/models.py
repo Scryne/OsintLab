@@ -675,6 +675,73 @@ class ClaimAboutUpdate(BaseModel):
     about_event_id: str | None = None
 
 
+class MentionCandidate(BaseModel):
+    entity_id: str
+    name: str
+    entity_type: str
+    # Hangi ad/alias üzerinden eşleşti — Auditability: "neden bu öneri" sorusunun cevabı bir
+    # skor değil, metindeki fiili eşleşme olmalı. Faz 20'nin alias kararları buraya akıyor
+    # ("GPT-6 Astra" -> Astra), yani eşleşme adın kendisi olmayabilir.
+    matched_on: str
+
+
+class ClaimMentionGroup(BaseModel):
+    """Faz 21 — bir claim'in DEĞDİĞİ entity adayları, claim ekseninde gruplanmış.
+
+    Gruplama claim başına, çünkü karar orada ucuz: metne bir kez bakıp "evet bu üçü de
+    geçiyor" demek, aynı üç çifti üç ayrı satırda değerlendirmekten hızlıdır (Faz 16)."""
+
+    claim_id: str
+    text: str
+    knowledge_state: str
+    confidence: float
+    source_name: str | None = None
+    # Claim'in ÖZNESİ — aday değil, bağlam. Kullanıcı "bu claim zaten OpenAI hakkında"
+    # bilgisini görmeden Microsoft'un bir değme mi yoksa özne mi olduğuna karar veremez.
+    subject_name: str | None = None
+    candidates: list[MentionCandidate] = Field(default_factory=list)
+
+
+class MentionDecision(BaseModel):
+    claim_id: str
+    entity_id: str
+    # CONFIRM | REJECT
+    action: str
+    matched_on: str = ""
+
+
+class MentionBatch(BaseModel):
+    """Toplu karar — Faz 16/17/20'nin aynı dersi: tekil bir uç bırakılsaydı 129 çiftlik liste
+    yeni bir darboğaz olurdu."""
+
+    decisions: list[MentionDecision]
+
+
+class MentionBatchResult(BaseModel):
+    confirmed: int = 0
+    rejected: int = 0
+
+
+class ClaimMention(BaseModel):
+    entity_id: str
+    name: str
+    entity_type: str
+    matched_on: str
+
+
+class MentionedInClaim(BaseModel):
+    claim_id: str
+    text: str
+    knowledge_state: str
+    confidence: float
+    created_at: datetime
+    matched_on: str
+    subject_entity_id: str | None = None
+    subject_entity_name: str | None = None
+    about_event_id: str | None = None
+    about_event_title: str | None = None
+
+
 class LineageLinkRequest(BaseModel):
     """Faz 11 (dogfooding F23): iki kaynak arasındaki DERIVED_FROM ilişkisini ELLE kurmak.
 

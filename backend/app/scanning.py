@@ -39,9 +39,16 @@ from app.vault import safe_render_vault
 
 logger = logging.getLogger(__name__)
 
-# Bir entity adının/alias'ının gözlem metninde aranması için asgari uzunluk. Kısa adlar
+# Bir entity adının/alias'ının metinde aranması için asgari uzunluk. Çok kısa adlar
 # ("AB", "IT", "X") gündelik metinde her yerde geçer; eşleşme sinyal değil gürültü olurdu.
-MIN_ENTITY_MATCH_LENGTH = 4
+#
+# Faz 21'de 4'ten 3'e indirildi. Sebep: 4, OSINT'te en sık kullanılan kısaltma boyunu —
+# üç harfli akronimleri (AWS, NYT, AFP, FBI) — TAMAMEN dışarıda bırakıyordu; "AWS" adında
+# bir entity yaratılabiliyor ve hiçbir metinde asla eşleşemiyordu (Faz 21 ölçümünde geriye
+# kalan TEK izole entity buydu). Gürültü maliyeti tahmin edilmedi, ölçüldü: eşiği 3'e
+# indirmek 68 bekleyen gözlemde HİÇBİR yeni eşleşme üretmedi, 54 claim'de yalnızca 1 doğru
+# eşleşme ekledi (AWS). 2 harfe inmek ölçülmedi ve inilmedi — "AB"/"IT" riski orada gerçek.
+MIN_ENTITY_MATCH_LENGTH = 3
 
 # Üst üste bu kadar başarısızlıktan SONRA (tam olarak bu koşuda, bir kez) Inbox'a düşer.
 # Faz 11'in tekrar eden dersi: sessizce ölen bir mekanizma, hiç kurulmamış olmaktan kötüdür —

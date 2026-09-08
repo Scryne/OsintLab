@@ -278,7 +278,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
-| 21 | Claim ↔ Entity Çoklu Bağ | ⏳ Bekliyor | Bir claim birden çok entity'ye bağlanabiliyor (özne bağı `ABOUT_ENTITY` tekil kalır); bağ adayları claim metninden deterministik olarak öneriliyor ve toplu onaylanabiliyor. Bitti sayılması için ölçülen 134 değmenin fiilen graf'a girmiş **ve tamamen izole entity sayısının 53'ten belirgin biçimde düşmüş** olması gerekir. |
+| 21 | Claim ↔ Entity Çoklu Bağ | ✅ Tamamlandı | Bir claim birden çok entity'ye bağlanabiliyor (özne bağı `ABOUT_ENTITY` tekil kalır); bağ adayları claim metninden deterministik olarak öneriliyor ve toplu onaylanabiliyor. Bitti sayılması için ölçülen 134 değmenin fiilen graf'a girmiş **ve tamamen izole entity sayısının 53'ten belirgin biçimde düşmüş** olması gerekir. |
 | 22 | İlişki Adaylarının Eritilmesi + Graf Görünümü | ⏳ Bekliyor | 109 aday çifti toplu olarak karara bağlanabiliyor (kurma VE eleme); kurulan ilişkiler bir graf görünümünde geziliyor. Bitti sayılması için graf'taki kenar sayısının 1'den çıkmış **ve aday listesinin eritilmiş** olması gerekir. |
 | 23 | Kullanılmayan Katmanların Hesabı (Inbox + Investigation) | ⏳ Bekliyor | Biriken 59 Inbox öğesi fiilen karara bağlanmış; Inbox'ın ve Investigation katmanının kalıp kalmayacağı — kalacaksa hangi iş akışıyla — açık bir karar olarak roadmap'e yazılmış olmalı. "Duruyor ama kullanılmıyor" bir sonuç değildir. |
 | 24 | Kaynak Tabanını Genişletme | ⏳ Bekliyor | Yeni bağımsız kaynaklar eklenip taramaya alınmış; **bağımsız kök sayısının arttığı ve bunun confidence'a yansıdığı ölçülmüş** olmalı (en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED üstüne çıkmalı). |
@@ -2439,6 +2439,48 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Bir claim birden çok entity'ye bağlanabiliyor; adaylar claim metninden
   öneriliyor ve toplu onaylanabiliyor. **Fazın sınavı:** ölçülen 134 değme fiilen graf'a
   girmiş ve tamamen izole entity sayısı 53'ten belirgin biçimde düşmüş olmalı.
+
+- **Notlar:** 2026-09-08 tamamlandı.
+
+  **Ne eklendi.** `MENTIONS(FROM Claim TO Entity, matched_on, status, created_at)` rel tablosu
+  + `app/mentions.py` + `/claims/mentions` router'ı (aday listesi, toplu onay/ret, claim başına
+  değme listesi, geri alma) + `/claims/mentions` sayfası ve "Bağ Adayları" nav girişi. Okuma
+  tarafı: `entity_recall`'a `mentioned_in`, entity detayına "Adı geçenler" sekmesi, vault
+  entity notuna "Adı Geçen Claim'ler" bölümü.
+
+  **Neden yeni bir ilişki, neden `ABOUT_ENTITY` çoğullaştırılmadı.** `ABOUT_ENTITY`nin tekil
+  olması bir kusur değil, üç mekanizmanın dayanağı: confidence hesabı, recall ve Faz 18'in
+  olay türetmesi "bu claim neyin hakkında" sorusunun TEK cevabı olduğunu varsayıyor.
+  Çoğullaştırmak üçünü birden bozardı. Ayrım şu: *"OpenAI, Astra'yı duyurdu"* claim'inin
+  ÖZNESİ OpenAI'dır, ama claim Astra'ya da DEĞER. Arayüz de bu ayrımı koruyor — "Claim'ler"
+  ve "Adı geçenler" ayrı sekmeler, çünkü tek listede birleştirmek "bu entity hakkında 8 iddia
+  var" yanılgısı üretirdi.
+
+  **Aday üretimi yeni bir sinyal icat etmedi.** `scanning.match_entities_in_text` Faz 12'den
+  beri bu soruyu cevaplıyordu ve ölçüm de onunla alınmıştı; claim eksenine taşındı — Faz 19 ve
+  Faz 18'deki kararın aynısı. Ayrı bir eşleştirici yazılsaydı iki farklı "bu metin bu entity'ye
+  değiyor mu" tanımı olur, Inbox ile bu ekran aynı claim'e ters cevap verebilirdi.
+
+  **Fazın sınavı geçildi: tamamen izole entity 53 → 0.** 47 claim grubunda 99 aday çift
+  üretildi ve hepsi karara bağlandı (99 onay, 0 ret — hepsi metinde fiilen geçen gerçek
+  adlardı), sonra 100. çift. Sonuç: 58 entity'nin **hepsi** artık en az bir claim'e, olaya ya
+  da ilişkiye bağlı. Karşılaştırma: OpenAI 27 özne + 21 değme, Astra 2 özne + 11 değme,
+  Microsoft 0 özne + 2 değme (öncesi: bomboş bir sayfa).
+
+  **Bulunan ve ölçülerek düzeltilen bir gap: `MIN_ENTITY_MATCH_LENGTH` 4 → 3.** Değmeler
+  bağlandıktan sonra geriye TEK bir izole entity kaldı: **AWS**. Sebep, eşleştiricinin asgari
+  ad uzunluğunun 4 olmasıydı — yani OSINT'te en sık kullanılan kısaltma boyu olan üç harfli
+  akronimler (AWS, NYT, AFP, FBI) hiçbir metinde ASLA eşleşemiyordu. "AWS" adında bir entity
+  yaratılabiliyor ve hiçbir zaman hiçbir şeye bağlanamıyordu.
+
+  Gürültü maliyeti tahmin edilmedi, ÖLÇÜLDÜ: eşiği 3'e indirmek 68 bekleyen gözlemde
+  **hiçbir** yeni eşleşme üretmedi (10 çift → 10 çift), 54 claim'de yalnızca **1** doğru
+  eşleşme ekledi (AWS). 2 harfe inilmedi ve ölçülmedi — "AB"/"IT" riski orada gerçek.
+
+  **Faz 22-24 için not:** artık `MENTIONS` var, yani Faz 22'nin ilişki adayı üretimi metni
+  yeniden taramak yerine bu kenarlardan okunabilir (aynı sonuç, ama karar kaydına dayanır:
+  kullanıcının reddettiği bir değme ilişki adayı da üretmemeli). Faz 19'un
+  `entityrelations.py`'ı bu ihtimali göz önünde bulundurmalı.
 
 ### Faz 22: İlişki Adaylarının Eritilmesi + Graf Görünümü
 

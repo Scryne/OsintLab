@@ -19,6 +19,7 @@ import {
   Rss,
   UserPlus,
   Users,
+  Waypoints,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,9 @@ const NAV = [
   // Faz 20: entity'ler bugüne kadar yalnızca ELLE yaratıldı (5 tane); claim metinlerindeki
   // düzinelerce ad hiçbir yerde önerilmiyordu.
   { href: "/entities/candidates", label: "Entity Adayları", icon: UserPlus },
+  // Faz 21: entity sayısı 58'e çıktı ama 53'ü izole kaldı — bir claim yalnızca TEK bir şey
+  // "hakkında" olabildiği için ölçülen 134 değmenin 129'u graf'a giremiyordu.
+  { href: "/claims/mentions", label: "Bağ Adayları", icon: Waypoints },
   { href: "/entities/same-as", label: "Olası Eşleşmeler", icon: GitMerge },
   { href: "/inbox", label: "Inbox", icon: InboxIcon },
 ] as const;
