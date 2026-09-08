@@ -354,6 +354,91 @@ başına alması — Design Principle #7.
 | 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ⏳ Bekliyor | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
 | 28 | Tek Kaynak Baskınlığı | ⏳ Bekliyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
 
+## v5 bittikten sonra nasıl ilerlenecek
+
+v3, v4 ve v5'in kapsamı aynı yöntemle çıkarıldı ve üçü de doğru çıktı: **bir versiyonun son
+fazı bitince sistem ölçülür, kapsam ölçümden türer.** Bu bölüm o yöntemi kalıcı ve
+tekrarlanabilir hale getiriyor — çünkü şimdiye kadar her tur ölçüm ELLE yazıldı ve her
+seferinde biraz farklı sayılar toplandı: v4'te bakılan bir şey v5'te unutulabilirdi, trend
+görünmezdi.
+
+### 1. Ölçüm artık bir komut: `scripts/olcum.py`
+
+```powershell
+backend\.venv\Scripts\python scripts\olcum.py    # backend ayakta olmalı
+```
+
+Sabit ölçüm seti — aynı sayılar, aynı sırayla, her turda: graf sayıları ve kenar türleri;
+claim durum dağılımı; **confidence'ın dört bileşeninin ayrı ayrı ortalaması ve kaçında sıfır
+olduğu**; doğrulayanı olmayan claim sayısı; claim metni uzunluk dağılımı; kaynak başına claim
+ve en baskın kaynağın payı; kuyruk derinliği ve skor dağılımı; beş aday kuyruğunun derinliği;
+Inbox ve Investigation durumu.
+
+Script eşik/karar İÇERMEZ. Karar insanındır (Design Principle #7); script yalnızca kararın
+dayanacağı tabloyu üretir. Çıktı doğrudan roadmap'e yapıştırılabilir.
+
+**Confidence'ın dört bileşeninin ayrı izlenmesi bu setin en kıymetli parçası** — çünkü şimdiye
+kadar üç faz doğrudan oradan doğdu: Faz 17 (doğrulama sıfırdı), Faz 24 (bağımsızlık sıfırdı),
+Faz 26 (kanıt sıfır).
+
+### 2. Bulgu ne zaman faza dönüşür
+
+Ölçümdeki her sayı bir faz doğurmaz. v3-v5'te fiilen kullanılan üç ölçüt:
+
+1. **Mekanizma var, onu tetikleyecek iş akışı yok.** En sık çıkan desen (Faz 16, 17, 18, 19,
+   21, 22, 23, 26). İşareti: şemada/API'de duran bir şeyin gerçek veride sayısı sıfır ya da
+   sıfıra yakın.
+2. **Bir kuyruk eritilememiş ya da yeniden dolmuş.** İşareti: aday sayısı büyük ve önceki
+   turda 0'a inmişti (Faz 27'nin doğuş sebebi).
+3. **Bir sayı yanlış yöne gidiyor.** İşareti: iki ölçüm arasında kötüleşme (kuyruk 68→117,
+   Inbox 38→59).
+
+Buna karşılık **faz doğurmayan** şeyler: hoşa gitmeyen ama ölçülmemiş sezgiler, "şu da olsa
+güzel olurdu" istekleri, ve bir öncekinden farkı olmayan tekrar bulgular.
+
+### 3. Ertelenen domain'ler (GEOINT / SOCMINT / MEDIAINT) ne zaman açılır
+
+Bu domain'ler v3, v4 ve v5'te üst üste ertelendi ve her seferinde gerekçe ölçülmüş bir sayıya
+dayandı. Refleks haline gelmemesi için **açılma koşulu şimdi açıkça yazılıyor.** Yeni bir
+domain, aşağıdaki üçü aynı anda sağlandığında açılır:
+
+| Koşul | Neden | 2026-09-08'deki durum |
+| --- | --- | --- |
+| Doğrulayanı olmayan claim oranı **< %25** | Yeni girdi eklemek, doğrulanmamış bilgiyi çoğaltmamalı | %55 (30/55) — **sağlanmıyor** |
+| Bekleyen gözlem **< 40** | Değerlendirme kapasitesi girdiye yetişmiyorsa girdi artırılmaz (Faz 12'nin dersi) | 117 — **sağlanmıyor** |
+| Son eklenen kaynak başına claim **≥ 3** | Boru hattı çalışmıyorsa yeni kaynak/domain sadece kuyruğu büyütür | 0.25 (4 kaynak / 1 claim) — **sağlanmıyor** |
+
+Üçü de v5'in fazlarının hedefi: Faz 28 birinciyi, Faz 27 ikinciyi, Faz 25+28 üçüncüyü
+doğrudan iyileştiriyor. Yani **v5 bittiğinde bu tablo yeniden bakılacak ve domain kararı
+tahminle değil sayıyla verilecek.** Sağlanıyorsa v6 = domain'ler; sağlanmıyorsa yeni ölçüm
+turu ve yeni bir sertleştirme versiyonu.
+
+### 4. LLM kararı ne zaman yeniden ele alınır
+
+Faz 20'de deterministik entity çıkarma kuruldu ve kaçırma oranı **%7.4** ölçüldü; LLM'e
+geçilmedi çünkü toplanan metin bugüne kadar hiçbir modele girdi olmadı (Q22 yüzeyi kapalı).
+Yeniden değerlendirme koşulu orada yazılmıştı ve burada da geçerli: **kaçırma oranı %15'i
+aşarsa ya da kaçırılan adlar "sınıf" olmaktan çıkıp dağınık hale gelirse.** Ölçüm turu bu
+sayıyı üretmiyor (elle örnekleme gerektiriyor) — Faz 25 metni temizlediğinde yeniden
+ölçülmeli, çünkü boilerplate'li metin üzerinde alınan %7.4 artık geçerli olmayabilir.
+
+### 5. Proje ne zaman "tamamlandı" sayılır
+
+Ölç-ve-genişlet döngüsü kendiliğinden durmaz; durma koşulunu yazmamak, projeyi süresiz açık
+tutmanın kibar bir yolu olurdu. OsintLab, `state.json`'da `asama: tamamlandi` işaretini şu
+üçü birlikte sağlandığında hak eder:
+
+1. **Ölçüm turu iki kez üst üste faz doğurmadı** — yani sayılar iyi ve bir önceki turdan
+   farksız. Bu, "yapacak iş kalmadı"nın ölçülebilir hali.
+2. **Domain koşullarının üçü de sağlanıyor** ama kullanıcı domain açmamayı seçiyor — yani
+   kapsam sınırı bir eksiklik değil, bir karar.
+3. **Sistem araç olarak kullanılıyor:** en az bir ay boyunca, kod değişmeden, düzenli
+   araştırma oturumları yapılabiliyor. Bir OSINT aracının gerçek testi bu; geri kalan her
+   ölçüm bunun yardımcısı.
+
+Üçüncüsü sağlanmadan ilk ikisi tek başına yeterli değildir — Faz 11'in dogfooding dersi:
+sistem ancak kullanılırken kendi eksiklerini söylüyor.
+
 ## Faz Detayları
 
 ### Faz 1: Temel Altyapı

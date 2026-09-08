@@ -91,6 +91,21 @@ ve bu projede backend bir Windows zamanlanmış görevi olarak oturum açılış
 yani OCR "kurulu ama görünmez" olur, taranmış belgeler sebebi söylenmeden okunamazdı. Farklı
 bir konumdaysa `OSINTLAB_TESSERACT` ortam değişkeniyle yol verilebilir.
 
+## Versiyon sonu ölçüm turu
+
+v3, v4 ve v5'in kapsamı bir dilek listesinden değil sistemin kendi durumunun ölçümünden
+çıkarıldı. Bir versiyonun son fazı bittiğinde:
+
+```powershell
+backend\.venv\Scripts\python scripts\olcum.py    # backend ayakta olmalı
+```
+
+Sabit ölçüm seti üretir (graf, confidence'ın dört bileşeni ayrı ayrı, kuyruk, aday
+kuyrukları, kaynak dağılımı); çıktı doğrudan roadmap'e yapıştırılır. Eşik/karar içermez.
+Bulgunun ne zaman faza dönüştüğü, ertelenen domain'lerin hangi üç koşulda açılacağı ve
+projenin ne zaman "tamamlandı" sayılacağı `docs/Roadmap.md` → "v5 bittikten sonra nasıl
+ilerlenecek" bölümünde yazılı.
+
 ## Proje-özel not: OSINT Brain'in teknik temeli
 
 "OSINT Brain" kavramı muhtemelen ScryneOS vault'unda (`C:\Users\scryn\Documents\ScryneOS`)
