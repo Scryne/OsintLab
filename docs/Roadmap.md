@@ -210,6 +210,80 @@ bağlanacağı yapı kurulduktan sonra netleşiyor. Faz 18-20 bittiğinde graf't
 entity ilişkileri olacak — yeni bir domain'in üreteceği verinin neye takılacağı ancak o zaman
 belli olur.
 
+## v4 Roadmap (planlama: 2026-09-08)
+
+v3'ün üç fazı bittiğinde roadmap'te bekleyen iş kalmamıştı. v4'ün kapsamı yine bir dilek
+listesinden değil **sistemin kendi durumunun ölçümünden** çıkarıldı — Faz 16, 17 ve 18'in
+üçü de böyle doğmuştu ve üçü de doğru çıktı.
+
+**Ölçüm (2026-09-08, Faz 20 bittikten hemen sonra):**
+
+| | |
+| --- | --- |
+| Entity | 58 — ama **53'ü tamamen izole** (claim'i yok, event'i yok, ilişkisi yok) |
+| Claim | 54 · 33'ü entity'ye, 21'i event'e bağlı, 0 bağsız |
+| Claim ↔ entity **gerçek değme** | **134** (claim başına 2.48) — graf'ta en fazla **54**'ü temsil edilebiliyor |
+| `ABOUT_ENTITY` bağı olan entity | **5** / 58 |
+| Event | 6 · durum dağılımı dengeli (2 CORROBORATED / 2 SUPPORTED / 2 CONTRADICTED) |
+| Entity ilişkisi | **1 kenar**, karşısında 109 açık aday çifti |
+| Kaynak | 6 · 302 gözlemin tamamı bunlardan geliyor · 5 zamanlanmış tarama |
+| Gözlem | 302 · 68 bekliyor · 180 elenmiş |
+| Kuyruk sinyali | 68 bekleyenin 9'u (%13) bir entity'ye değiyor · 59'u 0.1 skorunda yığılmış |
+| Inbox | **59 NEW, hiçbiri işlenmemiş** (2026-09-05'te 38'di) |
+| Investigation | 2, ikisi de CLOSED, **0 aktif** (2026-09-05'te de aynı) |
+| Doğrulama / olay / entity adayı | 1 / 0 / 0 — üç kuyruk da eritilmiş |
+
+**Bulgu 1 — Faz 20 girdiyi üretti, girdi BAĞLANMADI. Sebebi yapısal.** 58 entity'nin 52'si
+claim metinlerinde geçiyor ve hiçbirinin tek bir claim bağı yok. Sebep ilgisizlik değil:
+`ABOUT_ENTITY` **tekil** kullanılıyor — bir claim yalnızca tek bir şey "hakkında" olabiliyor
+(`PATCH /claims/{id}/about` var olan bağı siler). Oysa gerçek bir claim ortalama **2.48**
+entity'ye değiyor. Ölçülen 134 değmenin en fazla 54'ü graf'a girebilir; 129'u yapısal olarak
+temsil edilemiyor. "OpenAI'ın 27 claim'i var, Microsoft'un 0" tablosunun tek sebebi bu.
+
+**Bulgu 2 — öngörülen yan etki GERÇEKLEŞMEDİ, ölçüldü.** Faz 20 notlarında "58 entity ile
+eşleştirme kuyruğu gürültülendirebilir" diye uyarılmıştı. Ölçüm bunu **çürüttü**: bekleyen 68
+gözlemin yalnızca 9'u (%13) herhangi bir entity'ye değiyor, en çok eşleşen ad 2 kez geçiyor,
+korkulan geniş adlar sorun çıkarmadı ("Windows" 1, "United States" 0). Kayda geçiyor ki aynı
+endişe ileride tekrar tahmin olarak konuşulmasın.
+
+**Bulgu 3 — Faz 19 mekanizması kuruldu, iş akışı yürütülmedi.** 1 gerçek kenara karşılık 109
+açık aday çifti. Faz 16/17/18'in deseninin bir kez daha aynısı, ama bu kez mekanizma DA
+arayüz DE var: eksik olan, 109 çift için tek tek tür yazmanın pahalı olması ve kurulan
+kenarın hiçbir yerde graf olarak GÖRÜNMEMESİ — entity sayfasında düz bir liste var.
+
+**Bulgu 4 — iki katman iki ölçümde de ölü.** Inbox (Faz 7) 59 NEW öğe biriktirmiş ve bugüne
+kadar hiçbiri işlenmemiş; Investigation (Faz 3) 2 kapalı kayıtla duruyor, 0 aktif. İkisi de
+2026-09-05'te de aynı durumdaydı. Bu artık "iş akışı eksik" demekle geçiştirilemez: v4 bunu
+açık bir KARARA bağlamalı — Faz 16'nın otomatik promote kuralı için yaptığının aynısı (orada
+da cevap "hayır" çıkmıştı ve bu bir başarısızlık değil, bir karardı).
+
+**Bulgu 5 — kaynak tabanı dar.** 302 gözlemin tamamı 6 kaynaktan; confidence'ın bağımsızlık
+bileşeni 2 farklı bağımsız kök ile doyuyor, yani tavan yapısal olarak alçak. Claim'lerin
+%57'sinin hâlâ REPORTED olmasının bir bacağı burada.
+
+**Sıralama mantığı: önce bağ, sonra görünürlük, sonra hesap, sonra genişleme.** Faz 21 en
+başta, çünkü diğer üçünün de girdisini iyileştiriyor — bağlanmamış 52 entity, ilişki adayını
+da kuyruk sinyalini de graf görünümünü de fakir bırakıyor. Kaynak genişletme (24) en sona
+bırakıldı: Faz 15'in dersi bir kez daha — yapı kurulmadan girdi büyütmek boşluğu büyütür.
+
+**Ertelenen domain'ler (GEOINT / SOCMINT / MEDIAINT) v4'te de açılmıyor — artık ölçülmüş bir
+gerekçeyle.** Roadmap "Faz 20 bitince planlanır" diyordu. Faz 20 bitti ve ölçüm şunu söylüyor:
+elimizdeki girdinin 134 değmesinden 129'u graf'a giremiyor. Yeni bir domain açmak, Faz 12'de
+(toplamayı otomatikleştirip değerlendirmeyi elde bırakmak) ve Faz 15'te (girdi eklemeden önce
+yapıyı kurmak) öğrenilen dersin ÜÇÜNCÜ kez tekrarı olurdu. Planlama Faz 21-22 bittikten sonra,
+aynı disiplinle yeniden ele alınacak.
+
+**Kalıcı sınır (v4'te de değişmiyor):** Tam otonom araştırma / AI'ın kritik kararları (entity
+merge, claim verification, investigation conclusion) kendi başına alması — Design Principle #7.
+
+| Faz | Adı | Durum | Bitti Kriteri |
+| --- | --- | --- | --- |
+| 21 | Claim ↔ Entity Çoklu Bağ | ⏳ Bekliyor | Bir claim birden çok entity'ye bağlanabiliyor (özne bağı `ABOUT_ENTITY` tekil kalır); bağ adayları claim metninden deterministik olarak öneriliyor ve toplu onaylanabiliyor. Bitti sayılması için ölçülen 134 değmenin fiilen graf'a girmiş **ve tamamen izole entity sayısının 53'ten belirgin biçimde düşmüş** olması gerekir. |
+| 22 | İlişki Adaylarının Eritilmesi + Graf Görünümü | ⏳ Bekliyor | 109 aday çifti toplu olarak karara bağlanabiliyor (kurma VE eleme); kurulan ilişkiler bir graf görünümünde geziliyor. Bitti sayılması için graf'taki kenar sayısının 1'den çıkmış **ve aday listesinin eritilmiş** olması gerekir. |
+| 23 | Kullanılmayan Katmanların Hesabı (Inbox + Investigation) | ⏳ Bekliyor | Biriken 59 Inbox öğesi fiilen karara bağlanmış; Inbox'ın ve Investigation katmanının kalıp kalmayacağı — kalacaksa hangi iş akışıyla — açık bir karar olarak roadmap'e yazılmış olmalı. "Duruyor ama kullanılmıyor" bir sonuç değildir. |
+| 24 | Kaynak Tabanını Genişletme | ⏳ Bekliyor | Yeni bağımsız kaynaklar eklenip taramaya alınmış; **bağımsız kök sayısının arttığı ve bunun confidence'a yansıdığı ölçülmüş** olmalı (en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED üstüne çıkmalı). |
+
+
 ## Faz Detayları
 
 ### Faz 1: Temel Altyapı
@@ -2334,3 +2408,90 @@ ayrı" kararıyla tutarlı).
   eşleştiriyor ve aralarında "Windows", "United States" gibi geniş adlar var. Inbox
   önceliklendirmesi ve promote kuyruğunun sinyal skoru aynı fonksiyonu kullanıyor — bir
   sonraki dogfooding turunda kuyruğun gürültü seviyesi ölçülmeli.
+
+### Faz 21: Claim ↔ Entity Çoklu Bağ
+
+- **Neden bu faz var (ölçüm, 2026-09-08).** 58 entity'nin 52'si claim metinlerinde geçiyor ve
+  hiçbirinin bir claim bağı yok; `ABOUT_ENTITY` bağı olan entity sayısı **5**. Ölçülen gerçek
+  değme sayısı **134** (claim başına 2.48), graf'ta temsil edilebilen en fazla **54**.
+
+- **Sebep ilgisizlik değil, ŞEMANIN KULLANIMI.** `ABOUT_ENTITY` rel tablosu çoklu bağa izin
+  veriyor ama API tekil davranıyor: `PATCH /claims/{id}/about` önce var olan bağı SİLİYOR ve
+  `ClaimAboutUpdate` tek bir alan taşıyor. Faz 18'de bu tekillik bir kez daha pekişti (claim
+  ya entity ya event hakkında olabilir). O karar doğruydu — bir claim'in ÖZNESİ tektir — ama
+  "özne" ile "değdiği şeyler" aynı ilişki üzerinden ifade edilmeye çalışılıyor.
+
+- **Karar: iki ayrı ilişki, bilerek.** `ABOUT_ENTITY`/`ABOUT_EVENT` claim'in ÖZNESİ olarak
+  tekil kalır — confidence, recall ve Faz 18'in olay türetmesi buna dayanıyor; çoğullaştırmak
+  o üç mekanizmanın anlamını bozardı. Yanına, claim'in değdiği diğer entity'ler için ayrı bir
+  ilişki gelir. Böylece "OpenAI hakkında bir claim, Microsoft'a da değiyor" ifade edilebilir
+  ve Microsoft'un sayfası boş kalmaz.
+
+- **Aday üretimi deterministik ve HAZIR.** `scanning.match_entities_in_text` bu işi zaten
+  yapıyor; ölçüm de onunla alındı. Faz 19'daki gibi yeni bir sinyal icat edilmiyor, var olan
+  çift eksenine taşınıyor. Kullanıcı onaylar (Design Principle #7): metinde adın geçmesi,
+  claim'in o entity hakkında bir şey SÖYLEDİĞİ anlamına gelmez.
+
+- **Dikkat: Faz 20'nin alias kararları buraya akıyor.** "GPT-6 Astra" → Astra gibi alias'lar
+  eşleştirmeye dahil, yani bağ önerileri alias üzerinden de gelir; hangi ad üzerinden
+  eşleştiği gösterilmeli (Auditability — `matched_on` alanı zaten var).
+
+- **Bitti Kriteri:** Bir claim birden çok entity'ye bağlanabiliyor; adaylar claim metninden
+  öneriliyor ve toplu onaylanabiliyor. **Fazın sınavı:** ölçülen 134 değme fiilen graf'a
+  girmiş ve tamamen izole entity sayısı 53'ten belirgin biçimde düşmüş olmalı.
+
+### Faz 22: İlişki Adaylarının Eritilmesi + Graf Görünümü
+
+- **Neden bu faz var (ölçüm, 2026-09-08).** Faz 19 mekanizmayı kurdu ve sınavını TEK kenarla
+  geçti: graf'ta 1 kenar var, karşısında 109 açık aday çifti. Faz 16/17/18'in deseni, ama bu
+  kez mekanizma da arayüz de mevcut.
+
+- **İki ayrı sebep, ikisi de ölçülebilir.**
+  1. 109 çift için tek tek tür yazmak pahalı — Faz 16'nın birebir dersi: sorun "insan karar
+     veriyor" değil, kararın pahalı olması. Adayların ELENEBİLMESİ de gerekiyor; şu an yalnızca
+     kurma yolu var, "bu ikisi ilgisiz" demenin yolu yok ve o aday listede sonsuza kadar kalıyor
+     (Faz 20'nin `EntityCandidate` kararı burada da gerekiyor).
+  2. Kurulan kenarın karşılığı görünmüyor: entity sayfasında düz bir liste var, graf yok.
+     Faz 8'in "Entity Graph paneli duruyor" notunun yanlış olduğu 2026-09-02'de bulunmuş ve
+     o günden beri kapanmamıştı.
+
+- **Bitti Kriteri:** Aday çiftler toplu karara bağlanabiliyor (kurma VE eleme); elenen aday
+  tekrar önerilmiyor ama kaybolmuyor; kurulan ilişkiler bir graf görünümünde geziliyor.
+  **Fazın sınavı:** kenar sayısı 1'den çıkmış ve aday listesi eritilmiş olmalı.
+
+### Faz 23: Kullanılmayan Katmanların Hesabı (Inbox + Investigation)
+
+- **Neden bu faz var (iki ölçüm: 2026-09-05 ve 2026-09-08).** Inbox'ta 38 → **59** NEW öğe
+  birikti ve **hiçbiri işlenmedi**. Investigation'da 2 kapalı kayıt var, **0 aktif** — iki
+  ölçümde de aynı. İkisi de Faz 3 ve Faz 7'de kuruldu, arayüzleri var, gerçek kullanımda ölü.
+
+- **Bu bir özellik fazı DEĞİL, bir karar fazı.** "Mekanizma var, iş akışı yok" teşhisi v3'te
+  üç kez kullanıldı ve üçünde de doğruydu; dördüncü kez otomatik olarak varsaymak tembellik
+  olur. Asıl soru şu: bu iki katman tek kullanıcılı bu araçta bir işe yarıyor mu? Inbox'ın
+  bildirdiği şeyi kullanıcı zaten Promote Kuyruğu'ndan görüyor olabilir — o zaman Inbox
+  gürültüdür ve KALDIRILMASI doğru cevaptır. Faz 16'da otomatik promote kuralı için aynı soru
+  sorulmuş, cevap "hayır" çıkmıştı; bu bir başarısızlık değil, bir karardı.
+
+- **Yöntem:** önce 59 öğe fiilen elden geçirilir (karar vermeden önce veriye bakılır — Faz
+  11'in dogfooding disiplini), sonra karar yazılır: kalsın / iş akışı eklensin / kaldırılsın.
+
+- **Bitti Kriteri:** 59 Inbox öğesi karara bağlanmış; her iki katman için "kalıyor mu,
+  kalıyorsa hangi iş akışıyla" sorusunun cevabı gerekçesiyle roadmap'e yazılmış. "Duruyor ama
+  kullanılmıyor" bir sonuç değildir.
+
+### Faz 24: Kaynak Tabanını Genişletme
+
+- **Neden bu faz var (ölçüm, 2026-09-08).** 302 gözlemin tamamı **6 kaynaktan** geliyor:
+  OpenAI resmi duyuru 28 claim, TechCrunch 9, The Verge 8, Security Affairs 7, Krebs on
+  Security 1, bleepingcomputer.com 1. Confidence'ın bağımsızlık bileşeni 2 farklı BAĞIMSIZ
+  KÖK ile doyuyor; bu kadar dar bir tabanda tavan yapısal olarak alçak ve claim'lerin %57'si
+  hâlâ REPORTED.
+
+- **Neden EN SONA bırakıldı.** Faz 15'in dersi: yapı kurulmadan girdi büyütmek boşluğu büyütür.
+  Faz 21-22 bağları kurmadan yeni kaynak eklemek, 302 gözlemi 600'e çıkarıp aynı yapısal
+  boşluğu iki katına çıkarmak olurdu.
+
+- **Bitti Kriteri:** Yeni bağımsız kaynaklar allowlist'e ve zamanlanmış taramaya alınmış.
+  **Fazın sınavı:** bağımsız kök sayısının arttığı ve bunun confidence'a YANSIDIĞI ölçülmüş
+  olmalı — en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED'ın üstüne çıkmalı. Yeni
+  kaynak eklemek tek başına bir sonuç değildir.
