@@ -284,6 +284,76 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 24 | Kaynak Tabanını Genişletme | ✅ Tamamlandı | Yeni bağımsız kaynaklar eklenip taramaya alınmış; **bağımsız kök sayısının arttığı ve bunun confidence'a yansıdığı ölçülmüş** olmalı (en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED üstüne çıkmalı). |
 
 
+## v5 Roadmap (planlama: 2026-09-08)
+
+v4'ün dört fazı bittiğinde roadmap'te bekleyen iş kalmamıştı. Kapsam yine ölçümden çıkarıldı.
+
+**Ölçüm (2026-09-08, Faz 24 bittikten hemen sonra):**
+
+| | |
+| --- | --- |
+| Entity / event / claim / kaynak | 58 / 6 / 55 / 10 |
+| Graf kenarı | 89 (80 ilişki · 7 olaya karışma · 2 aynılık) — izole düğüm 1 |
+| Claim durumu | REPORTED 30 · SUPPORTED 17 · CORROBORATED 6 · CONTRADICTED 2 |
+| **Confidence bileşenleri (ortalama)** | kaynak 0.73 · bağımsızlık 0.32 · **kanıt 0.01** · doğrulama 0.31 |
+| **Kanıt alt-skoru SIFIR olan claim** | **54 / 55** — grafta toplam **3** Evidence kaydı var |
+| Doğrulayanı olmayan claim | 30 / 55 |
+| Kaynak dağılımı | OpenAI resmi 28 claim · diğer 9 kaynak toplam 27 · **yeni 4 kaynak toplam 1** |
+| Kuyruk | 117 bekliyor (68'di) · **%88'i 0.1 skorunda** · yüksek sinyal 14 |
+| Yeniden biriken adaylar | entity 57 · doğrulama 26 · bağ 8 · olay 1 · ilişki 0 |
+| Inbox / Investigation | 0 NEW · 0 aktif araştırma |
+
+**Bulgu 1 — confidence'ın hiç açılmamış son bileşeni: KANIT.** Faz 17 "confidence'ın %60'ı
+hiç açılmadı" demişti; bağımsızlık ve doğrulama Faz 17/22/24'te açıldı. Kanıt açılmadı:
+55 claim'in **54'ünde** alt-skor sıfır, ortalama 0.01, grafta toplam 3 Evidence kaydı var.
+Formülün %20'si iki yıllık bir ölü ağırlık. Sebep tanıdık: mekanizma Faz 1'den (Evidence
+Vault) ve Faz 15'ten (DOCINT) beri var, ama kanıt eklemenin TEK yolu elle dosya yüklemek —
+oysa her claim zaten bir web sayfasından geliyor ve o sayfa hiçbir yerde arşivlenmiyor.
+Provenance iddiası burada boş: bir claim'in dayandığı sayfa değişir ya da silinirse elimizde
+hiçbir şey kalmıyor.
+
+**Bulgu 2 — `mode=web` ile toplanan içerik SAYFANIN TAMAMINI claim metnine koyuyor.** Ölçüm:
+claim metni medyanı 221 karakter, Faz 24'te web'den toplanan tek claim **9370** karakter ve
+ilk satırı — yani her yerde başlık olarak görünen metin — **"Personal Tech"**, sitenin bölüm
+menüsü. Aynı claim tek başına **57 entity adayının hepsini** üretti. Faz 6 bu boilerplate
+sorununu lineage tarafında görmüş ve Jaccard yerine containment'a geçerek çözmüştü; çıkarma
+ve gösterim tarafında hiç çözülmedi. Etkisi üç yere birden yayılıyor: entity adayı gürültüsü,
+bozuk başlıklar (vault/Inbox/liste), doğrulama adaylarının metin karşılaştırması.
+
+**Bulgu 3 — kuyruk yeniden doldu ve bu kez sinyalsiz.** 68 → 117 bekleyen; **%88'i (103
+öğe) 0.1 skorunda.** Faz 24'ün eklediği dört kaynağın üçü genel yayın (tüketici elektroniği,
+uzay, film haberleri) ve graf dar bir konuya odaklı. Ama asıl sorun skorun kendisi: sinyal
+hâlâ Faz 12'nin tek ölçütünü kullanıyor ("bilinen bir entity'ye değiyor mu"). Bu arada graf
+58 entity, 80 ilişki ve 6 olay kazandı — hiçbiri skora girmiyor.
+
+**Bulgu 4 — tek kaynak baskınlığı sürüyor.** 55 claim'in 28'i tek bir kaynaktan (OpenAI
+resmi duyuru) ve 30 claim'in hiç doğrulayanı yok. Faz 24 tabanı 6'dan 10 kaynağa çıkardı ama
+akışı değiştirmedi: yeni dört kaynak toplam **1** claim üretti (o da elle aranarak bulundu).
+Taban genişledi, boru hattı genişlemedi.
+
+**Sıralama mantığı: önce girdiyi temizle, sonra eksik ekseni aç, sonra yükü yönet, sonra
+boşluğu kapat.** Faz 25 en başta çünkü bozuk girdi diğer üçünün de ölçümünü kirletiyor —
+57 sahte entity adayı, bozuk başlıklar ve gürültülü metin karşılaştırması aynı tek claim'den
+geliyor. Faz 26 (kanıt) ikinci sırada: bağımsız, en büyük yapısal boşluk ve Faz 25'in
+ürettiği temiz arşiv metnine dayanıyor. Faz 27 kuyruğu yeniden eritmeden Faz 28'in
+doğrulama malzemesi yüzeye çıkmaz.
+
+**Ertelenen domain'ler (GEOINT / SOCMINT / MEDIAINT) v5'te de açılmıyor.** Gerekçe artık
+üçüncü kez ölçülmüş bir sayıya dayanıyor: Faz 24 dört yeni kaynak ekledi ve toplam 1 claim
+çıktı; kuyruk 68'den 117'ye çıktı. Yeni bir domain açmak, boru hattı bu hâldeyken girdiyi
+bir kez daha büyütmek olurdu — Faz 12 ve Faz 15'in dersi. Planlama Faz 27-28 bittikten
+sonra, aynı disiplinle.
+
+**Kalıcı sınır (v5'te de değişmiyor):** Tam otonom araştırma / AI'ın kritik kararları kendi
+başına alması — Design Principle #7.
+
+| Faz | Adı | Durum | Bitti Kriteri |
+| --- | --- | --- | --- |
+| 25 | Toplanan İçeriğin Temizlenmesi | ⏳ Bekliyor | `mode=web` ile toplanan içerik boilerplate'inden ayrıştırılıyor (başlık + gövde), claim metni sayfanın tamamı olmuyor. Bitti sayılması için mevcut 9370 karakterlik claim'in onarılmış **ve tek bir claim'den doğan 57 sahte entity adayının kaybolmuş** olması gerekir. |
+| 26 | Kanıt Katmanı: confidence'ın açılmamış %20'si | ⏳ Bekliyor | Bir claim promote edilirken dayandığı içeriğin arşiv kopyası (ham metin + hash + URL + zaman) Evidence olarak kaydedilebiliyor. Bitti sayılması için kanıt alt-skoru sıfır olan claim sayısının 54'ten belirgin biçimde düşmüş **ve en az bir claim'in yalnızca kanıt sayesinde durum değiştirmiş** olması gerekir. |
+| 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ⏳ Bekliyor | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
+| 28 | Tek Kaynak Baskınlığı | ⏳ Bekliyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
+
 ## Faz Detayları
 
 ### Faz 1: Temel Altyapı
@@ -2732,3 +2802,93 @@ ayrı" kararıyla tutarlı).
   **Faz 23'ün notuna cevap:** `SCAN_FAILED` alarmı hâlâ hiç tetiklenmedi — 9 programın
   dokuzu da OK döndü. Alarmın gerçekten çalıştığı bir sonraki tarama hatasında görülecek;
   bugüne kadar test edilemedi, bu bir boşluk olarak duruyor.
+
+### Faz 25: Toplanan İçeriğin Temizlenmesi
+
+- **Neden bu faz var (ölçüm, 2026-09-08).** Claim metni medyanı **221** karakter; Faz 24'te
+  `mode=web` ile toplanan tek claim **9370** karakter. O claim'in ilk satırı — yani vault
+  notunda, Inbox'ta ve her listede başlık olarak görünen metin — **"Personal Tech"**, yani
+  sitenin bölüm menüsü. Aynı claim tek başına **57 entity adayının hepsini** üretti.
+
+- **Sorun toplayıcıda değil, ayrıştırmada.** `mode=rss` başlık + özet getiriyor ve temiz;
+  `mode=web` sayfayı düz metne çeviriyor ve nav/bölüm/ilgili-yazılar/footer dahil her şeyi
+  `Observation.raw_content`e, oradan da `Claim.text`e koyuyor. Faz 6 aynı boilerplate'i
+  lineage tarafında görmüş ve Jaccard yerine containment'a geçerek ORADA çözmüştü — ama
+  metnin kendisi hiç temizlenmedi, yalnızca karşılaştırma yöntemi ona uyarlandı.
+
+- **Etkisi üç yere yayılıyor:** (a) entity adayı gürültüsü (1 claim → 57 aday); (b) bozuk
+  başlıklar — `claim_headline` ilk satırı alır ve ilk satır bölüm menüsüdür (F19/F46'nın
+  çözdüğü sorunun yeni bir kaynağı); (c) doğrulama adaylarının metin karşılaştırması.
+
+- **Yaklaşım.** Yeni bir bağımlılık (readability/trafilatura) eklemeden, deterministik bir
+  ayrıştırma: `<title>`/`<h1>` başlık olarak, gövde için en uzun paragraf bloğu. Sonuç yine
+  Q22 sınırı içinde ham veri — yalnızca daha dar bir ham veri.
+
+- **Bitti Kriteri:** `mode=web` içeriği başlık + gövde olarak ayrışıyor; claim metni sayfanın
+  tamamı olmuyor. **Fazın sınavı:** mevcut 9370 karakterlik claim onarılmış ve o tek
+  claim'den doğan 57 sahte entity adayı kaybolmuş olmalı.
+
+### Faz 26: Kanıt Katmanı — confidence'ın açılmamış %20'si
+
+- **Neden bu faz var (ölçüm, 2026-09-08).** 55 claim'in **54'ünde** kanıt alt-skoru sıfır;
+  ortalama 0.01; grafta toplam **3** Evidence kaydı var. Confidence formülünün
+  `EVIDENCE_WEIGHT = 0.20`'si Faz 2'den beri fiilen ölü ağırlık.
+
+- **Faz 17'nin tespitinin kapanmamış son bacağı.** "Confidence'ın kalan %60'ı hiç açılmadı"
+  denmişti: bağımsızlık Faz 17/22'de, doğrulama Faz 17'de, kaynak çeşitliliği Faz 24'te
+  açıldı. Kanıt açılmadı çünkü kanıt eklemenin TEK yolu elle dosya yüklemek (Evidence Vault,
+  DOCINT) — oysa her claim zaten bir web sayfasından geliyor.
+
+- **Asıl mesele skor değil, PROVENANCE.** Şu an bir claim'in dayandığı sayfa değişir ya da
+  silinirse elimizde hiçbir şey kalmıyor: `source_url` ölü bir bağlantıya dönüşüyor.
+  "History Is Immutable" ve "Auditability" ilkeleri bu noktada karşılıksız. Promote sırasında
+  içeriğin arşiv kopyası (ham metin + SHA-256 + URL + toplama zamanı) Evidence olarak
+  kaydedilirse hem provenance gerçek olur hem de formülün %20'si açılır.
+
+- **Dikkat: otomatik kanıt confidence'ı SAHTE yükseltmemeli.** Her claim kendi kaynağının
+  arşiviyle otomatik "kanıtlı" sayılırsa, kanıt alt-skoru kaynak kalitesinin bir kopyası
+  olur ve ayrı bir bileşen olmaktan çıkar. Bu fazın en kritik kararı budur: arşiv kopyası
+  kaydedilmeli ama **kanıt skoruna girmesi kullanıcının onayına bağlı** olmalı, ya da arşiv
+  ile bağımsız kanıt ayrı sayılmalı. Karar ölçümle verilecek — Faz 16'nın otomatik promote
+  kararının kardeşi.
+
+- **Bitti Kriteri:** Claim'in dayandığı içeriğin arşiv kopyası Evidence olarak
+  kaydedilebiliyor. **Fazın sınavı:** kanıt alt-skoru sıfır olan claim sayısı 54'ten belirgin
+  düşmüş ve en az bir claim yalnızca kanıt sayesinde durum değiştirmiş olmalı.
+
+### Faz 27: Kuyruk Sinyalinin Yeniden Kalibrasyonu
+
+- **Neden bu faz var (ölçüm, 2026-09-08).** Bekleyen gözlem 68 → **117**; **%88'i (103 öğe)
+  0.1 skorunda.** Kuyruk hem doldu hem ayrıştırma gücünü kaybetti.
+
+- **İki ayrı sebep.** (a) Faz 24'ün eklediği dört kaynağın üçü genel yayın; graf ise dar bir
+  konuya odaklı — bu beklenen ve kabul edilen bir maliyet. (b) Asıl sorun: sinyal skoru hâlâ
+  Faz 12'nin tek ölçütünü kullanıyor ("bilinen bir entity'ye değiyor mu"). O günden beri graf
+  58 entity, 80 ilişki, 6 olay ve 100 değme kazandı — **hiçbiri skora girmiyor.** İzlenen bir
+  olayla ilgili bir gözlem ile rastgele bir tüketici elektroniği haberi aynı 0.1'de duruyor.
+
+- **Bir uyarı, Faz 20'nin dersinden:** eşiği/ölçütü genişletirken gürültü maliyeti tahmin
+  edilmez, ölçülür. Faz 20'de "58 entity kuyruğu gürültülendirir" endişesi ölçülüp
+  çürütülmüştü; buradaki her yeni sinyal de aynı şekilde önce ölçülmeli.
+
+- **Bitti Kriteri:** Sinyal skoru graf'ın yeni eksenlerini kullanıyor; kaynak/host bazında
+  toplu eleme var. **Fazın sınavı:** 117 bekleyen gözlem eritilmiş ve skor dağılımı tek
+  noktada yığılmaktan çıkmış olmalı.
+
+### Faz 28: Tek Kaynak Baskınlığı
+
+- **Neden bu faz var (ölçüm, 2026-09-08).** 55 claim'in **28'i** tek bir kaynaktan (OpenAI
+  resmi duyuru); **30 claim'in hiç doğrulayanı yok** ve hepsi REPORTED'da sıkışmış.
+
+- **Faz 24 tabanı genişletti, boru hattını değil.** 6 → 10 kaynak, 302 → 352 gözlem, ama yeni
+  dört kaynak toplam **1** claim üretti — o da elle arama sonucu bulundu. Yani "doğrulayacak
+  ikinci kaynak yok" sorunu, "ikinci kaynak var ama onu bulmanın yolu yok"a dönüştü.
+
+- **Eksik olan şey belli: ters yönlü arama.** Faz 17'nin doğrulama ekranı claim ↔ claim
+  çalışıyor; ihtiyaç duyulan claim ↔ **gözlem**: "bu doğrulanmamış claim'i, kuyrukta bekleyen
+  hangi gözlem doğrulayabilir?" Sinyal zaten var — Faz 6'nın containment ölçüsü ve Faz 12'nin
+  entity eşleştiricisi.
+
+- **Bitti Kriteri:** Doğrulayanı olmayan claim'ler için bekleyen gözlemler arasından aday
+  eşleşme öneriliyor (elle arama gerekmeden). **Fazın sınavı:** doğrulayanı olmayan claim
+  sayısı 30'dan belirgin biçimde düşmüş olmalı.
