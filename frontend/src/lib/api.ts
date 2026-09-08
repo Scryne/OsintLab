@@ -1,5 +1,6 @@
 import type {
   Claim,
+  ClaimExplain,
   ClaimLinkBatchResult,
   CollectorFetchResult,
   CorroborationCandidate,
@@ -10,6 +11,8 @@ import type {
   EvidenceExtraction,
   EvidenceFingerprint,
   EvidenceVaultItem,
+  EventCandidate,
+  EventFromClusterResult,
   EventItem,
   EventRecall,
   Hypothesis,
@@ -127,10 +130,36 @@ export const api = {
   events: {
     list: () => get<EventItem[]>("/events"),
     get: (id: string) => get<EventItem>(`/events/${id}`),
+    create: (payload: {
+      title: string;
+      event_type: string;
+      occurred_at?: string | null;
+      location?: string | null;
+    }) => post<EventItem>("/events", payload),
+    update: (
+      id: string,
+      payload: { title?: string; event_type?: string; occurred_at?: string | null; location?: string | null }
+    ) => patch<EventItem>(`/events/${id}`, payload),
     recall: (id: string) => get<{ event_id: string } & EventRecall>(`/events/${id}/recall`),
+    // Faz 18: doğrulama kümelerinden türetilen olay adayları. Öneridir — başlığı ve
+    // kümenin sınırını kullanıcı belirler (Design Principle #7).
+    candidates: (minSize = 2) => get<EventCandidate[]>(`/events/candidates?min_size=${minSize}`),
+    fromCluster: (payload: {
+      title: string;
+      event_type: string;
+      occurred_at?: string | null;
+      location?: string | null;
+      claim_ids: string[];
+      carry_entities?: boolean;
+      entity_role?: string;
+    }) => post<EventFromClusterResult>("/events/from-cluster", payload),
+    linkClaim: (eventId: string, claimId: string) => put<EventItem>(`/events/${eventId}/claims/${claimId}`),
+    unlinkClaim: (eventId: string, claimId: string) => del(`/events/${eventId}/claims/${claimId}`),
     linkEntity: (eventId: string, entityId: string, role: string) =>
       put<void>(`/events/${eventId}/entities/${entityId}`, { role }),
+    unlinkEntity: (eventId: string, entityId: string) => del(`/events/${eventId}/entities/${entityId}`),
     linkSource: (eventId: string, sourceId: string) => put<void>(`/events/${eventId}/sources/${sourceId}`),
+    delete: (id: string) => del(`/events/${id}`),
   },
 
   sources: {
@@ -197,15 +226,7 @@ export const api = {
       contradicts?: string[];
       supersedes?: string | null;
     }) => post<Claim>("/claims", payload),
-    explain: (id: string) =>
-      get<{
-        source_quality: number;
-        independence: number;
-        evidence: number;
-        corroboration: number;
-        confidence: number;
-        knowledge_state: string;
-      }>(`/claims/${id}/explain`),
+    explain: (id: string) => get<ClaimExplain>(`/claims/${id}/explain`),
     whyMatters: (id: string) => get<{ claim_id: string; reasons: WhyMattersReason[] }>(`/claims/${id}/why-matters`),
     // Faz 11 (F16): claim oluştuktan sonra entity/event bağını düzeltmek için.
     updateAbout: (id: string, payload: { about_entity_id?: string | null; about_event_id?: string | null }) =>

@@ -124,8 +124,15 @@ yani kenar hiçbir ayrım üretmiyor ve badge durumu zaten yazıyla söylüyor. 
 `DESIGN.md`'nin "Do's and Don'ts" bölümünde. **Faz 18-20 grafı çeşitlendirdikten sonra
 yeniden değerlendirilebilir** — ama o zaman da önce canlı veriyle bakılarak.
 
+**Ara ölçüm (2026-09-08, Faz 18 sonrası):** claim dağılımı hâlâ tek renge yakın — 54 claim'in
+46'sı iki durumda (REPORTED 31 / SUPPORTED 15), yani %85. Event'lerde durum farklı: 6 olayın
+2/2/2'si CORROBORATED / SUPPORTED / CONTRADICTED, yani orada kenar rengi gerçekten ayrım
+üretirdi. Yine de karar ERTELENDİ: 6 satırlık bir listede renk kodlaması, rozet zaten yazıyla
+söylerken kazanç sağlamıyor ve gerekçe "Faz 18-20 bitince" diyordu — Faz 19-20 sonrası
+yeniden ölçülecek.
+
 **Kapsam dışı bırakılanlar:** `/events` liste sayfası ve nav girişi eklenmedi (Faz 18'in
-bitti kriteri). `/entities/{id}`'deki N+1 (claim başına `/claims/{id}`, 33 istek)
+bitti kriteri — **2026-09-08'de Faz 18'de eklendi**). `/entities/{id}`'deki N+1 (claim başına `/claims/{id}`, 33 istek)
 dokunulmadı — bilinçli bir birleştirme (F31/F33), ama büyük bir entity'de sorun olursa
 bakılacak yer burası.
 
@@ -193,7 +200,7 @@ versiyon meselesi değil.
 
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
-| 18 | Event Katmanı | ⏳ Bekliyor | Event arayüzden listelenebiliyor, oluşturulabiliyor ve nav'dan erişilebiliyor; bir claim bir olaya bağlanabiliyor; doğrulama kümelerinden olay adayı öneriliyor; bir entity'nin olayları zaman çizgisinde görülebiliyor. Bitti sayılması için ölçülen 4 gerçek kümenin (15 claim) fiilen Event'e dönüşmüş olması gerekir. |
+| 18 | Event Katmanı | ✅ Tamamlandı | Event arayüzden listelenebiliyor, oluşturulabiliyor ve nav'dan erişilebiliyor; bir claim bir olaya bağlanabiliyor; doğrulama kümelerinden olay adayı öneriliyor; bir entity'nin olayları zaman çizgisinde görülebiliyor. Bitti sayılması için ölçülen 4 gerçek kümenin (15 claim) fiilen Event'e dönüşmüş olması gerekir. |
 | 19 | Entity İlişkileri | ⏳ Bekliyor | Birlikte geçen entity'ler ilişki adayı olarak öneriliyor; ilişkinin TÜRÜNÜ kullanıcı veriyor; kurulan ilişki entity sayfasında ve vault notunda görünüyor. Bitti sayılması için graf'ta gerçek kenarların (en az `OpenAI ↔ Astra`) bulunması gerekir — 5 izole düğüm olmaktan çıkmalı. |
 | 20 | Entity Adayı Çıkarma (deterministik) | ⏳ Bekliyor | Claim metinlerinden yeni entity adayları sinyale göre sıralı olarak öneriliyor, toplu elenebiliyor/onaylanabiliyor. Bitti sayılması için gerçek 79 adaylık listenin eritilmiş **ve kaçırma oranının ölçülmüş** olması gerekir (LLM kararının girdisi bu sayıdır). |
 
@@ -2095,6 +2102,77 @@ ayrı" kararıyla tutarlı).
   öneriliyor; bir entity'nin olayları zaman çizgisinde görülebiliyor. **Fazın sınavı:**
   ölçülen 4 gerçek küme (15 claim) fiilen Event'e dönüşmüş olmalı — Faz 16/17'deki gibi,
   bitti kriteri özelliğin varlığı değil, boşluğun gerçekten kapanması.
+
+- **Notlar:** 2026-09-08 tamamlandı.
+
+  **Ne eklendi.** Backend: `GET /events/candidates` (doğrulama bileşenleri — `app/eventcluster.py`),
+  `POST /events/from-cluster`, `PATCH /events/{id}`, `PUT|DELETE /events/{id}/claims/{claim_id}`,
+  `DELETE /events/{id}/entities/{entity_id}`. Frontend: `/events` listesi + oluşturma formu +
+  nav girişi ("Olaylar"), aday sekmesi, olay detayında claim/entity/kaynak bağlama, düzenleme
+  ve bağ kaldırma.
+
+  **Event.confidence artık türetiliyor** (Faz 2'nin açık kalan notu): kural, olayın **en iyi
+  desteklenen claim'inin** confidence'ı. Ortalama değil — sonradan eklenen zayıf bir ayrıntı
+  iyi doğrulanmış bir olayı düşürürdü; toplam da değil — 5 zayıf claim olayı gerçekleşmiş
+  yapmaz ve claim confidence'ı zaten corroboration'ı sayıyor, toplam aynı sinyali iki kez
+  ödüllendirirdi. Çelişki bulaşıcı: claim'lerinden biri CONTRADICTED ise olay da öyle
+  gösteriliyor (sayı korunuyor, etiket uyarıyor). Tazeleme tek boğaz noktasından
+  (`_recompute_and_store`) yapılıyor, uç uç eklenseydi biri unutulurdu.
+
+  **Entity bağı kaybolmuyor, taşınıyor.** Bir claim aynı anda hem entity hem event hakkında
+  olamaz, yani claim'i olaya bağlamak `ABOUT_ENTITY`'yi siler. `from-cluster` bunu telafi
+  ediyor: claim'lerin entity'leri olaya `INVOLVED_IN` ile, kaynakları `REPORTED_BY` ile
+  bağlanıyor. Olmasaydı olay kurmak entity'yi FAKİRLEŞTİRİRDİ — çözülen sorunun yerine
+  yenisi konurdu. Rol bilinçli olarak nötr ("ilgili") atanıyor: "fail" ile "mağdur"u sistem
+  ayırt edemez (Design Principle #7), UI'dan düzeltilebiliyor.
+
+  **Yan onarım yapıldı: `GET /claims/{id}/explain` artık `corroborated_by` döndürüyor** —
+  hangi claim'in hangi kaynaktan doğruladığı ve **bağımsızlığa sayılıp sayılmadığı**
+  (Q6: aynı `DERIVED_FROM` köküne inen iki kaynak tek bağımsız kaynak). Ayrıca bulundu ki
+  bu uç **arayüzde hiç çağrılmıyordu**: kırılım yalnızca API'ye elle sorulunca görülebiliyordu.
+  Yeni `ConfidenceExplainDisclosure` ("Bu skor nereden geliyor?") entity ve event
+  detaylarında claim kartlarına eklendi. Doğrulanmış örnek: German wiki claim'inde 3
+  doğrulayıcıdan 2'si "bağımsızlığa sayılmıyor — aynı kökten" diye işaretleniyor.
+
+  **Entity zaman çizgisi düzeltildi.** Olaylar `created_at`'e göre diziliyordu; artık
+  `occurred_at` varsa ona, yoksa kayıt tarihine düşülüyor ve **hangisinin gösterildiği
+  yazılıyor** ("· kayıt tarihi") — aksi halde yanlış bir kesinlik iddia edilirdi. Olayların
+  durum rozeti de geldi, yani Confidence Spectrum filtresi artık olayları da süzüyor.
+
+  **Fazın sınavı (asıl kriter): 4 küme / 15 claim değil, 6 olay / 21 claim.** Ölçüm
+  2026-09-05'e aitti; Faz 17'den sonra kurulan doğrulama bağlarıyla dedektör 5 küme / 22
+  claim buldu. İkisi bilerek BÖLÜNDÜ, çünkü bağlantı zinciri ayrı olayları birleştirmişti:
+
+  | Olay | Tür | Claim | Durum |
+  | --- | --- | --- | --- |
+  | German wiki olayı: OpenAI ajan sürüsü ve gecikmeli açıklama | güvenlik olayı | 7 | CORROBORATED · %68 |
+  | Astra'nın siber saldırı yeteneği değerlendirmesi | değerlendirme | 4 | CONTRADICTED · %70 |
+  | GPT-6 Astra lansmanı | lansman | 4 | CONTRADICTED · %63 |
+  | Daybreak: kritik altyapıya 1 milyar dolarlık savunma programı | açıklama | 2 | SUPPORTED · %56 |
+  | Seattle Times ve Newsday'in OpenAI/Microsoft'a telif davası | dava | 2 | SUPPORTED · %63 |
+  | Astra lansmanı öncesi ChatGPT kesintisi | kesinti | 2 | SUPPORTED · %48 |
+
+  Bölmeler: (a) "Astra siber yetenek" kümesi Daybreak $1B programını ve Altman'ın lansman
+  özrünü de içine almıştı — Daybreak ayrı bir olay oldu, özür lansman olayına taşındı;
+  (b) telif davası kümesine "Ukrayna'da bağımsız gazetecilik programı" claim'i karışmıştı,
+  dışarıda bırakıldı (entity'sinde kaldı, silinmedi). **Bu bölmeler kümeleme mantığının
+  hatası değil, tasarımın doğrulanması:** küme bir öneri; kararı insan verir ve arayüz
+  her claim'i tek tek çıkarmaya izin veriyor.
+
+  **Sonuç ölçümü:** 6 event (öncesi 0) · 54 claim'in 21'i event'e bağlı (öncesi 0) ·
+  bağlantısız claim 0 · OpenAI entity'si 5 olaya karışmış görünüyor (öncesi 0) · kalan
+  olay adayı 0. Vault da (`data/vault/events/`) altı olayı entity/claim/kaynak
+  wikilink'leriyle render ediyor.
+
+  **Bu turda görülen bir yan bulgu:** `investigation-scope.tsx` iki listeyi de (entity +
+  event) koşulsuz çekiyordu — 2026-09-06 sertleştirme turunun "kapalı dialog veri çekmez"
+  kuralının kaçmış bir örneği. Düzeltildi; artık yalnızca açıkken ve yalnızca seçilen türü
+  çekiyor.
+
+  **Faz 19-20 için not:** graf hâlâ 5 entity ve aralarında sıfır kenar — Faz 18 olay eksenini
+  açtı, entity-entity ilişkisi Faz 19'un işi. Şimdi bir avantaj var: aynı olaya `INVOLVED_IN`
+  ile bağlanan entity'ler (ör. Astra + OpenAI, GPT-6 Astra lansmanında) Faz 19'un ilişki
+  adayı üretmesi için hazır, deterministik bir sinyal.
 
 ### Faz 19: Entity İlişkileri
 

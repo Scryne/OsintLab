@@ -408,7 +408,12 @@ export interface EntityRecall {
     via_entity_name: string | null;
     superseded_by_claim_id: string | null;
   })[];
-  related_events: (Pick<EventItem, "id" | "title" | "event_type" | "created_at"> & {
+  // Faz 18: `occurred_at` + durum alanları eklendi — timeline olayları KAYIT tarihine göre
+  // diziyordu, oysa bir olayın çizgideki yeri ne zaman OLDUĞUdur.
+  related_events: (Pick<
+    EventItem,
+    "id" | "title" | "event_type" | "occurred_at" | "knowledge_state" | "confidence" | "created_at"
+  > & {
     via_entity_name: string | null;
   })[];
   same_as: Pick<Entity, "id" | "name" | "entity_type">[];
@@ -586,4 +591,63 @@ export interface CollectorFetchResult {
   observations_created: number;
   duplicates_skipped: number;
   observation_ids: string[];
+}
+
+
+/** Faz 18 — bir olay adayının içindeki claim. `about_entity_*`, olayı kurduğunda o claim'in
+ *  entity bağının nereye taşınacağını (INVOLVED_IN) önceden gösterir. */
+export interface EventCandidateClaim {
+  id: string;
+  text: string;
+  knowledge_state: KnowledgeState;
+  confidence: number;
+  created_at: string;
+  source_id: string | null;
+  source_name: string | null;
+  about_entity_id: string | null;
+  about_entity_name: string | null;
+  superseded_by_claim_id: string | null;
+}
+
+/** `source_count` ile `independent_source_count` bilerek ayrı: "4 site bildirdi" ile
+ *  "4 bağımsız kaynak doğruladı" aynı şey değil (Q6/Faz 6). */
+export interface EventCandidate {
+  claims: EventCandidateClaim[];
+  claim_count: number;
+  source_count: number;
+  independent_source_count: number;
+  entities: { id: string; name: string }[];
+  first_seen: string | null;
+  last_seen: string | null;
+}
+
+export interface EventFromClusterResult {
+  event: EventItem;
+  linked_claims: number;
+  linked_entities: { id: string; name: string; role: string }[];
+  linked_sources: number;
+}
+
+/** Faz 18 yan onarımı: confidence kırılımı artık skorun KAYNAĞINI da taşıyor. */
+export interface ClaimExplain {
+  claim_id: string;
+  source_quality: number;
+  independence: number;
+  evidence: number;
+  corroboration: number;
+  confidence: number;
+  knowledge_state: KnowledgeState;
+  weights: Record<"source_quality" | "independence" | "evidence" | "corroboration", number>;
+  corroborated_by: {
+    claim_id: string;
+    text: string;
+    knowledge_state: KnowledgeState;
+    confidence: number;
+    source_id: string;
+    source_name: string;
+    independent_root_id: string;
+    // false ise: bu kaynak, zaten sayılmış bir kaynakla aynı DERIVED_FROM kökünde —
+    // doğruluyor ama bağımsızlık skoruna İKİNCİ kez katkı yapmıyor.
+    counts_for_independence: boolean;
+  }[];
 }

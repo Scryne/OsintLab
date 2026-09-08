@@ -695,6 +695,71 @@ class InvolvedInLink(BaseModel):
     role: str = Field(..., examples=["katılımcı", "fail", "mağdur", "tanık"])
 
 
+class EventUpdate(BaseModel):
+    """Faz 18: bir olayın başlığı/türü/zamanı sonradan düzeltilebilmeli.
+
+    History Is Immutable ile çelişmez: bir Event kaynağın iddiası değil, bizim
+    SINIFLANDIRMAMIZ — olayın ne zaman olduğu genellikle ilk claim'den sonra netleşir.
+    Verilmeyen alanlar dokunulmadan kalır (`None` "temizle" demek DEĞİL, bu yüzden
+    `occurred_at`/`location` temizlemek için boş string / sentinel değil, ayrı bir çağrı
+    gerekmez — açıkça `null` gönderilen alan da atlanır)."""
+
+    title: str | None = None
+    event_type: str | None = None
+    occurred_at: datetime | None = None
+    location: str | None = None
+
+
+class EventCandidateClaim(BaseModel):
+    id: str
+    text: str
+    knowledge_state: str
+    confidence: float
+    created_at: datetime
+    source_id: str | None = None
+    source_name: str | None = None
+    about_entity_id: str | None = None
+    about_entity_name: str | None = None
+    superseded_by_claim_id: str | None = None
+
+
+class EventCandidate(BaseModel):
+    """Faz 18 — `CORROBORATES` bağlarının bir bağlantılı bileşeni: "bunlar aynı olay" önerisi.
+
+    `source_count` ile `independent_source_count` bilerek AYRI: Q6/Faz 6'dan beri "iki farklı
+    site" ile "iki bağımsız kaynak" aynı şey değil. Kartta yalnızca ham sayı gösterilseydi,
+    aynı ajanstan türeyen 4 site "4 kaynak doğruladı" diye okunurdu — Faz 17'nin engellemek
+    için kurulduğu hatanın birebir aynısı."""
+
+    claims: list[EventCandidateClaim]
+    claim_count: int
+    source_count: int
+    independent_source_count: int
+    entities: list[dict]
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
+
+
+class EventFromCluster(EventCreate):
+    """Bir olay adayını gerçek bir Event'e çevirir — başlığı insan verir (Design Principle #7).
+
+    `claim_ids` kümenin tamamı olmak zorunda değil: kullanıcı bir claim'i dışarıda bırakarak
+    kümeyi bölebilir. `carry_entities` varsayılan olarak açık, çünkü bir claim aynı anda hem
+    entity hem event hakkında OLAMAZ (ABOUT_ENTITY siliniyor) — o bağ INVOLVED_IN olarak
+    olaya taşınmazsa, olay kurmak entity'yi fakirleştirirdi."""
+
+    claim_ids: list[str]
+    carry_entities: bool = True
+    entity_role: str = "ilgili"
+
+
+class EventFromClusterResult(BaseModel):
+    event: Event
+    linked_claims: int
+    linked_entities: list[dict] = Field(default_factory=list)
+    linked_sources: int = 0
+
+
 # Faz 12: "Source" eklendi — zamanlanmış tarama yeni içerik bulduğunda Inbox'a düşen
 # bildirimin hedefi bir kaynaktır ("Krebs on Security'de 3 yeni içerik"), tek tek gözlemler
 # değil. Gözlem başına bildirim, günde bir düzine öğe yayınlayan bir feed'de Inbox'ı

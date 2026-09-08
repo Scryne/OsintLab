@@ -147,4 +147,17 @@ v3'e başlamadan önce bir **sertleştirme turu** yapıldı — detay: `docs/Fro
   açmıştı. Satır başına render edilen bir dialog yazarken bunu unutma.
 - **Reddedilmiş bir karar var:** confidence renginin kart kenarına inmesi denendi ve geri
   alındı (gerekçe `DESIGN.md` "Do's and Don'ts"ta). Faz 18-20 grafı çeşitlendirmeden
-  yeniden denenmesin.
+  yeniden denenmesin. (2026-09-08 ara ölçümü Roadmap'te: claim tarafı hâlâ %85 iki durumda,
+  event tarafı dengeli ama 6 satır — karar Faz 19-20 sonrasına ertelendi.)
+
+### Faz 18 sonrası (2026-09-08)
+
+- **Olaylar artık nav'da** (`/events`): liste, oluşturma formu ve doğrulama kümelerinden
+  türetilen "olay adayı" sekmesi. Grafta 6 olay var, 21 claim onlara bağlı.
+- **Bir claim ya entity ya event hakkındadır, ikisi birden değil.** Claim'i olaya bağlamak
+  `ABOUT_ENTITY`'yi siler; bu yüzden `POST /events/from-cluster` entity'yi olaya
+  `INVOLVED_IN` ile taşır. Yeni bir "claim'i olaya bağla" yolu yazarken bu telafiyi atlama,
+  yoksa entity sessizce fakirleşir.
+- **Event.confidence elle girilmez, türetilir** (`app/eventcluster.py::recompute_event_confidence`):
+  en iyi desteklenen claim'inin skoru; claim skorunu değiştiren her yol
+  `_recompute_and_store` üzerinden olayı da tazeler.

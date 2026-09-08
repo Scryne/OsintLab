@@ -14,6 +14,7 @@ import { SkeletonDetail } from "@/components/ui/skeleton";
 import { ConfidenceBadge, ConfidenceRail } from "@/components/provenance/confidence";
 import { ProvenanceBlock } from "@/components/provenance/provenance-label";
 import { WhyMattersDisclosure } from "@/components/provenance/why-matters-disclosure";
+import { ConfidenceExplainDisclosure } from "@/components/provenance/confidence-explain";
 import type { KnowledgeState } from "@/lib/types";
 import {
   Dialog,
@@ -111,19 +112,25 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       kind: "claim" as const,
       title: c.text,
       timestamp: c.created_at,
-      knowledge_state: c.knowledge_state,
-      confidence: c.confidence,
+      approximate: false,
+      knowledge_state: c.knowledge_state as KnowledgeState | null,
+      confidence: c.confidence as number | undefined,
       via_entity_name: viaByClaimId.get(c.id) ?? null,
       superseded: Boolean(c.superseded_by_claim_id),
     }));
+    // Faz 18: olay çizgideki yerini OLDUĞU tarihe göre alır, kaydedildiği tarihe göre
+    // değil; `occurred_at` girilmemişse kayıt tarihine düşülür. Olayın kendi durumu da
+    // artık claim'lerinden türetiliyor, o yüzden rozet gösterilebiliyor — ve bu, confidence
+    // filtresinin olayları da süzebilmesi demek.
     const events = (recall?.related_events ?? []).map((e) => ({
       id: e.id,
       kind: "event" as const,
       title: e.title,
-      timestamp: e.created_at,
-      knowledge_state: null as KnowledgeState | null,
-      confidence: undefined,
-      via_entity_name: null as string | null,
+      timestamp: e.occurred_at ?? e.created_at,
+      approximate: !e.occurred_at,
+      knowledge_state: e.knowledge_state as KnowledgeState | null,
+      confidence: e.confidence,
+      via_entity_name: e.via_entity_name,
       superseded: false,
     }));
     return [...claims, ...events]
@@ -248,6 +255,9 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-[11px] text-text-tertiary">
                             {new Date(item.timestamp).toLocaleString("tr-TR")}
+                            {/* Olayın tarihi girilmediyse çizgideki yeri kayıt anıdır —
+                                bunu söylemezsek yanlış bir kesinlik iddia etmiş oluruz. */}
+                            {item.approximate && " · kayıt tarihi"}
                           </span>
                           {item.knowledge_state && (
                             <ConfidenceBadge state={item.knowledge_state} confidence={item.confidence} />
@@ -320,6 +330,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                     )}
                     <div className="flex flex-wrap items-start gap-3">
                       <WhyMattersDisclosure claimId={claim.id} />
+                      <ConfidenceExplainDisclosure claimId={claim.id} />
                       <EvidenceLinkDialog claimId={claim.id} onLinked={reloadRecall} />
                     </div>
                   </ProvenanceBlock>
@@ -340,10 +351,17 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 <Link
                   key={event.id}
                   href={`/events/${event.id}`}
-                  className="rounded-lg border border-border bg-surface p-3 transition-colors hover:bg-surface-raised"
+                  className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3 transition-colors hover:bg-surface-raised"
                 >
-                  <p className="text-sm font-medium text-foreground">{event.title}</p>
-                  <p className="text-xs text-text-tertiary">{event.event_type}</p>
+                  <p className="text-sm font-medium text-pretty text-foreground">{event.title}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">{event.event_type}</Badge>
+                    <ConfidenceBadge state={event.knowledge_state} confidence={event.confidence} />
+                  </div>
+                  <p className="font-mono text-[11px] text-text-tertiary">
+                    {new Date(event.occurred_at ?? event.created_at).toLocaleString("tr-TR")}
+                    {!event.occurred_at && " · kayıt tarihi"}
+                  </p>
                 </Link>
               ))}
             </div>

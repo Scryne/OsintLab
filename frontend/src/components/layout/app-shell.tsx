@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  CalendarClock,
   Compass,
   Database,
   Eye,
@@ -28,6 +29,9 @@ import { WireframeGlobe } from "@/components/ui/wireframe-globe";
 const NAV = [
   { href: "/", label: "Ana Çalışma Alanı", icon: Compass },
   { href: "/entities", label: "Entity'ler", icon: Users },
+  // Faz 18: event katmanı Faz 1'den beri şemada vardı ve arayüzden ERİŞİLEMİYORDU — nav'da
+  // girişi, listesi, oluşturma formu yoktu. Grafta sıfır event olmasının sebebi buydu.
+  { href: "/events", label: "Olaylar", icon: CalendarClock },
   { href: "/sources", label: "Kaynaklar", icon: Database },
   { href: "/investigations", label: "Investigation'lar", icon: FolderSearch },
   { href: "/observations", label: "Gözlemler", icon: Eye },

@@ -77,9 +77,14 @@ def entity_recall(conn, entity_id: str) -> dict:
             claims.append({**row, "via_entity_name": t["name"]})
         for row in fetch_all(
             conn.execute(
+                # Faz 18: `occurred_at` ve durum alanları eklendi. Entity timeline'ı olayları
+                # KAYIT tarihine göre diziyordu — oysa bir olayın zaman çizgisindeki yeri ne
+                # zaman olduğudur, ne zaman yazıldığı değil. `occurred_at` boşsa istemci
+                # `created_at`e düşer (ikisini de döndürmemizin sebebi bu).
                 "MATCH (e:Entity {id: $id})-[:INVOLVED_IN]->(ev:Event) "
                 "RETURN ev.id AS id, ev.title AS title, ev.event_type AS event_type, "
-                "ev.created_at AS created_at ORDER BY ev.created_at",
+                "ev.occurred_at AS occurred_at, ev.knowledge_state AS knowledge_state, "
+                "ev.confidence AS confidence, ev.created_at AS created_at ORDER BY ev.created_at",
                 {"id": t["id"]},
             )
         ):

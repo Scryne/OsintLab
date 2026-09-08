@@ -117,8 +117,16 @@ function ScopeAddDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const { data: entities } = useApi(() => api.entities.list(), [open, kind]);
-  const { data: events } = useApi(() => api.events.list(), [open, kind]);
+  // Kapalı dialog veri çekmez (2026-09-06 sertleştirme turunun kuralı) — üstelik yalnızca
+  // seçilen türü çeker: entity eklerken event listesini indirmenin bir karşılığı yok.
+  const { data: entities } = useApi(
+    () => (open && kind === "entity" ? api.entities.list() : Promise.resolve([])),
+    [open, kind]
+  );
+  const { data: events } = useApi(
+    () => (open && kind === "event" ? api.events.list() : Promise.resolve([])),
+    [open, kind]
+  );
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

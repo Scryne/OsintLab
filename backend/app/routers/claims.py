@@ -7,6 +7,7 @@ from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
 from app.corroboration import find_candidates
+from app.eventcluster import recompute_event_confidence
 from app.models import (
     CandidateClaim,
     Claim,
@@ -138,6 +139,16 @@ def _recompute_and_store(conn, claim_id: str) -> ConfidenceResult:
         "c.updated_at = $now",
         {"id": claim_id, "confidence": result.confidence, "state": result.knowledge_state, "now": datetime.now(timezone.utc)},
     )
+    # Faz 18: olayın confidence'ı claim'lerinden türetildiği için, claim'in skoru her
+    # değiştiğinde (doğrulama bağı, kanıt, çelişki) olay da tazelenmeli. Tek boğaz noktası
+    # burası — çağıran her uca ayrı ayrı eklenseydi biri mutlaka unutulurdu.
+    event_row = fetch_one(
+        conn.execute(
+            "MATCH (c:Claim {id: $id})-[:ABOUT_EVENT]->(ev:Event) RETURN ev.id AS id", {"id": claim_id}
+        )
+    )
+    if event_row:
+        recompute_event_confidence(conn, event_row["id"])
     return result
 
 
@@ -526,6 +537,36 @@ def get_claim(claim_id: str) -> Claim:
     return _row_to_claim(conn, row)
 
 
+def _corroborating_claims(conn, claim_id: str) -> list[dict]:
+    """Bu claim'i hangi claim'ler, hangi kaynaklardan doğruluyor.
+
+    `counts_for_independence` alanı kritik: Q6 gereği aynı DERIVED_FROM köküne inen iki
+    kaynak TEK bağımsız kaynak sayılır. Liste bunu göstermeseydi, kullanıcı "4 claim
+    doğruluyor ama independence neden 0.5?" sorusuna cevap bulamazdı — yani skorun kaynağını
+    göstermek, tek başına yeni bir açıklanamazlık üretirdi."""
+    own_source = _claim_source_id(conn, claim_id)
+    own_root = resolve_independent_root(conn, own_source["id"]) if own_source else None
+    rows = fetch_all(
+        conn.execute(
+            "MATCH (s:Source)-[:ASSERTS]->(other:Claim)-[:CORROBORATES]->(c:Claim {id: $id}) "
+            "RETURN DISTINCT other.id AS claim_id, other.text AS text, "
+            "other.knowledge_state AS knowledge_state, other.confidence AS confidence, "
+            "s.id AS source_id, s.name AS source_name",
+            {"id": claim_id},
+        )
+    )
+    seen_roots: set[str] = set()
+    if own_root:
+        seen_roots.add(own_root)
+    out = []
+    for row in rows:
+        root = resolve_independent_root(conn, row["source_id"])
+        counts = root not in seen_roots
+        seen_roots.add(root)
+        out.append({**row, "independent_root_id": root, "counts_for_independence": counts})
+    return out
+
+
 @router.get("/{claim_id}/explain")
 def explain_claim(claim_id: str) -> dict:
     """Auditability: 'Sistem bunu neden düşünüyor?' — confidence'ın alt-skor kırılımı."""
@@ -547,6 +588,11 @@ def explain_claim(claim_id: str) -> dict:
             "evidence": 0.20,
             "corroboration": 0.15,
         },
+        # Faz 18 yan onarımı: skor vardı, skorun KAYNAĞI yoktu. "Neden bu confidence?"
+        # sorusunun cevabı "corroboration 0.67" değil, "şu üç claim şu kaynaklardan
+        # doğruluyor" — Auditability'nin (Q4) eksik yarısı buydu. Olay kümelerini
+        # hesaplarken de aday-uçları farkını almak gibi dolambaçlı bir yol gerekmişti.
+        "corroborated_by": _corroborating_claims(conn, claim_id),
     }
 
 
@@ -582,6 +628,14 @@ def update_claim_about(claim_id: str, payload: ClaimAboutUpdate) -> Claim:
     if payload.about_event_id and not _node_exists(conn, "Event", payload.about_event_id):
         raise HTTPException(status_code=404, detail=f"Event not found: {payload.about_event_id}")
 
+    # Faz 18: bir olayın confidence'ı claim'lerinden türetiliyor, dolayısıyla claim ESKİ
+    # olayından koparken de yeni olayına bağlanırken de iki olayın da yeniden hesaplanması
+    # gerekir — yoksa boşalan bir olay eski (yüksek) skorunu göstermeye devam ederdi.
+    previous_event = fetch_one(
+        conn.execute(
+            "MATCH (c:Claim {id: $id})-[:ABOUT_EVENT]->(ev:Event) RETURN ev.id AS id", {"id": claim_id}
+        )
+    )
     conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_ENTITY]->(:Entity) DELETE r", {"id": claim_id})
     conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_EVENT]->(:Event) DELETE r", {"id": claim_id})
 
@@ -599,6 +653,8 @@ def update_claim_about(claim_id: str, payload: ClaimAboutUpdate) -> Claim:
         "MATCH (c:Claim {id: $id}) SET c.updated_at = $now",
         {"id": claim_id, "now": datetime.now(timezone.utc)},
     )
+    for affected in {previous_event["id"] if previous_event else None, payload.about_event_id} - {None}:
+        recompute_event_confidence(conn, affected)
     safe_render_vault(conn)
     return get_claim(claim_id)
 
