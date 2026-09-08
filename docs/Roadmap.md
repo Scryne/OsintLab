@@ -281,7 +281,7 @@ merge, claim verification, investigation conclusion) kendi başına alması — 
 | 21 | Claim ↔ Entity Çoklu Bağ | ✅ Tamamlandı | Bir claim birden çok entity'ye bağlanabiliyor (özne bağı `ABOUT_ENTITY` tekil kalır); bağ adayları claim metninden deterministik olarak öneriliyor ve toplu onaylanabiliyor. Bitti sayılması için ölçülen 134 değmenin fiilen graf'a girmiş **ve tamamen izole entity sayısının 53'ten belirgin biçimde düşmüş** olması gerekir. |
 | 22 | İlişki Adaylarının Eritilmesi + Graf Görünümü | ✅ Tamamlandı | 109 aday çifti toplu olarak karara bağlanabiliyor (kurma VE eleme); kurulan ilişkiler bir graf görünümünde geziliyor. Bitti sayılması için graf'taki kenar sayısının 1'den çıkmış **ve aday listesinin eritilmiş** olması gerekir. |
 | 23 | Kullanılmayan Katmanların Hesabı (Inbox + Investigation) | ✅ Tamamlandı | Biriken 59 Inbox öğesi fiilen karara bağlanmış; Inbox'ın ve Investigation katmanının kalıp kalmayacağı — kalacaksa hangi iş akışıyla — açık bir karar olarak roadmap'e yazılmış olmalı. "Duruyor ama kullanılmıyor" bir sonuç değildir. |
-| 24 | Kaynak Tabanını Genişletme | ⏳ Bekliyor | Yeni bağımsız kaynaklar eklenip taramaya alınmış; **bağımsız kök sayısının arttığı ve bunun confidence'a yansıdığı ölçülmüş** olmalı (en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED üstüne çıkmalı). |
+| 24 | Kaynak Tabanını Genişletme | ✅ Tamamlandı | Yeni bağımsız kaynaklar eklenip taramaya alınmış; **bağımsız kök sayısının arttığı ve bunun confidence'a yansıdığı ölçülmüş** olmalı (en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED üstüne çıkmalı). |
 
 
 ## Faz Detayları
@@ -2675,3 +2675,60 @@ ayrı" kararıyla tutarlı).
   **Fazın sınavı:** bağımsız kök sayısının arttığı ve bunun confidence'a YANSIDIĞI ölçülmüş
   olmalı — en az bir claim yalnızca yeni kaynak sayesinde SUPPORTED'ın üstüne çıkmalı. Yeni
   kaynak eklemek tek başına bir sonuç değildir.
+
+- **Notlar:** 2026-09-08 tamamlandı.
+
+  **Ne eklendi.** 4 yeni bağımsız kaynak — **Ars Technica** (0.75), **The Register** (0.70),
+  **WIRED** (0.70) ve **CISA** (0.90, resmi kurum) — allowlist'e, `Source` kaydına ve 6
+  saatlik zamanlanmış taramaya alındı.
+
+  | | Öncesi | Sonrası |
+  | --- | --- | --- |
+  | Kaynak | 6 | **10** |
+  | Bağımsız kök (Q6) | 6 | **10** |
+  | Zamanlanmış tarama | 5 | **9** |
+  | Allowlist host | 11 | **17** |
+  | Gözlem | 302 | **352** |
+
+  **Allowlist'in redirect kontrolü çalıştı ve iki feed'i reddetti** — bu bir arıza değil,
+  Faz 5'te kurulan korumanın işini yapması: `theregister.com/headlines.atom`
+  `api.theregister.com`e, The Hacker News ise `feeds.feedburner.com`a yönlendiriyor ve
+  ikisi de listede değildi. `api.theregister.com` eklendi. **The Hacker News bilerek
+  ALINMADI:** feed'i FeedBurner üzerinden geliyor ve o host binlerce başka yayının da
+  taşıyıcısı — tek bir kaynak için bir toplayıcı ağ geçidini allowlist'e koymak, listenin
+  "hangi hostlara çıkabiliriz" sorusuna verdiği cevabı anlamsızlaştırırdı.
+
+  **Fazın sınavı geçildi — ve sınav bilerek "kaynak eklendi" demekten fazlasıydı.**
+  `OpenAI (resmi duyuru)` kaynaklı **"Testing ads in ChatGPT"** claim'i tek kaynaklıydı ve
+  yapısal olarak REPORTED'da sıkışmıştı (confidence 0.30 = 0.40 × 0.75; kalan %60 hiç
+  açılmamıştı). The Register'ın aynı olayı bildiren yazısı toplanıp promote edildi ve
+  doğrulama bağı kuruldu:
+
+  | | Önce | Sonra |
+  | --- | --- | --- |
+  | Durum | REPORTED | **SUPPORTED** |
+  | Confidence | 0.3000 | **0.4750** |
+  | Bağımsızlık alt-skoru | 0.00 | **0.50** |
+  | Doğrulayan claim | 0 | 1 (The Register, bağımsızlığa sayılıyor) |
+
+  Yükselişin **tek** sebebi yeni kaynak: kaynak kalitesi (0.75) ve kanıt (0.00) değişmedi,
+  yalnızca bağımsızlık ve doğrulama açıldı. Faz 17'nin "confidence'ın kalan %60'ı" tespiti
+  burada kaynak tabanı tarafından da doğrulandı — mekanizma çalışıyordu, açacak ikinci
+  kaynak yoktu.
+
+  **Ölçülen bir sınır: yeni kaynaklar mevcut korpusla örtüşmüyor.** 49 yeni gözlemin
+  yalnızca 2'si graf'taki konulara değiyor (WIRED'ın OpenAI matematik iddiası, CISA'nın
+  Çin merkezli AI distilasyon uyarısı); geri kalanı genel teknoloji/tüketici haberi. Bu bir
+  kusur değil, kapsam gerçeği: dört kaynağın üçü genel yayın, graf ise dar bir konuya
+  (OpenAI + AI güvenliği) odaklı. Doğrulama için yazı **elle arandı** (Faz 6'nın yaptığının
+  aynısı) — feed'in kendiliğinden getirmesi beklenmedi. Sonraki turda daha dar odaklı
+  kaynaklar (ör. AI güvenliği bültenleri) taban genişletmekten daha çok doğrulama üretir.
+
+  **Kuyruk maliyeti kayda geçiyor:** bekleyen gözlem 68 → 117. Yeni kaynakların çoğu genel
+  yayın olduğu için bunların çoğu düşük sinyalli (0.1) ve toplu elenmesi gerekecek. Faz
+  16'nın kuyruğu bunu kaldırıyor ama ölçü şu: kaynak eklemek bedava değil, değerlendirme
+  yükünü artırır.
+
+  **Faz 23'ün notuna cevap:** `SCAN_FAILED` alarmı hâlâ hiç tetiklenmedi — 9 programın
+  dokuzu da OK döndü. Alarmın gerçekten çalıştığı bir sonraki tarama hatasında görülecek;
+  bugüne kadar test edilemedi, bu bir boşluk olarak duruyor.
