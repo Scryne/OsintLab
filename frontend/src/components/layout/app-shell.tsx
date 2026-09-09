@@ -156,8 +156,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <IconChip icon={Radar} size="sm" />
           <span className="font-display text-sm font-semibold tracking-wide text-foreground">OSINT LAB</span>
         </div>
-        {navList}
-        <div className="relative mt-auto px-2 pb-1 text-[10px] leading-relaxed text-text-tertiary">
+        {/* Nav KENDİ İÇİNDE kayıyor, panelin tamamı değil. Sidebar `fixed inset-y-4` ile
+            ekran yüksekliğine kilitli ve `overflow-hidden` (yuvarlak köşe + globe kırpması
+            buna bağlı); 16 nav satırı kısa ekranlarda taşınca alttakilere ULAŞILAMIYORDU —
+            kaydırma yoktu, satırlar sessizce kesiliyordu. Logo ve alttaki not sabit kalsın
+            diye kaydırma yalnızca bu sarmalayıcıda: aksi halde "burası neresi" bilgisi
+            listeyle birlikte kayıp giderdi.
+            `overscroll-contain`: nav'ın sonuna gelince kaydırma arkadaki sayfaya ATLAMASIN. */}
+        <div className="relative -mr-1 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+          {navList}
+        </div>
+        <div className="relative mt-auto px-2 pb-1 pt-3 text-[10px] leading-relaxed text-text-tertiary">
           Kişisel intelligence workstation — tek kullanıcılı, local-first.
         </div>
       </aside>
