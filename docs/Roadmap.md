@@ -405,12 +405,37 @@ başına alması — Design Principle #7.
   ikisi de bleepingcomputer'dan, bağımsız doğrulama olamaz. Bu çift zaten doğrulanmış bir
   claim'e ait olduğu için varsayılan listede görünmüyor.
 
-- **Sıradaki adım için karar Scryne'ın.** Sayıyı gerçekten düşürmenin iki yolu var ve ikisi
-  de bu fazın kapsamı dışında: (a) kuyrukta bekleyen 26 yüksek sinyalli gözlemi promote etmek
-  — yeni claim'ler var olanları doğrulayabilir, ama promote kararı insanındır (Design
-  Principle #7); (b) hedefli toplama — belirli bir claim için diğer kaynaklarda kapsama
-  aramak, ki bu collector'e arama yeteneği eklemek demek ve allowlist/SSRF tasarımını
-  yeniden açar. Faz kapatılmadan önce bu iki yoldan birinin seçilmesi gerekiyor.
+- **Kuyruk turu yapıldı (Scryne'ın kararı, 2026-09-09).** Sayıyı hareket ettirmenin iki
+  yolundan ilki seçildi: kuyrukta bekleyen 26 yüksek sinyalli gözlem tek tek gözden geçirildi.
+  **18'i promote edildi**, 3'ü elendi (bülten derlemesi, tesadüfi entity eşleşmesi, bir
+  gazetenin ana sayfa dökümü), 5'i kararsız olduğu için kuyrukta bırakıldı.
+  - **Önerilen entity üç kayıtta yanlıştı ve elle düzeltildi:** kuyruk `matched_entities`in
+    İLKİNİ öneriyor, o da metinde ilk geçen ad. "Microsoft Plugs Nearly 1,000 Security Holes"
+    için `Windows`, "How GPT-5.6 Sol helps run quantum computing experiments" için `Codex`
+    öneriliyordu. Yanlış `about_entity` kalıcı bir yanlış atıftır — öneriyi körlemesine
+    kabul etmek promote'u ucuzlatmaz, sadece hatayı ucuzlatır.
+  - Promote'lar hemen karşılığını verdi: yeni claim'ler **9 claim ↔ claim doğrulama adayı**
+    doğurdu. Beşi tartışmasız aynı olayın bağımsız iki kaynaktan raporlanmasıydı ve bağlandı
+    (White House/Tetris: TechCrunch ↔ Ars Technica; OpenAI matematik tartışması: TechCrunch ↔
+    The Verge; Microsoft Patch Tuesday: The Verge ↔ Krebs; German wiki olayı; Astra güvenlik
+    endişeleri). Dördü şüpheli bulunup Scryne'a bırakıldı — ör. "Anthropic abonelik davası" ile
+    "OpenAI reklam testi" ortak terim paylaşıyor ama aynı olay değil.
+
+- **Sonuç, dürüst haliyle: fazın SAYISI tutmadı, fazın ADI tuttu.**
+  - Doğrulayanı olmayan claim **30 → 42**. Kriter "30'dan belirgin düşmüş olmalı" diyordu;
+    tersine çıktı çünkü payda büyüdü: 55 claim 73 oldu ve 18 yeni claim doğal olarak
+    doğrulayansız doğdu. Oran neredeyse sabit (%55 → %58).
+  - Ama fazın ADI "Tek Kaynak Baskınlığı" ve o ölçü düzeldi: **en baskın kaynağın payı
+    %51 → %43**, claim üreten kaynak sayısı **6 → 10**, `SUPPORTED` 15 → 20,
+    `CORROBORATED` 9 → 10, ortalama confidence 0.454.
+  - **Kriterin kendisi hatalıydı**: mutlak bir sayıya bağlanmıştı, oysa aynı fazın işi
+    (gözlem promote etmek) paydayı da büyütüyor. Bir sonraki turda bu tür kriterler orana
+    bağlanmalı. Bu, ölçüm-temelli kapsam çıkarmanın kendi disiplinine düşen bir not.
+
+- **Fazın kapanışı Scryne'a bırakıldı.** Mekanizma çalışıyor ve bekleyen aday üretiyor
+  (4 claim ↔ claim, 1 claim ↔ gözlem). Kuyrukta 28 gözlem, 5'i yüksek sinyalli. Kalan yol
+  (b): hedefli toplama — belirli bir claim için diğer kaynaklarda kapsama aramak. Bu
+  collector'e arama yeteneği eklemek demek ve allowlist/SSRF tasarımını yeniden açar.
 
 ## v5 bittikten sonra nasıl ilerlenecek
 
