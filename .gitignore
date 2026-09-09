@@ -14,6 +14,11 @@ __pycache__/
 
 # Hook'ların ürettiği çalışma-anı durumu — makineye özel, koda ait değil
 .claude/.sync-lock.json
+.claude/sync-health.json
+
+# Kişisel kısayollar: mutlak yol içeriyorlar, başka bir makinede çalışmazlar
+/OsintLab başlatma komutu.cmd
+*.lnk
 
 # Ortam / sır dosyaları
 .env

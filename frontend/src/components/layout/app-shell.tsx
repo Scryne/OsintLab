@@ -30,6 +30,7 @@ import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { IconChip } from "@/components/ui/icon-chip";
 import { WireframeGlobe } from "@/components/ui/wireframe-globe";
+import { PageHelpButton } from "@/components/layout/page-help-button";
 
 const NAV = [
   { href: "/", label: "Ana Çalışma Alanı", icon: Compass },
@@ -177,7 +178,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       {/* 296px = sidebar'ın left-4 (16px) + w-64 (256px) + 24px boşluk — Tailwind ölçeğinde
           karşılığı yok çünkü fixed sidebar'ın tam geometrisinden türetilen bir değer. */}
-      <main className="min-w-0 flex-1 p-4 md:ml-[296px] md:p-6">{children}</main>
+      <main className="min-w-0 flex-1 p-4 md:ml-[296px] md:p-6">
+        {/* Sayfa rehberi tek bir yerden bağlanıyor: içerik pathname'den seçiliyor
+            (lib/page-help.ts). 17 sayfaya ayrı ayrı düğme koymak, metnin bir kısmının
+            zamanla güncellenmeden kalmasının en kolay yoluydu. */}
+        <PageHelpButton />
+        {children}
+      </main>
     </div>
   );
 }
