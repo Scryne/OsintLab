@@ -6,11 +6,12 @@ from fastapi import APIRouter, HTTPException
 from app.confidence import ConfidenceResult, compute_confidence
 from app.db import fetch_all, fetch_one, get_connection
 from app.lineage import resolve_independent_root
-from app.corroboration import find_candidates
+from app.corroboration import find_candidates, find_observation_candidates
 from app.eventcluster import recompute_event_confidence
 from app.mentions import claim_mentions, mention_candidates, set_mention
 from app.models import (
     CandidateClaim,
+    ObservationCorroborationCandidate,
     Claim,
     ClaimAboutUpdate,
     ClaimContradictionAdd,
@@ -406,6 +407,58 @@ def corroboration_candidates(
             projected_b=p.projected_b,
         )
         for p in pairs
+    ]
+
+
+@router.get(
+    "/corroboration/observation-candidates",
+    response_model=list[ObservationCorroborationCandidate],
+)
+def observation_corroboration_candidates(
+    claim_id: str | None = None,
+    include_corroborated: bool = False,
+    include_dismissed: bool = True,
+    limit: int = 200,
+) -> list[ObservationCorroborationCandidate]:
+    """Faz 28 — doğrulayanı olmayan claim'leri doğrulayabilecek HAM GÖZLEMLER.
+
+    Faz 17'nin ekranı claim ↔ claim çalışıyor ve ikinci claim'in zaten var olmasını
+    gerektiriyor; ölçüm 55 claim'in 30'unda doğrulayan olmadığını, Faz 24'ün eklediği dört
+    yeni kaynağın ise toplam 1 claim ürettiğini gösterdi. Eksik olan ters yönlü aramaydı.
+
+    Bağlamak burada bir kenar çekmek değil, gözlemi PROMOTE etmek demek — sonuç grafta yeni
+    bir claim. Bu yüzden uç yalnızca öneriyor; promote kararı `POST /observations/{id}/promote`
+    üzerinden ve insanda kalıyor (Design Principle #7)."""
+    conn = get_connection()
+    found = find_observation_candidates(
+        conn, claim_id=claim_id, include_corroborated=include_corroborated,
+        include_dismissed=include_dismissed, limit=limit,
+    )
+    return [
+        ObservationCorroborationCandidate(
+            claim_id=c.claim["id"],
+            claim_text=c.claim["text"],
+            claim_source_name=c.claim["source_name"],
+            claim_confidence=c.claim["confidence"],
+            claim_knowledge_state=c.claim["knowledge_state"],
+            claim_about_entity_id=c.claim.get("about_entity_id"),
+            claim_about_event_id=c.claim.get("about_event_id"),
+            observation_id=c.observation["id"],
+            observation_text=c.observation["raw_content"],
+            observation_url=c.observation["source_url"],
+            observation_host=c.observation["host"],
+            observation_dismissed=c.observation["dismissed"],
+            kind=c.kind,
+            rare_overlap=c.rare_overlap,
+            text_similarity=c.text_similarity,
+            days_apart=c.days_apart,
+            shared_terms=c.shared_terms,
+            reasons=c.reasons,
+            suggested_source_id=c.suggested_source_id,
+            suggested_source_name=c.suggested_source_name,
+            projected_confidence=c.projected_confidence,
+        )
+        for c in found
     ]
 
 

@@ -352,7 +352,65 @@ başına alması — Design Principle #7.
 | 25 | Toplanan İçeriğin Temizlenmesi | ✅ Bitti | `mode=web` ile toplanan içerik boilerplate'inden ayrıştırılıyor (başlık + gövde), claim metni sayfanın tamamı olmuyor. Bitti sayılması için mevcut 9370 karakterlik claim'in onarılmış **ve tek bir claim'den doğan 57 sahte entity adayının kaybolmuş** olması gerekir. |
 | 26 | Kanıt Katmanı: confidence'ın açılmamış %20'si | ✅ Bitti | Bir claim promote edilirken dayandığı içeriğin arşiv kopyası (ham metin + hash + URL + zaman) Evidence olarak kaydedilebiliyor. Bitti sayılması için kanıt alt-skoru sıfır olan claim sayısının 54'ten belirgin biçimde düşmüş **ve en az bir claim'in yalnızca kanıt sayesinde durum değiştirmiş** olması gerekir. |
 | 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ✅ Bitti | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
-| 28 | Tek Kaynak Baskınlığı | ⏳ Bekliyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
+| 28 | Tek Kaynak Baskınlığı | 🔄 Devam Ediyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
+
+- **🔄 Durum (2026-09-09): mekanizma bitti, fazın sınavı GEÇİLMEDİ — ve sebebi ölçüldü.**
+  Ters yönlü arama kuruldu (`GET /claims/corroboration/observation-candidates`, Doğrulama
+  sayfasında "Gözlemden doğrulama" sekmesi, promote+bağla tek adımda). Ama doğrulayanı
+  olmayan 30 claim için **sıfır aday** çıkıyor. Sayı 30'da duruyor.
+
+- **Neden sıfır: korpus yapısal olarak doğrulayamıyor.** Doğrulayanı olmayan 30 claim'in
+  **21'i OpenAI'ın kendi resmi duyurusu** (kalanı TechCrunch 3, Security Affairs 4, Krebs 1,
+  The Verge 1). Bir şirketin kendi ürün duyurusunu, diğer 9 kaynak "aynı olgusal iddia"
+  olarak bağımsız biçimde raporlamıyor — haber yapıyorlar ama başka bir şey söyleyerek.
+  Bu, arama algoritmasının değil veri tabanının sınırı.
+
+- **Roadmap'in önerdiği ikinci sinyal (Faz 12'nin entity eşleştiricisi) ölçüldü ve
+  KULLANILMADI.** Entity + 7 günlük pencere ile 121 çift çıkıyor ama **118'i tek bir entity
+  ("OpenAI") üzerinden** ve karşı taraf da çoğunlukla openai.com'un başka bir duyurusu. Yani
+  eşleştirici, aynı kaynağın kendi duyurularını kendisiyle eşliyor — doğrulama değil.
+
+- **Fazın asıl kazanımı beklenmedik yerden geldi: doğrulama ölçüsünde bir UZUNLUK
+  ASİMETRİSİ hatası bulundu ve Faz 17 de onarıldı.** `_rare_overlap`ın paydası `min()`;
+  iki metnin uzunluğu çok farklı olduğunda kısa olanın sözlüğü payda oluyor ve uzun metin,
+  kısa metnin terimlerini rastlantıyla kapsayarak yüksek skor alıyor. Faz 17'de görünmüyordu
+  çünkü tüm claim'ler 143–892 karakterlik RSS özetleriydi. İki şey bunu bozdu: Faz 25 bir
+  claim'i 4801 karaktere onardı, ve Faz 28'in havuzuna 20.036 karakterlik CISA advisory'leri
+  girdi. Sonuç ölçüldü:
+  - Faz 17'nin canlı aday listesindeki **7 "CORROBORATION" adayının 7'si de yanlıştı** ve
+    hepsi o tek uzun claim'le eşleşiyordu.
+  - Faz 28'in ilk çalıştırmasında "Cursor'ın SpaceX tarafından satın alınması" claim'i bir
+    **Schneider Electric güvenlik bültenine** doğrulayan olarak önerildi.
+  Düzeltme: karşılaştırmaya giren metin ilk **600** karakterle sınırlanıyor (`RARE_TEXT_CAP`,
+  claim medyanının iki katından fazlası — kısa metinlerin hiçbirini kırpmıyor). Düzeltmeden
+  sonra Faz 17'nin aday listesi 8'den 1'e indi ve kalan tek kayıt gerçek: The Verge'ün
+  **yeniden başlıklandırdığı** yazının iki kez kaydedilmiş hali (Faz 26'nın arşiv
+  doğrulamasının bulduğu olayın aynısı, bağımsız olarak).
+
+- **Eşik claim ↔ gözlem için ayrıca kalibre edildi** (`OBSERVATION_RARE_THRESHOLD = 0.30`).
+  Gerekçe havuz büyüklüğü: claim tarafında 55 metin var, gözlem havuzunda 328 — tesadüfi
+  eşleşme şansı bir mertebe fazla. Ölçülen boşluk net: gerçek çiftler 0.373 ve 0.447, en
+  yüksek yanlış pozitif 0.217.
+
+- **Elenmiş gözlemler de havuzda, bilerek.** Eleme kararı gözlemin KENDİ başına bilgiye
+  değip değmediğiydi; doğrulama bambaşka bir soru. Ölçüm: yalnızca bekleyenlerle 30 claim'in
+  7'si, elenmişler dahil edilince 18'i eşik ÖNCESİ aday buluyordu (eşik sonrası ikisi de 0).
+  Aday listesinde hangisinin elenmiş olduğu yazıyor; promote elemeyi kendiliğinden kaldırıyor.
+
+- **Mekanizmanın doğru çalıştığı gösterildi.** `include_corroborated=true` ile bakıldığında
+  tek gerçek çift çıkıyor ve doğru: *"ChatGPT, Grok, and Claude all went down at the same
+  time"* claim'i ↔ *"Anthropic confirms Claude is down, multiple models affected"* gözlemi
+  (ortaklık 0.446; ortak nadir terimler: outage, elevated, errors, claude). Aynı gözlem ikinci
+  bir claim'le de eşleşiyor ama sistem onu doğru biçimde `SAME_SOURCE` diye işaretliyor —
+  ikisi de bleepingcomputer'dan, bağımsız doğrulama olamaz. Bu çift zaten doğrulanmış bir
+  claim'e ait olduğu için varsayılan listede görünmüyor.
+
+- **Sıradaki adım için karar Scryne'ın.** Sayıyı gerçekten düşürmenin iki yolu var ve ikisi
+  de bu fazın kapsamı dışında: (a) kuyrukta bekleyen 26 yüksek sinyalli gözlemi promote etmek
+  — yeni claim'ler var olanları doğrulayabilir, ama promote kararı insanındır (Design
+  Principle #7); (b) hedefli toplama — belirli bir claim için diğer kaynaklarda kapsama
+  aramak, ki bu collector'e arama yeteneği eklemek demek ve allowlist/SSRF tasarımını
+  yeniden açar. Faz kapatılmadan önce bu iki yoldan birinin seçilmesi gerekiyor.
 
 ## v5 bittikten sonra nasıl ilerlenecek
 

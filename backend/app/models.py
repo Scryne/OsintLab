@@ -684,6 +684,45 @@ class CorroborationCandidate(BaseModel):
     projected_b: float | None = None
 
 
+class ObservationCorroborationCandidate(BaseModel):
+    """Faz 28 — "bu doğrulanmamış claim'i şu ham gözlem doğrulayabilir" adayı.
+
+    Faz 17'nin claim ↔ claim adayının gözlem tarafındaki karşılığı. `kind` aynı disiplini
+    taşıyor: yalnızca CORROBORATION bağlanmaya değer, geri kalan üçü UYARIDIR ve bağlanırsa
+    confidence sahte yükselir. Fark şu: burada bağlamak demek gözlemi promote etmek demek,
+    yani grafta yeni bir claim doğuyor — bu yüzden `promote_hint` alanı öneriyi hazır
+    taşıyor, kullanıcı formu yeniden doldurmasın diye."""
+
+    claim_id: str
+    claim_text: str
+    claim_source_name: str | None = None
+    claim_confidence: float | None = None
+    claim_knowledge_state: str | None = None
+    # Promote formunu önceden doldurmak için: doğrulayan claim, doğrulanan claim'le AYNI
+    # şey hakkında olmalı. Kullanıcıya bunu yeniden seçtirmek, Faz 16'nın kapattığı
+    # "kararın pahalı olması" sorununu burada yeniden açardı.
+    claim_about_entity_id: str | None = None
+    claim_about_event_id: str | None = None
+
+    observation_id: str
+    observation_text: str
+    observation_url: str | None = None
+    observation_host: str | None = None
+    observation_dismissed: bool = False
+
+    kind: str
+    rare_overlap: float
+    text_similarity: float
+    days_apart: float
+    shared_terms: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    suggested_source_id: str | None = None
+    suggested_source_name: str | None = None
+    # Bağlanırsa claim'in confidence'ı nereye gider. Faz 17'deki gerekçenin aynısı: hareket
+    # görünmezse kullanıcı neden uğraştığını bilmez.
+    projected_confidence: float | None = None
+
+
 class ClaimLinkRequest(BaseModel):
     claim_a_id: str
     claim_b_id: str

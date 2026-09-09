@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, GitMerge, Layers, Link2, ShieldAlert, Zap } from "lucide-react";
+import { AlertTriangle, ArrowRight, Eye, GitMerge, Layers, Link2, ShieldAlert, Zap } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type {
@@ -9,6 +9,7 @@ import type {
   CandidateKind,
   ClaimLinkBatchResult,
   CorroborationCandidate,
+  ObservationCorroborationCandidate,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,7 @@ import { ConfirmButton } from "@/components/ui/confirm-button";
 /** `SUPPORTED` eşiği — `confidence.py`'nin `SUPPORTED_THRESHOLD`'u. */
 const SUPPORTED_THRESHOLD = 0.45;
 
-type Tab = "corroboration" | "warnings";
+type Tab = "corroboration" | "observations" | "warnings";
 
 const KIND_LABEL: Record<CandidateKind, string> = {
   CORROBORATION: "Bağımsız doğrulama",
@@ -55,6 +56,12 @@ export default function CorroborationPage() {
     []
   );
   const { data: claims, reload: reloadClaims } = useApi(() => api.claims.list(), []);
+  // Faz 28 — ters yönlü arama. Ayrı bir uç: claim ↔ claim araması ikinci claim'in ZATEN var
+  // olmasını gerektiriyor, oysa doğrulayan çoğu zaman hâlâ ham gözlem olarak duruyor.
+  const {
+    data: obsCandidates,
+    reload: reloadObs,
+  } = useApi(() => api.claims.observationCandidates({ limit: 300 }), []);
 
   const corroboration = useMemo(
     () => (candidates ?? []).filter((c) => c.kind === "CORROBORATION"),
@@ -65,6 +72,10 @@ export default function CorroborationPage() {
     [candidates]
   );
 
+  const obsCorroboration = useMemo(
+    () => (obsCandidates ?? []).filter((c) => c.kind === "CORROBORATION"),
+    [obsCandidates]
+  );
   const shown = tab === "corroboration" ? corroboration : warnings;
 
   // Seçim türevi: görünür olmayan bir çift seçili SAYILMAZ (Faz 16'da kuyrukta alınan karar).
@@ -96,6 +107,35 @@ export default function CorroborationPage() {
       reloadClaims();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Kapatma başarısız", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Faz 28 — gözlemi promote edip doğrulayan olarak bağlar.
+   *
+   * Bu, çift yönlü bir kenar çekmekten farklı ve daha ağır bir iş: grafta YENİ BİR CLAIM
+   * doğuyor ve claim silinemez (History Is Immutable). Bu yüzden tek tıkla değil, onaylı
+   * bir düğmeyle yapılıyor ve öneri alanları (kaynak + hedef) kullanıcıya gösteriliyor. */
+  async function promoteAsCorroborator(candidate: ObservationCorroborationCandidate) {
+    if (!candidate.suggested_source_id) {
+      toast("Bu gözlemin kaynağı çözülemedi — önce Kaynaklar'dan ekle", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.observations.promote(candidate.observation_id, {
+        source_id: candidate.suggested_source_id,
+        about_entity_id: candidate.claim_about_entity_id,
+        about_event_id: candidate.claim_about_event_id,
+        corroborates: [candidate.claim_id],
+      });
+      toast("Gözlem promote edildi ve doğrulayan olarak bağlandı", "success");
+      reload();
+      reloadObs();
+      reloadClaims();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Promote başarısız", "error");
     } finally {
       setBusy(false);
     }
@@ -142,6 +182,9 @@ export default function CorroborationPage() {
         <TabsList>
           <TabsTrigger value="corroboration">
             Doğrulama adayları{corroboration.length > 0 ? ` · ${corroboration.length}` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="observations">
+            Gözlemden doğrulama{obsCorroboration.length > 0 ? ` · ${obsCorroboration.length}` : ""}
           </TabsTrigger>
           <TabsTrigger value="warnings">
             Uyarılar{warnings.length > 0 ? ` · ${warnings.length}` : ""}
@@ -208,8 +251,27 @@ export default function CorroborationPage() {
         />
       )}
 
+      {tab === "observations" && (
+        <div className="flex flex-col gap-3">
+          {obsCorroboration.length === 0 && (
+            <EmptyState
+              title="Gözlemlerden doğrulama adayı yok"
+              description="Doğrulayanı olmayan claim'leri, sistemde bekleyen ham gözlemler arasında arıyoruz. Aday çıkmaması kaynakların aynı olayı bağımsız olarak raporlamadığı anlamına gelir — yeni içerik toplandıkça burası dolar."
+            />
+          )}
+          {obsCorroboration.map((candidate) => (
+            <ObservationPairCard
+              key={`${candidate.claim_id}|${candidate.observation_id}`}
+              candidate={candidate}
+              onPromote={() => promoteAsCorroborator(candidate)}
+              busy={busy}
+            />
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
-        {shown.map((candidate) => (
+        {tab !== "observations" && shown.map((candidate) => (
           <PairCard
             key={pairKey(candidate)}
             candidate={candidate}
@@ -224,6 +286,112 @@ export default function CorroborationPage() {
     </div>
   );
 }
+
+/** Faz 28 — claim ↔ gözlem adayı kartı.
+ *
+ * `PairCard`tan ayrı bir bileşen, çünkü taraflardan biri claim DEĞİL: karşı tarafın
+ * confidence'ı, durumu, kaynağı yok — henüz bir iddia değil, ham veri. Aynı karta zorlamak
+ * gözlemin yarısı boş bir claim gibi görünmesine yol açardı. */
+function ObservationPairCard({
+  candidate,
+  onPromote,
+  busy,
+}: {
+  candidate: ObservationCorroborationCandidate;
+  onPromote: () => void;
+  busy: boolean;
+}) {
+  return (
+    <article className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary" className="gap-1">
+          <Eye aria-hidden className="h-3 w-3" />
+          Gözlemden doğrulama
+        </Badge>
+        <span className="font-mono text-xs tabular-nums text-text-tertiary">
+          ortaklık {candidate.rare_overlap.toFixed(3)}
+        </span>
+        {candidate.observation_dismissed && (
+          <Badge variant="outline" className="border-priority-high/40 text-priority-high-text">
+            daha önce elenmişti
+          </Badge>
+        )}
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
+            Doğrulanacak iddia
+          </p>
+          <p className="mt-1 text-sm leading-snug text-pretty text-foreground">
+            {candidate.claim_text.split("\n")[0]}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+            {candidate.claim_knowledge_state && (
+              <ConfidenceBadge
+                state={candidate.claim_knowledge_state}
+                confidence={candidate.claim_confidence ?? undefined}
+              />
+            )}
+            {candidate.claim_source_name}
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
+            Doğrulayabilecek ham gözlem
+          </p>
+          <p className="mt-1 text-sm leading-snug text-pretty text-foreground">
+            {candidate.observation_text.split("\n")[0]}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+            {candidate.suggested_source_name ?? candidate.observation_host ?? "kaynak çözülemedi"}
+            <span>{candidate.days_apart.toFixed(1)} gün arayla</span>
+          </div>
+        </div>
+      </div>
+
+      <ul className="mt-3 flex flex-col gap-1">
+        {candidate.reasons.map((r) => (
+          <li key={r} className="text-xs leading-relaxed text-text-secondary">
+            {r}
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {candidate.projected_confidence != null && candidate.claim_confidence != null && (
+          <span className="flex items-center gap-1.5 text-xs tabular-nums text-text-secondary">
+            {candidate.claim_confidence.toFixed(2)}
+            <ArrowRight aria-hidden className="h-3 w-3" />
+            <strong className="text-confidence-supported-text">
+              {candidate.projected_confidence.toFixed(2)}
+            </strong>
+          </span>
+        )}
+        <div className="ml-auto">
+          {/* Promote geri alınamaz (claim silinmez, History Is Immutable) — bu yüzden
+              onaylı düğme, tek tık değil. */}
+          {candidate.suggested_source_id ? (
+            <ConfirmButton
+              size="sm"
+              onConfirm={busy ? () => {} : onPromote}
+              confirmLabel="Promote edilsin ve bağlansın mı?"
+              confirmAction="Promote et ve bağla"
+            >
+              <Zap aria-hidden className="h-4 w-4" />
+              Promote et ve doğrulayan olarak bağla
+            </ConfirmButton>
+          ) : (
+            <span className="text-xs text-priority-high-text">
+              Bu gözlemin kaynağı çözülemedi — önce Kaynaklar&apos;dan ekle
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 
 function pairKey(c: CorroborationCandidate): string {
   return [c.claim_a.id, c.claim_b.id].sort().join("|");

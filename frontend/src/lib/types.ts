@@ -849,3 +849,34 @@ export interface ArchiveVerifyResult {
   state_changes: number;
   items: ArchiveVerifyItem[];
 }
+
+/** Faz 28 — "bu doğrulanmamış claim'i şu ham gözlem doğrulayabilir" adayı.
+ *
+ * Faz 17'nin claim ↔ claim adayının gözlem tarafındaki karşılığı. Fark şu: burada bağlamak
+ * demek gözlemi promote etmek demek, yani grafta yeni bir claim doğuyor — bu yüzden aday,
+ * promote formunu doldurmaya yetecek öneriyi (kaynak + hedef) kendisi taşıyor. */
+export interface ObservationCorroborationCandidate {
+  claim_id: string;
+  claim_text: string;
+  claim_source_name: string | null;
+  claim_confidence: number | null;
+  claim_knowledge_state: KnowledgeState | null;
+  claim_about_entity_id: string | null;
+  claim_about_event_id: string | null;
+
+  observation_id: string;
+  observation_text: string;
+  observation_url: string | null;
+  observation_host: string | null;
+  observation_dismissed: boolean;
+
+  kind: "CORROBORATION" | "SAME_SOURCE" | "SHARED_ROOT" | "DERIVED_SUSPECT";
+  rare_overlap: number;
+  text_similarity: number;
+  days_apart: number;
+  shared_terms: string[];
+  reasons: string[];
+  suggested_source_id: string | null;
+  suggested_source_name: string | null;
+  projected_confidence: number | null;
+}

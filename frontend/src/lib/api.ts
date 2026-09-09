@@ -1,5 +1,6 @@
 import type {
   ArchiveBatchResult,
+  ObservationCorroborationCandidate,
   ArchiveRecord,
   ArchiveVerifyResult,
   Claim,
@@ -283,6 +284,23 @@ export const api = {
     // kaydedildikten günler sonra çıkıyor.
     addContradiction: (id: string, otherClaimId: string) =>
       post<Claim>(`/claims/${id}/contradicts`, { other_claim_id: otherClaimId }),
+    // Faz 28 — ters yonlu arama: bu doğrulanmamış claim'i hangi ham gözlem doğrulayabilir.
+    // Faz 17'nin claim ↔ claim ekranı ikinci claim'in zaten var olmasını gerektiriyordu.
+    observationCandidates: (opts?: {
+      claimId?: string;
+      includeCorroborated?: boolean;
+      includeDismissed?: boolean;
+      limit?: number;
+    }) => {
+      const q = new URLSearchParams();
+      if (opts?.claimId) q.set("claim_id", opts.claimId);
+      if (opts?.includeCorroborated) q.set("include_corroborated", "true");
+      if (opts?.includeDismissed === false) q.set("include_dismissed", "false");
+      q.set("limit", String(opts?.limit ?? 300));
+      return get<ObservationCorroborationCandidate[]>(
+        `/claims/corroboration/observation-candidates?${q}`
+      );
+    },
     // Faz 11 (F45): supersede sonradan da bildirilebilmeli — gerçek araştırmada yeni bilgi
     // eskisi kaydedildikten sonra çıkıyor, bazen de eskisi sonradan kaydediliyor.
     addSupersede: (id: string, supersedesClaimId: string) =>
