@@ -1,19 +1,28 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException
 
+from app import docint
 from app.collector import (
     CollectorFetchError,
     CollectorSecurityError,
+    MAX_OBSERVATION_TEXT_LENGTH,
     _host_allowed,
+    extract_article_from_html,
     load_allowlist,
     normalize_hostname,
+    safe_fetch,
     save_allowlist,
 )
-from app.db import fetch_one, get_connection
+from app.db import fetch_all, fetch_one, get_connection
 from app.models import (
     SCAN_MODES,
     AllowlistAdd,
     CollectorFetchRequest,
     MonitorCreate,
+    ReparseItem,
+    ReparseRequest,
+    ReparseResult,
     ScanSchedule,
     ScanScheduleCreate,
     ScanScheduleUpdate,
@@ -84,6 +93,165 @@ def fetch(payload: CollectorFetchRequest) -> dict:
         "observations_created": len(observations),
         "observation_ids": [o.id for o in observations],
     }
+
+
+# ---- Faz 25: saklanmış web metnini yeniden ayrıştırma --------------------
+#
+# Faz 25 ayrıştırıcıyı düzeltir, ama daha önce kaydedilmiş bozuk metinler grafta durmaya
+# devam eder — ve `Claim.text` oradan kopyalandığı için hem başlık hem entity adayları hem
+# metin karşılaştırması bozuk kalır. Bu uç o geçmişi onarır: sayfayı yeniden çeker, yeni
+# ayrıştırıcıdan geçirir, gözlemi ve ondan doğmuş claim'i günceller.
+#
+# Ayrıştırıcı bir daha iyileştiğinde aynı yol tekrar kullanılabilir; bu yüzden tek seferlik
+# bir migration script'i değil, bir uç.
+
+# Onarımın İKİ koşulu var ve ikisi de bilerek muhafazakâr:
+#
+#   1. Saklanan metin yeni gövdeden belirgin biçimde UZUN olmalı. Bir RSS özeti zaten
+#      temizdir; onu makale gövdesiyle değiştirmek "onarım" değil, kaynağı değiştirmektir.
+#      Ölçüldü: CISA'nın RSS özetleri (20036 karakter) yeni gövdeyle neredeyse aynı boyda
+#      (oran 1.06) — bu eşik onları dokunulmadan bırakır.
+#   2. Yeni gövde saklanan metnin İÇİNDE olmalı. Bu, "aynı sayfanın daha dar hali" ile
+#      "sayfa o zamandan beri değişmiş" arasındaki farkı ayırır. Sayfa değiştiyse onarım
+#      sessizce yeni bir içerik yazmış olurdu — gözlem artık gözlemlenen şey olmazdı.
+REPARSE_MIN_SHRINK = 1.5
+REPARSE_MIN_CONTAINMENT = 0.8
+
+# Kendi kendine aday seçerken uygulanan uzunluk tabanı. Gerekçesi nezaket ve maliyet:
+# havuz filtresiz 375 gözlem, yani 375 dış istek — kaynakları boş yere dövmek. Bir sayfanın
+# tamamının dökümü her zaman uzundur (ölçülen bozuk gözlem 9370 karakter; claim metni
+# medyanı 221). Bu tabanın altındakiler taranmaz. Elle id verildiğinde taban UYGULANMAZ:
+# kullanıcı hangi gözlemi kastettiğini biliyorsa tahmin etmemize gerek yok.
+REPARSE_MIN_LENGTH = 2000
+
+
+def _containment(new_body: str, stored: str) -> float:
+    """Yeni gövdenin satırlarının ne kadarı saklanan metinde geçiyor (0..1)."""
+    lines = [line for line in (l.strip() for l in new_body.splitlines()) if len(line) >= 25]
+    if not lines:
+        return 0.0
+    blob = " ".join(stored.split())
+    hit = sum(1 for line in lines if " ".join(line.split()) in blob)
+    return hit / len(lines)
+
+
+def _reparse_targets(conn, observation_ids: list[str] | None) -> list[dict]:
+    if observation_ids:
+        return fetch_all(conn.execute(
+            "MATCH (o:Observation) WHERE o.id IN $ids "
+            "RETURN o.id AS id, o.raw_content AS raw_content, o.source_url AS source_url, "
+            "o.text_source AS text_source",
+            {"ids": observation_ids},
+        ))
+    # Aday havuzu: URL'i olan ve DOCINT'ten gelmeyen gözlemler. `text_source` Faz 25'ten
+    # ÖNCE collector tarafında hiç yazılmıyordu, o yüzden NULL da adaydır.
+    #
+    # NULL olanları web/rss diye ayıran şey `observed_at == created_at` eşitliği. Bu bir
+    # sezgi değil, toplama yolunun yapısal izi: `mode=rss` yayın tarihini feed'den alır
+    # (Faz 11/F1), `mode=web`in ise tarihi yoktur ve `observed_at` kayıt anına düşer.
+    # Ölçüldü (2026-09-09): 375 gözlemin tam 3'ünde eşitlik var ve üçü de elle yapılmış
+    # web toplamaları; 372 RSS gözleminin hiçbiri havuza girmiyor. Yanılabileceği tek yer
+    # tarihsiz bir feed — o durumda da aşağıdaki iki koşul (küçülme + içerilme) tutar.
+    return fetch_all(conn.execute(
+        "MATCH (o:Observation) WHERE o.source_url IS NOT NULL "
+        "AND (o.text_source = 'web' OR (o.text_source IS NULL AND o.observed_at = o.created_at)) "
+        "AND size(o.raw_content) >= $floor "
+        "RETURN o.id AS id, o.raw_content AS raw_content, o.source_url AS source_url, "
+        "o.text_source AS text_source",
+        {"floor": REPARSE_MIN_LENGTH},
+    ))
+
+
+@router.post("/reparse", response_model=ReparseResult)
+def reparse_observations(payload: ReparseRequest) -> ReparseResult:
+    """Saklanmış sayfa metnini yeni ayrıştırıcıyla (başlık + gövde) onarır.
+
+    Varsayılan `dry_run=true`: ne yapılacağını söyler, hiçbir şey yazmaz."""
+    conn = get_connection()
+    allowlist = load_allowlist()
+    rows = _reparse_targets(conn, payload.observation_ids)
+
+    items: list[ReparseItem] = []
+    repaired = repairable = 0
+    for row in rows:
+        stored = row["raw_content"] or ""
+        item = ReparseItem(
+            observation_id=row["id"], source_url=row["source_url"], action="atlandi",
+            old_length=len(stored),
+        )
+        try:
+            _, content, _ = safe_fetch(row["source_url"], allowlist)
+        except (CollectorSecurityError, CollectorFetchError) as exc:
+            item.reason = str(exc)
+            items.append(item)
+            continue
+
+        title, body = extract_article_from_html(content)
+        if not body:
+            item.reason = "Sayfada makale gövdesi bulunamadı (makale olmayan bir sayfa olabilir)."
+            items.append(item)
+            continue
+
+        new_text = f"{title}\n\n{body}".strip() if title else body
+        # Gözlem metni tavanı toplama yolunda uygulanıyor; onarım yolu da aynı tavana uymalı,
+        # yoksa onarılmış bir gözlem toplananlardan uzun olabilirdi.
+        new_text = new_text[:MAX_OBSERVATION_TEXT_LENGTH]
+        item.new_length = len(new_text)
+        item.containment = round(_containment(body, stored), 3)
+        item.new_headline = title or body.split("\n")[0][:160]
+
+        if len(stored) < len(new_text) * REPARSE_MIN_SHRINK:
+            item.reason = (
+                f"Saklanan metin yeni gövdeden yeterince uzun değil "
+                f"({len(stored)} / {len(new_text)} = {len(stored) / max(len(new_text), 1):.2f}); "
+                "boilerplate sorunu görünmüyor."
+            )
+            items.append(item)
+            continue
+        if item.containment < REPARSE_MIN_CONTAINMENT:
+            item.reason = (
+                f"Yeni gövdenin yalnızca %{item.containment * 100:.0f}'i saklanan metinde var — "
+                "sayfa toplandığından beri değişmiş olabilir, üzerine yazılmadı."
+            )
+            items.append(item)
+            continue
+
+        claim_rows = fetch_all(conn.execute(
+            "MATCH (:Observation {id: $oid})-[:PRODUCED]->(c:Claim) RETURN c.id AS id",
+            {"oid": row["id"]},
+        ))
+        item.claim_ids = [r["id"] for r in claim_rows]
+
+        if payload.dry_run:
+            item.action = "onarilabilir"
+            repairable += 1
+            items.append(item)
+            continue
+
+        # Q22: metin değişti, enjeksiyon taraması da yenilenmeli — eski uyarı yeni metne ait
+        # değil. Tarama gözlemin yaratılışında da burada da aynı fonksiyondan geçiyor.
+        hits = docint.find_instruction_like(new_text, where="gözlem metni")
+        conn.execute(
+            "MATCH (o:Observation {id: $oid}) SET o.raw_content = $text, "
+            "o.injection_hits = $hits, o.text_source = 'web'",
+            {"oid": row["id"], "text": new_text, "hits": docint.hits_to_json(hits)},
+        )
+        for claim_id in item.claim_ids:
+            conn.execute(
+                "MATCH (c:Claim {id: $cid}) SET c.text = $text, c.updated_at = $now",
+                {"cid": claim_id, "text": new_text, "now": datetime.now(timezone.utc)},
+            )
+        item.action = "onarildi"
+        repaired += 1
+        items.append(item)
+
+    if repaired:
+        safe_render_vault(conn)
+
+    return ReparseResult(
+        dry_run=payload.dry_run, considered=len(rows), repaired=repaired,
+        repairable=repairable, items=items,
+    )
 
 
 # ---- Zamanlanmış tarama (Faz 12) ----------------------------------------

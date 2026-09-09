@@ -252,6 +252,132 @@ def extract_text_from_html(html: bytes | str) -> str:
     return _truncate(text)
 
 
+# --- Faz 25: makale ayrıştırma -------------------------------------------------
+#
+# `extract_text_from_html` sayfayı DARALTIR (iskeleti atar) ama yine de "sayfanın metni"ni
+# döndürür. Faz 24'te toplanan tek `mode=web` gözlemi bunun bedelini ölçülebilir kıldı:
+# 9370 karakter, ilk satırı "Personal Tech" (sitenin bölüm menüsü) ve tek başına 57 entity
+# adayı üretti. Sorun toplayıcıda değil, ayrıştırmadaydı — `Claim.text` sayfanın tamamı
+# oluyordu.
+#
+# Buradaki ayrıştırma iki şeyi ayırır: BAŞLIK ve GÖVDE. İkisi de deterministik, yeni bağımlılık
+# yok (readability/trafilatura eklenmedi — bkz. Roadmap Faz 25).
+#
+# Gövde seçimi iki kanıta dayanır, ikisi de site-bağımsız:
+#   1. **Paragraf yoğunluğu.** Makale gövdesi, uzun <p>'lerin toplandığı düğümdür. Her aday
+#      düğüm kendi altındaki uzun paragrafların uzunluk toplamıyla puanlanır; en yüksek puana
+#      yakın olanlar arasından EN DERİN olan seçilir (ata düğümler her zaman en az çocukları
+#      kadar puan alır, o yüzden "en derin" olmadan hep <body> kazanırdı).
+#   2. **Bağlantı yoğunluğu.** Ölçüldü: register sayfasında gövde doğru bulunduğu halde
+#      metin hâlâ 9312 karakterdi, çünkü makalenin İÇİNE serpilmiş "ilgili haber" listeleri
+#      (<ul><li><a><h3>) de gövdenin içindeydi. Bunların metninin ~%100'ü bir bağlantının
+#      içindedir; gerçek paragrafların ise küçük bir kısmı. Bağlantı oranı eşiği geçen ya da
+#      tamamen bir <a>'nın içinde duran bloklar atılır — 9312 → 4760, makalenin kendisi.
+#
+# Sonuç yine Q22 sınırı içinde ham veridir; yalnızca daha dar bir ham veri.
+ARTICLE_SKELETON_TAGS = [
+    "nav", "header", "footer", "aside", "form", "iframe", "svg", "button", "figure",
+    "figcaption",
+]
+ARTICLE_BLOCK_TAGS = ("p", "h2", "h3", "h4", "li", "blockquote", "pre")
+# Puanlamaya giren paragrafın asgari uzunluğu. Kısa <p>'ler ("Paylaş", "3 dk okuma") her
+# sayfada var ve bir menüyü makale sanmaya yeter.
+ARTICLE_MIN_PARAGRAPH = 40
+# Gövdeye alınacak satırın asgari uzunluğu.
+ARTICLE_MIN_LINE = 25
+ARTICLE_MAX_LINK_DENSITY = 0.5
+# Gövde adayları arasında "en yüksek puana yakın" sayılma oranı: eşit puanlı sarmalayıcılar
+# arasında en derini seçilirken küçük farkların (bir kenar paragrafı) seçimi yukarı
+# kaydırmasını engeller.
+ARTICLE_SCORE_TOLERANCE = 0.95
+
+
+def _normalized_text(node) -> str:
+    return " ".join(node.get_text(separator=" ").split())
+
+
+def _link_density(node) -> float:
+    """Düğüm metninin ne kadarı bir bağlantının içinde. 1.0 = tamamı link (menü/teaser)."""
+    total = len(_normalized_text(node))
+    if not total:
+        return 1.0
+    return sum(len(_normalized_text(a)) for a in node.find_all("a")) / total
+
+
+def _is_content_block(node) -> bool:
+    """Bu blok makale metni mi, yoksa bağlantı listesi/sarmalayıcı mı."""
+    if node.find_parent("a") is not None:
+        return False
+    # Başka blok içeriyorsa kendisi bir sarmalayıcıdır; çocukları zaten ayrı ayrı gelecek.
+    if node.find(ARTICLE_BLOCK_TAGS) is not None:
+        return False
+    return _link_density(node) < ARTICLE_MAX_LINK_DENSITY
+
+
+def extract_article_from_html(html: bytes | str) -> tuple[str, str]:
+    """(başlık, gövde) — gövde bulunamazsa ("...", "") döner ve çağıran fallback'e düşer.
+
+    Başlık sırası <h1> → og:title → <title>. <h1> önce çünkü <title> çoğu sitede
+    "Başlık | Site Adı" biçiminde ve site adı her claim'in başına yapışırdı."""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+
+    title = ""
+    h1 = soup.find("h1")
+    if h1 is not None:
+        title = _normalized_text(h1)
+    if not title:
+        meta = soup.find("meta", attrs={"property": "og:title"})
+        if meta and meta.get("content"):
+            title = " ".join(meta["content"].split())
+    if not title and soup.title:
+        title = " ".join(soup.title.get_text().split())
+
+    for tag in soup(ARTICLE_SKELETON_TAGS):
+        tag.decompose()
+
+    scored: list[tuple[int, object]] = []
+    for node in soup.find_all(["article", "main", "div", "section", "td"]):
+        score = 0
+        for paragraph in node.find_all("p"):
+            text = _normalized_text(paragraph)
+            if len(text) >= ARTICLE_MIN_PARAGRAPH and _is_content_block(paragraph):
+                score += len(text)
+        if score:
+            scored.append((score, node))
+    if not scored:
+        return title, ""
+
+    best = max(score for score, _ in scored)
+    near_best = [node for score, node in scored if score >= best * ARTICLE_SCORE_TOLERANCE]
+    root = max(near_best, key=lambda node: len(list(node.parents)))
+
+    seen: set[str] = set()
+    lines: list[str] = []
+    for node in root.find_all(ARTICLE_BLOCK_TAGS):
+        text = _normalized_text(node)
+        if len(text) < ARTICLE_MIN_LINE or text in seen:
+            continue
+        if not _is_content_block(node):
+            continue
+        seen.add(text)
+        lines.append(text)
+    return title, "\n".join(lines)
+
+
+def extract_content_from_html(html: bytes | str) -> str:
+    """`mode=web`in gözleme yazdığı metin: başlık + gövde.
+
+    Gövde çıkmazsa (makale olmayan bir sayfa — ör. bir gazetenin ana sayfası) eski davranışa,
+    yani daraltılmış tam sayfa metnine düşülür. Kaybetmek, ayrıştıramamaktan kötüdür: o
+    gözlemi tamamen boş kaydetmek kullanıcıya "site boştu" derdi."""
+    title, body = extract_article_from_html(html)
+    if not body:
+        return extract_text_from_html(html)
+    return _truncate(f"{title}\n\n{body}".strip() if title else body)
+
+
 def _entry_published(entry) -> datetime | None:
     """RSS/Atom yayın tarihini timezone-aware UTC datetime'a çevirir.
 

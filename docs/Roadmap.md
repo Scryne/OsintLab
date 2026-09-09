@@ -349,7 +349,7 @@ başına alması — Design Principle #7.
 
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
-| 25 | Toplanan İçeriğin Temizlenmesi | ⏳ Bekliyor | `mode=web` ile toplanan içerik boilerplate'inden ayrıştırılıyor (başlık + gövde), claim metni sayfanın tamamı olmuyor. Bitti sayılması için mevcut 9370 karakterlik claim'in onarılmış **ve tek bir claim'den doğan 57 sahte entity adayının kaybolmuş** olması gerekir. |
+| 25 | Toplanan İçeriğin Temizlenmesi | ✅ Bitti | `mode=web` ile toplanan içerik boilerplate'inden ayrıştırılıyor (başlık + gövde), claim metni sayfanın tamamı olmuyor. Bitti sayılması için mevcut 9370 karakterlik claim'in onarılmış **ve tek bir claim'den doğan 57 sahte entity adayının kaybolmuş** olması gerekir. |
 | 26 | Kanıt Katmanı: confidence'ın açılmamış %20'si | ⏳ Bekliyor | Bir claim promote edilirken dayandığı içeriğin arşiv kopyası (ham metin + hash + URL + zaman) Evidence olarak kaydedilebiliyor. Bitti sayılması için kanıt alt-skoru sıfır olan claim sayısının 54'ten belirgin biçimde düşmüş **ve en az bir claim'in yalnızca kanıt sayesinde durum değiştirmiş** olması gerekir. |
 | 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ⏳ Bekliyor | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
 | 28 | Tek Kaynak Baskınlığı | ⏳ Bekliyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
@@ -2912,6 +2912,59 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** `mode=web` içeriği başlık + gövde olarak ayrışıyor; claim metni sayfanın
   tamamı olmuyor. **Fazın sınavı:** mevcut 9370 karakterlik claim onarılmış ve o tek
   claim'den doğan 57 sahte entity adayı kaybolmuş olmalı.
+
+- **✅ Bitti (2026-09-09).** Sınav geçildi: claim **9370 → 4801** karakter, başlığı
+  "Personal Tech" (sitenin bölüm menüsü) yerine **"OpenAI introduces ads...for the people!"**;
+  PENDING entity adayı **57 → 13**. Kalan 13'ün hepsi makalenin GERÇEK gövdesinde geçen
+  adlar (Google, Meta, Gemini, Perplexity, Sam Altman, Taz Patel, Super Bowl, ChatGPT
+  Atlas…) — yani kaybolan 44 aday tam olarak boilerplate'ten doğanlardı. Claim metni medyanı
+  221'de kaldı, ama en uzun claim artık 4801 (ikincisi 892).
+
+- **Gövdeyi bulan iki kanıt, ikisi de site-bağımsız.** (1) *Paragraf yoğunluğu*: makale
+  gövdesi uzun `<p>`'lerin toplandığı düğümdür; adaylar bu toplamla puanlanır ve en yüksek
+  puana yakın olanların EN DERİNİ seçilir (ata düğüm hep en az çocuğu kadar puan alır,
+  "en derin" olmadan her sayfada `<body>` kazanırdı). (2) *Bağlantı yoğunluğu*: yalnızca
+  (1) ile register sayfası 9370'ten 9312'ye indi — çünkü makalenin İÇİNE serpilmiş "ilgili
+  haber" listeleri (`<ul><li><a><h3>`) de gövdenin içindeydi. Bu blokların metninin ~%100'ü
+  bir bağlantının içindedir, gerçek paragrafların küçük bir kısmı; oranı 0.5'i geçen bloklar
+  atılınca **9312 → 4760**. İkinci kanıt olmadan faz yarım kalırdı.
+
+- **Makale olmayan sayfa kaybedilmiyor.** sabah.com.tr ana sayfasında gövde çıkmıyor
+  (haber sayfası değil, bir liste) — bu durumda eski daraltılmış tam-sayfa metnine
+  düşülüyor. Boş bir gözlem kaydetmek kullanıcıya "site boştu" derdi.
+
+- **Geçmiş de onarıldı: `POST /collectors/reparse`.** Ayrıştırıcıyı düzeltmek yetmiyor;
+  grafta duran bozuk metin `Claim.text`e kopyalanmış durumdaydı. Uç sayfayı yeniden çeker,
+  yeni ayrıştırıcıdan geçirir, gözlemi + ondan doğan claim'i günceller, enjeksiyon taramasını
+  (Q22) yeni metinle tazeler ve vault'u yeniden render eder. Varsayılan `dry_run=true` —
+  var olan veriyi üzerine yazan bir uç, ne yazacağını göstermeden yazmamalı. "History Is
+  Immutable" burada kırılmıyor: append-only günlük (`_append_daily_log`) toplama anındaki
+  ham metni olduğu gibi tutuyor, üzerine yazılan yalnızca graf'taki türetilmiş görünüm.
+
+- **Onarımın üç koruması, üçü de ölçümden.** (a) *Küçülme oranı ≥ 1.5*: saklanan metin yeni
+  gövdeden belirgin uzun olmalı. (b) *İçerilme ≥ 0.8*: yeni gövde saklanan metnin içinde
+  olmalı — değilse sayfa toplandığından beri değişmiştir ve onarım sessizce YENİ bir içerik
+  yazmış olurdu; gözlem artık gözlemlenen şey olmazdı. (c) *Havuz yalnızca web-mode*:
+  ilk denemede filtre yokken 30 gözlemin 7'si "onarılabilir" çıktı ve 6'sı CISA'nın **RSS**
+  gözlemiydi. Onları onarmak onarım değil, kaynağı değiştirmekti (RSS özeti yerine sayfa
+  gövdesi) — üstelik eşiğin hangi tarafına düştükleri keyfiydi (1.13 ile 1.55 arası).
+
+- **web/rss ayrımı artık tahmin değil.** `Observation.text_source` DOCINT'te zaten vardı
+  (`ocr`/`extracted`), collector tarafı boş bırakıyordu; bundan sonra `"rss"`/`"web"` yazıyor.
+  Faz 25'ten ÖNCEKİ kayıtlar için ayrım toplama yolunun yapısal izinden okunuyor:
+  `mode=rss` yayın tarihini feed'den alır (Faz 11/F1), `mode=web`in tarihi yoktur ve
+  `observed_at` kayıt anına düşer. Ölçüldü: 375 gözlemin **tam 3'ünde** `observed_at ==
+  created_at` ve üçü de elle yapılmış web toplamaları; 372 RSS gözleminin hiçbiri havuza
+  girmiyor.
+
+- **Doğrulama (2026-09-09).** Onarımdan sonra aynı sayfa `mode=web` ile yeniden toplandı:
+  `duplicates_skipped=1, observations_created=0` — yani toplama yolu ile onarım yolu
+  bayt bayt aynı metni üretiyor. Ayrıca kayisu.github.io gözlemi 2723 → 533 (Faz 11/F21'in
+  "137 satırın 74'ü tekrar" bulgusunun kalıntısı), CISA'nın 21 RSS gözlemine dokunulmadı.
+
+- **Açık kalan:** claim metni medyanı 221 — yani asıl kütle hâlâ RSS başlık+özeti. `mode=web`
+  bu projede nadir kullanılıyor; bu ayrıştırıcının asıl bedeli Faz 26'da (kanıt arşivi
+  her claim'in kaynağını çekecek) ve web-mode taramalar yaygınlaştığında görülecek.
 
 ### Faz 26: Kanıt Katmanı — confidence'ın açılmamış %20'si
 

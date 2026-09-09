@@ -847,6 +847,37 @@ class CollectorFetchRequest(BaseModel):
     since_days: int | None = Field(default=None, ge=1)
 
 
+class ReparseRequest(BaseModel):
+    """Faz 25 — saklanmış `mode=web` metnini yeni ayrıştırıcıyla onarma isteği."""
+
+    # Boş bırakılırsa aday havuzu kendisi belirlenir: URL'i olan ve DOCINT'ten gelmeyen
+    # gözlemler. Belirli id'ler verilirse yalnızca onlara bakılır.
+    observation_ids: list[str] | None = None
+    # Varsayılan KURU: bu uç var olan veriyi ÜZERİNE yazıyor. Ne yazılacağını görmeden
+    # yazmak, düzeltmeye çalıştığımız sessiz bozulmanın aynısını üretirdi.
+    dry_run: bool = True
+
+
+class ReparseItem(BaseModel):
+    observation_id: str
+    source_url: str | None = None
+    action: str  # "onarildi" | "onarilabilir" | "atlandi"
+    reason: str | None = None
+    old_length: int
+    new_length: int | None = None
+    containment: float | None = None
+    new_headline: str | None = None
+    claim_ids: list[str] = []
+
+
+class ReparseResult(BaseModel):
+    dry_run: bool
+    considered: int
+    repaired: int
+    repairable: int
+    items: list[ReparseItem]
+
+
 SCAN_MODES = ("rss", "web")
 
 # Varsayılan aralık: 3 saat. Faz 11'in gerçek kullanım deseni (günde bir-iki oturum, izlenen

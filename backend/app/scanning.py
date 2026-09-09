@@ -27,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from app.collector import (
     CollectorFetchError,
     CollectorSecurityError,
-    extract_text_from_html,
+    extract_content_from_html,
     load_allowlist,
     parse_rss,
     safe_fetch,
@@ -140,7 +140,7 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
         ]
     else:
         available = 1
-        candidates = [{"text": extract_text_from_html(content), "url": final_url, "published": None}]
+        candidates = [{"text": extract_content_from_html(content), "url": final_url, "published": None}]
 
     seen = _existing_pairs([c["url"] for c in candidates])
     created: list[Observation] = []
@@ -152,7 +152,14 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
             continue
         created.append(
             create_observation_record(
-                raw_content=c["text"], observed_at=c["published"], source_url=c["url"]
+                raw_content=c["text"], observed_at=c["published"], source_url=c["url"],
+                # Faz 25: gözlemin metninin HANGİ yoldan çıktığı kayda geçiyor. Bu alan
+                # DOCINT'te ("ocr"/"extracted") zaten aynı işi görüyordu; collector tarafı
+                # boş bırakıyordu ve sonuç şuydu: elimizde bozuk bir metin varken onun
+                # RSS özeti mi yoksa web sayfası dökümü mü olduğunu ancak tahmin
+                # edebiliyorduk. Yeniden ayrıştırma (`POST /collectors/reparse`) yalnızca
+                # "web" olanları hedefleyebilsin diye yazılıyor.
+                text_source=mode,
             )
         )
         seen.add(key)
