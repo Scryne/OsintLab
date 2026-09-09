@@ -351,7 +351,7 @@ başına alması — Design Principle #7.
 | --- | --- | --- | --- |
 | 25 | Toplanan İçeriğin Temizlenmesi | ✅ Bitti | `mode=web` ile toplanan içerik boilerplate'inden ayrıştırılıyor (başlık + gövde), claim metni sayfanın tamamı olmuyor. Bitti sayılması için mevcut 9370 karakterlik claim'in onarılmış **ve tek bir claim'den doğan 57 sahte entity adayının kaybolmuş** olması gerekir. |
 | 26 | Kanıt Katmanı: confidence'ın açılmamış %20'si | ✅ Bitti | Bir claim promote edilirken dayandığı içeriğin arşiv kopyası (ham metin + hash + URL + zaman) Evidence olarak kaydedilebiliyor. Bitti sayılması için kanıt alt-skoru sıfır olan claim sayısının 54'ten belirgin biçimde düşmüş **ve en az bir claim'in yalnızca kanıt sayesinde durum değiştirmiş** olması gerekir. |
-| 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ⏳ Bekliyor | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
+| 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ✅ Bitti | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
 | 28 | Tek Kaynak Baskınlığı | ⏳ Bekliyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
 
 ## v5 bittikten sonra nasıl ilerlenecek
@@ -3086,6 +3086,68 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Sinyal skoru graf'ın yeni eksenlerini kullanıyor; kaynak/host bazında
   toplu eleme var. **Fazın sınavı:** 117 bekleyen gözlem eritilmiş ve skor dağılımı tek
   noktada yığılmaktan çıkmış olmalı.
+
+- **✅ Bitti (2026-09-09).** Sınavın iki yarısı da geçildi. Bekleyen gözlem **142 → 49**
+  (ölçüm anında kuyruk 117'den 142'ye çıkmıştı). Skor dağılımı **iki etkin noktadan 24 farklı
+  skora**: önce 114 öğe (%80) tek bir değerde (0.07) ve 26 öğe 0.47'de duruyordu; şimdi en
+  büyük kova 9 öğe (%18) ve skorlar 0.22–0.94 arasına yayılmış.
+
+- **Her yeni sinyal eklenmeden ÖNCE gerçek kuyrukta ölçüldü** (Faz 20'nin dersi). Ateşleme
+  sayıları: `EVENT_MATCH` 5, `RELATED_PAIR` 5, `MULTI_ENTITY` 9, `PENDING_CANDIDATE` 26,
+  `DISMISSED_CANDIDATE` 3.
+
+- **İki aday ölçülüp ELENDİ — "ateş ediyor" ile "ayırt ediyor" aynı şey değil.**
+  - *Doğrulama benzerliği* ("bu gözlem var olan bir claim'i doğruluyor olabilir", başlık
+    token'larının Jaccard'ı): 142 öğenin **yalnızca 1'i** 0.20'yi geçti, 80'i 0.1 bandında
+    yığıldı. Eklenmedi.
+  - *THIN_ENTITY* ("hakkında az şey bildiğimiz entity'ye değiyor"): kuyrukta 23 kez ateşledi
+    ve iyi görünüyordu, ama grafın kendisi ölçülünce çöktü — **58 entity'nin 56'sının hiç
+    claim'i yok**, birinin 28'i var. "İnce entity" pratikte "tüm entity'ler" demek:
+    `KNOWN_ENTITY`'nin sabit bir yol arkadaşı, ayrı bir bilgi değil. Çıkarıldı. (Bu ölçümün
+    kendisi ayrı bir bulgu: claim–entity bağının bu kadar seyrek olması Faz 21'in alanına
+    giriyor.)
+
+- **Kuyruğun asıl sorunu ölçümde ortaya çıktı: 142 öğenin 116'sında hiçbir entity
+  eşleşmiyordu.** Yani grafın yeni eksenleri (olay, ilişki, çoklu entity) yalnızca zaten
+  yüksek olan 26 öğeyi daha da ayrıştırıyor, asıl yığına dokunmuyordu. O yığını kırabilen
+  tek pozitif sinyal **entity ADAYLARI** oldu: claim metinlerinden çıkarılmış ama henüz
+  karara bağlanmamış adlar. 26 öğede ateşliyor ve **23'ünde başka hiçbir pozitif sinyal
+  yok** — sistemin kendi çıkardığı ama kullanıcının henüz onaylamadığı bilgi, kuyruğu
+  ayrıştırmak için kullanılabiliyor.
+
+- **Q14'ün v1 kararı gözden geçirildi.** "Kullanıcının davranışı loglanır ama
+  prioritization'ı otomatik etkilemez" v1'de doğruydu: elde karar yoktu. Bugün 377 gözlemin
+  180'i elle elenmiş ve host bazında karar oranı graf'taki herhangi bir sinyalden daha
+  ayırt edici. `HOST_HISTORY` sinyali eklendi. Döngü riski üç şekilde sınırlandı: ağırlık
+  küçük, sinyal yalnızca sıralar (hiçbir şeyi gizlemez), ve gerekçe listesinde açıkça yazılır
+  ("bu kaynakta karar verdiğin 58 gözlemin 28'ini tutmuşsun").
+
+- **Bu sinyalin İŞARETİ de ölçümle seçildi.** İlk hali negatifti ("çok elediğin kaynağı aşağı
+  çek", −0.15 × oran) ve dağılımı BOZDU: entity eşleşmesi olmayan bir gözlemin tabanı yalnızca
+  `SOURCE_RELIABILITY` (0.07) olduğu için ceza tabanı eziyor, **59 öğe 0.0'da yeni bir yığın**
+  oluşturuyordu — kırmaya çalıştığımız problemin aynısı, başka bir noktada. Aynı bilgi pozitif
+  yazıldığında (az elediğin kaynak puan KAZANIR) sıralama monoton yayılıyor ve taban görünmüyor.
+
+- **Paydanın "karar verilmiş" olması gerektiği de ölçümle bulundu.** İlk hesap elenmiş/TOPLAM
+  alıyordu ve arstechnica ile wired'ı "%0 eleniyor" gösteriyordu — oysa o 30 gözlemin hiçbirine
+  daha bakılmamıştı (Faz 24'te eklenen taze kaynaklar). Doğru payda **elenmiş + claim üretmiş**;
+  o hesapla tablo tamamen değişiyor: openai %51 (58 karar), securityaffairs %69 (23),
+  theverge %82 (45), techcrunch %82 (52), krebsonsecurity %90 (10), bleepingcomputer %93 (15),
+  cisa.gov %100 (30). Kararı olmayan kaynak bu sinyali **hiç almaz** — "bilinmiyor" ile "hep
+  eleniyor" aynı şey değildir.
+
+- **Kuyruk nasıl eritildi.** Grafa hiçbir şekilde değmeyen (bilinen entity, olay, ilişki ya da
+  aday ad eşleşmesi olmayan) **93 gözlem** toplu elendi; gerekçe kayda geçti ("Faz 27
+  kalibrasyonu: grafa hiç değmiyor"). Örnekleme yapılarak bakıldı: elenenler oyuncu kulaklığı
+  indirimi, kamera incelemesi, Labor Day kampanyası, grafın konusuyla ilgisiz malware haberleri.
+  Kalan 49'un hepsi konu içi ve **26'sı yüksek sinyalli** — promote kararı insanındır
+  (Design Principle #7), o yüzden hiçbiri otomatik promote EDİLMEDİ. Eleme geri alınabilir:
+  kuyruk sayfasındaki "Geri al", ya da `POST /observations/undismiss`.
+
+- **Toplu eleme zaten vardı** (host filtresi + bant filtresi + görünenleri seç + gerekçeli
+  toplu eleme, Faz 16). Bu fazda eklenen tek arayüz düzeltmesi: negatif ağırlıklı bir gerekçe
+  ilk kez oluştuğu için rozet "+-0.10" yazıyordu; işaret düzeltildi ve negatif gerekçe ayrı
+  renkte gösteriliyor.
 
 ### Faz 28: Tek Kaynak Baskınlığı
 

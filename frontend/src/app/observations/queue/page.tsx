@@ -464,14 +464,22 @@ function QueueRow({
 
 function ReasonLine({ reason }: { reason: SignalReason }) {
   const informational = reason.weight === 0;
+  // Faz 27 negatif ağırlıklı bir gerekçe getirdi (elediğin bir adın geçmesi). Önceki hal
+  // her ağırlığın başına "+" koyuyordu; "+-0.10" hem yanlış hem okunmaz olurdu.
+  const negative = reason.weight < 0;
+  const sign = reason.weight > 0 ? "+" : "";
   return (
     <li className="flex items-start gap-2 text-xs leading-relaxed">
       <span
         className={`mt-px shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
-          informational ? "bg-priority-medium/15 text-priority-medium-text" : "bg-white/10 text-text-secondary"
+          informational
+            ? "bg-priority-medium/15 text-priority-medium-text"
+            : negative
+              ? "bg-priority-high/15 text-priority-high-text"
+              : "bg-white/10 text-text-secondary"
         }`}
       >
-        {informational ? "uyarı" : `+${reason.weight.toFixed(2)}`}
+        {informational ? "uyarı" : `${sign}${reason.weight.toFixed(2)}`}
       </span>
       <span className="text-text-secondary">{reason.text}</span>
     </li>
