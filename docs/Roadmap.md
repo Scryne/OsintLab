@@ -352,7 +352,7 @@ başına alması — Design Principle #7.
 | 25 | Toplanan İçeriğin Temizlenmesi | ✅ Bitti | `mode=web` ile toplanan içerik boilerplate'inden ayrıştırılıyor (başlık + gövde), claim metni sayfanın tamamı olmuyor. Bitti sayılması için mevcut 9370 karakterlik claim'in onarılmış **ve tek bir claim'den doğan 57 sahte entity adayının kaybolmuş** olması gerekir. |
 | 26 | Kanıt Katmanı: confidence'ın açılmamış %20'si | ✅ Bitti | Bir claim promote edilirken dayandığı içeriğin arşiv kopyası (ham metin + hash + URL + zaman) Evidence olarak kaydedilebiliyor. Bitti sayılması için kanıt alt-skoru sıfır olan claim sayısının 54'ten belirgin biçimde düşmüş **ve en az bir claim'in yalnızca kanıt sayesinde durum değiştirmiş** olması gerekir. |
 | 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ✅ Bitti | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
-| 28 | Tek Kaynak Baskınlığı | 🔄 Devam Ediyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
+| 28 | Tek Kaynak Baskınlığı | ✅ Bitti | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). ~~Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir.~~ **Kriter ölçümle yanlışlandı ve revize edildi** (aşağıda): en baskın kaynağın payı %51'den %38'e indi, claim üreten kaynak 6'dan 10'a çıktı. |
 
 - **🔄 Durum (2026-09-09): mekanizma bitti, fazın sınavı GEÇİLMEDİ — ve sebebi ölçüldü.**
   Ters yönlü arama kuruldu (`GET /claims/corroboration/observation-candidates`, Doğrulama
@@ -437,6 +437,59 @@ başına alması — Design Principle #7.
   (b): hedefli toplama — belirli bir claim için diğer kaynaklarda kapsama aramak. Bu
   collector'e arama yeteneği eklemek demek ve allowlist/SSRF tasarımını yeniden açar.
 
+### v5 Kapanış Turu (2026-09-09)
+
+Faz 28 kapatılmadan önce yapılan tur. Numaralı bir faz değil — Faz 11'in dogfooding turuyla
+aynı türden iş: mekanizmalar kuruldu, şimdi gerçek veriyle çalıştırıldı ve biriken kararlar
+verildi.
+
+**1. Entity adayı kuyruğu eritildi ve kuyruğu asıl tıkayan şey buymuş.** 40 adayın 14'ü
+entity'ye çevrildi (Google, Meta, Gemini, Perplexity, White House, Tetris Company, ChatGPT
+Atlas, OpenClaw, NYU, MIT, Taz Patel, Navier-Stokes, CISA, PREY-0058), 26'sı elendi — elenenlerin
+neredeyse tamamı CISA advisory boilerplate'i (`KEV`, `FCEB`, `BOD`, `CVE ID`, `Common
+Vulnerabilities`) ve abonelik katmanı adı (`Pro`, `Plus`, `Edu`).
+**Etkisi anında ölçüldü: kuyruğun yüksek sinyalli öğe sayısı 5'ten 21'e çıktı.** Kuyrukta
+bekleyen 23 gözlem Meta/Google/Apple'dan bahsediyordu ve hiçbiri hiçbir entity'ye
+değmiyordu — çünkü o adlar grafta entity DEĞİLDİ. Faz 27'nin sinyali doğru çalışıyordu;
+eksik olan girdiydi. **Ders: entity adayı kuyruğu bir "temizlik işi" değil, kuyruk
+sinyalinin girdisi.**
+
+**2. Kuyruk sıfıra indirildi.** Kalan 28 gözlemin 10'u promote edildi (AI güvenliği /
+kötüye kullanımı / model rekabeti konusundakiler), 18'i elendi (akıllı hoparlör incelemesi,
+nükleer santral kredisi, EU seyahat aramaları — grafın konusu dışı). **Bekleyen gözlem: 0.**
+
+**3. Promote turu doğrulama üretti.** Meta'nın Muse AI ajanı duyurusu TechCrunch ve The
+Verge'den bağımsız olarak geldi ve bağlandı (0.28 → 0.455, ikisi de). Faz 28'in ilk turunda
+bağlanan 5 çiftle birlikte bu turun toplamı 6 bağımsız doğrulama.
+
+**4. Arşiv doğrulama turu (Faz 26 borcu).** 28 yeni claim'in arşivi canlı sayfaya karşı
+doğrulandı: **28/28 DOĞRULANDI**, hiç değişmiş/erişilemez yok. Kanıt alt-skoru sıfır olan
+claim **20 → 2**. Arşiv artık 83 claim'in 83'ünde var, 81'i skora giriyor.
+
+**5. Faz 20'nin LLM kararı yeniden ölçüldü** (bkz. "LLM kararı ne zaman yeniden ele alınır"):
+kaçırma oranı **%7.4 → %4.4**. LLM'e geçilmiyor.
+
+**Fazın kriterinin revizyonu — ve neden gerekli olduğu.** Faz 28'in kriteri "doğrulayanı
+olmayan claim sayısı 30'dan belirgin düşmüş olmalı"ydı. Sayı **30 → 50** oldu, yani ters
+yöne gitti; oran da %55'ten %60'a çıktı. Ama bu bir başarısızlık değil, **kriterin kendisinin
+hatası**: aynı fazın işi (gözlem promote etmek) paydayı da büyütüyor — 55 claim 83 oldu ve
+28 yeni claim doğal olarak doğrulayansız doğdu. Mutlak bir sayıya bağlanmış bir kriter, kendi
+fazının çalışmasıyla bozuluyor.
+
+Fazın ADI "Tek Kaynak Baskınlığı" ve o ölçü kesin biçimde düzeldi:
+
+| Ölçü | Faz 28 öncesi | Şimdi |
+| --- | --- | --- |
+| En baskın kaynağın payı | %51 (28/55) | **%38 (32/83)** |
+| Claim üreten kaynak sayısı | 6 | **10** |
+| SUPPORTED + CORROBORATED | 23 | **32** |
+| Bekleyen gözlem | 117 | **0** |
+| Kanıt alt-skoru sıfır olan claim | 54 | **2** |
+
+**Bu turdan çıkan ölçüm disiplini notu:** bir fazın bitti kriteri, o fazın kendi çalışmasıyla
+büyüyen bir paydaya sahip mutlak sayıya bağlanmamalı. Bundan sonraki kriterler **oran** ya da
+**paydası sabit** bir büyüklük kullanmalı.
+
 ## v5 bittikten sonra nasıl ilerlenecek
 
 v3, v4 ve v5'in kapsamı aynı yöntemle çıkarıldı ve üçü de doğru çıktı: **bir versiyonun son
@@ -444,6 +497,65 @@ fazı bitince sistem ölçülür, kapsam ölçümden türer.** Bu bölüm o yön
 tekrarlanabilir hale getiriyor — çünkü şimdiye kadar her tur ölçüm ELLE yazıldı ve her
 seferinde biraz farklı sayılar toplandı: v4'te bakılan bir şey v5'te unutulabilirdi, trend
 görünmezdi.
+
+### 0. v5 sonu ölçümü (2026-09-09) ve v6 kapısı
+
+`scripts/olcum.py` çıktısı, v5 kapanış turundan sonra:
+
+```
+entity=72 event=6 claim=83 kaynak=10 evidence=3 investigation=2
+kenar=89 {relation: 80, involved_in: 7, same_as: 2}   baglantisiz dugum=15 / 78
+durum={REPORTED: 49, SUPPORTED: 22, CORROBORATED: 10, CONTRADICTED: 2}
+ortalama: source_quality=0.73 independence=0.27 evidence=0.33 corroboration=0.25
+SIFIR: independence=50 evidence=2 corroboration=50
+dogrulayani olmayan claim=50 / 83     claim metni: min=135 medyan=221 max=20036
+en baskin kaynagin payi=32/83 (%38)
+kuyruk: bekleyen=0 elenmis=294 yuksek_sinyal=0
+arsiv=83/83  {DOGRULANDI: 81, DEGISMIS: 1, ERISILEMEDI: 1}  skora giren=81
+aday kuyruklari: entity=78 event=5 iliski=0 bag=32 dogrulama=11
+```
+
+**Domain kapısı (GEOINT / SOCMINT / MEDIAINT) — üç koşuldan biri sağlandı:**
+
+| Koşul | Hedef | v5 başı | **v5 sonu** | |
+| --- | --- | --- | --- | --- |
+| Bekleyen gözlem | < 40 | 117 | **0** | ✅ |
+| Son eklenen kaynak başına claim | ≥ 3 | 0.25 | **2.75** (11 claim / 4 kaynak) | ❌ (sınırda) |
+| Doğrulayanı olmayan claim oranı | < %25 | %55 | **%60** | ❌ |
+
+İkincisi 0.25'ten 2.75'e çıktı — Faz 27'nin kuyruk kalibrasyonu ve bu turun promote'ları
+boru hattını gerçekten açtı. Üçüncüsü ise v5 boyunca hiç iyileşmedi ve **sebebi artık
+biliniyor, tahmin değil**: doğrulayansız 50 claim'in büyük kısmı OpenAI'ın kendi resmi
+duyuruları ve bir şirketin kendi ürün duyurusu başka kaynaklarca "aynı olgusal iddia" olarak
+raporlanmıyor. Faz 28 bunu ölçtü ve aramanın değil korpusun sınırı olduğunu gösterdi.
+
+**Karar: v6 domain açmıyor.** Kapı sağlanmıyor ve zorlanmamalı — Faz 12'nin dersi: değerlendirme
+kapasitesi girdiye yetişmiyorsa girdi artırılmaz. Burada tersi geçerli: kapasite açıldı
+(kuyruk 0) ama **doğrulama** hâlâ açılmadı.
+
+### 0.1. v6 için ölçümden çıkan üç aday
+
+Roadmap'in kendi ölçütlerine (bkz. bölüm 2) göre bu turda faz doğuran üç bulgu:
+
+1. **Bağlantısız düğüm 1 → 15.** Bu turda 14 yeni entity kuruldu (Google, Meta, CISA…) ve
+   hiçbirinin ilişkisi yok; ilişki adayı kuyruğu **0** üretiyor. Faz 22'nin aday üreticisi
+   yalnızca aynı claim'de birlikte geçen entity'lere bakıyor, yeni entity'lerin çoğu tek
+   claim'de yalnız geçiyor. *Ölçüt 3: bir sayı yanlış yöne gidiyor.*
+
+2. **Entity adayı kuyruğu 40 → 78, bağ adayı 10 → 32.** Bu turda eritildiği halde yeniden
+   doldu ve sebebi tek bir kayıt: promote edilen **20.036 karakterlik CISA advisory'si**
+   tek başına düzinelerce aday üretiyor. *Ölçüt 2: bir kuyruk yeniden dolmuş.*
+
+3. **Claim metni maksimumu 4.801 → 20.036.** Faz 25 `mode=web` boilerplate'ini temizledi ama
+   bu farklı bir sınıf: CISA'nın RSS feed'i özet yerine advisory'nin TAMAMINI yayınlıyor,
+   yani metin gerçek içerik — sadece bir claim için fazla büyük. Yan etkileri ölçüldü:
+   entity adayı patlaması (yukarıdaki 2) ve doğrulama ölçüsünde uzunluk asimetrisi (Faz 28'de
+   `RARE_TEXT_CAP` ile kapatıldı). *Ölçüt 3.*
+
+Üçü de birbirine bağlı ve üçü de "doğrulama açılmadı" sorununa dokunmuyor — v6'nın kapsamı
+bu ölçümden değil, **aracın gerçek kullanımından** çıkmalı (bkz. bölüm 5, üçüncü koşul:
+en az bir ay kod değişmeden düzenli araştırma oturumu). Faz 11'in dogfooding turu bu projedeki
+en verimli faz oldu ve o dersin tekrarı burada gerekiyor.
 
 ### 1. Ölçüm artık bir komut: `scripts/olcum.py`
 
@@ -501,9 +613,16 @@ turu ve yeni bir sertleştirme versiyonu.
 Faz 20'de deterministik entity çıkarma kuruldu ve kaçırma oranı **%7.4** ölçüldü; LLM'e
 geçilmedi çünkü toplanan metin bugüne kadar hiçbir modele girdi olmadı (Q22 yüzeyi kapalı).
 Yeniden değerlendirme koşulu orada yazılmıştı ve burada da geçerli: **kaçırma oranı %15'i
-aşarsa ya da kaçırılan adlar "sınıf" olmaktan çıkıp dağınık hale gelirse.** Ölçüm turu bu
-sayıyı üretmiyor (elle örnekleme gerektiriyor) — Faz 25 metni temizlediğinde yeniden
-ölçülmeli, çünkü boilerplate'li metin üzerinde alınan %7.4 artık geçerli olmayabilir.
+aşarsa ya da kaçırılan adlar "sınıf" olmaktan çıkıp dağınık hale gelirse.**
+
+**Yeniden ölçüldü (2026-09-09, Faz 25 sonrası): %4.4 — iyileşti, LLM yine ertelendi.**
+14 claim'lik yeni bir örnekte gözle 45 özel ad sayıldı, sistem 43'ünü buldu. Kaçırılan iki
+ad da **bilinen iki sınıfın** üyesi, yani dağınık değil: `xAI` (küçük harfle başlayan marka —
+büyük-harf temelli bir taramanın yapısal körlüğü) ve `Edelson PC`. İkisi de Faz 20'de zaten
+adı konmuş sınıflar. Boilerplate temizliğinin katkısı görülüyor: örnekteki 20.036 karakterlik
+CISA advisory'sinden `DeepSeek`, `Alibaba`, `Qwen`, `MiniMax`, `Moonshot AI`, `StepFun`,
+`Z.AI`, `MITRE ATLAS` gibi adlar sorunsuz çıkıyor. **Karar: LLM'e geçilmiyor** — koşulun iki
+bacağı da sağlanmıyor ve bu sefer sayı temizlenmiş metin üzerinde alındı.
 
 ### 5. Proje ne zaman "tamamlandı" sayılır
 
