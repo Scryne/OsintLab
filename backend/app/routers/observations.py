@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
-from app import docint, triage
+from app import archive, docint, triage
 from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
 from app.models import (
     Claim,
@@ -273,6 +273,14 @@ def _create_claim_from_observation(
             f"SET {clear} CREATE (o)-[:PRODUCED]->(c)",
             {"oid": observation.id, "cid": claim.id},
         )
+
+    # Faz 26: arşiv kopyası promote anında, OTOMATİK oluşuyor. Kullanıcı onayına
+    # bağlanmadı çünkü arşiv bir DEĞERLENDİRME değil, bir KAYIT: "bu iddia şu metne
+    # dayanıyordu". Onaya bağlansaydı, onaylanmayan claim'lerin dayanağı yine
+    # `source_url`den ibaret kalır ve faz kendi sorununu çözmezdi. Ağ kullanmadığı
+    # için toplu promote'u da yavaşlatmıyor. Skora girmesi ayrı bir karardır ve
+    # doğrulamaya bağlıdır (bkz. app/archive.py).
+    archive.create_archive(conn, claim.id)
     return claim
 
 

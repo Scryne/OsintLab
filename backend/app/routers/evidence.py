@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 
-from app import doc_worker, docint
+from app import archive, doc_worker, docint
 from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
 from app.models import (
     Evidence,
@@ -654,15 +654,22 @@ def unlink_evidence_from_claim(evidence_id: str, claim_id: str) -> None:
 
 
 @router.get("", response_model=list[EvidenceVaultItem])
-def list_evidence() -> list[EvidenceVaultItem]:
+def list_evidence(include_archives: bool = False) -> list[EvidenceVaultItem]:
     """Evidence Vault listesi: her kanıt, bağlı claim'leri ve dosyasının gerçekten var olup
     olmadığıyla birlikte.
 
     `has_file` hesaplanan bir alan: `file_path` dolu olsa bile dosya yerinde olmayabilir
     (elle girilmiş bir yol, ya da taşınmış bir dosya). Bunu göstermemek, indirilemeyen bir
-    kanıtı indirilebilir gibi sunmak olurdu."""
+    kanıtı indirilebilir gibi sunmak olurdu.
+
+    Faz 26: arşiv kayıtları varsayılan olarak DIŞARIDA. Kasa, kullanıcının kendi eklediği
+    kanıtların yeri; arşiv ise her promote'ta kendiliğinden oluşan bir provenance kaydı.
+    Karıştırılsalardı 3 belgelik kasa bir gecede 58 satır olur ve elle yüklenen kanıt
+    kendi kasasında kaybolurdu. Arşivlerin yeri `/archive`."""
     conn = get_connection()
-    result = conn.execute(f"MATCH (ev:Evidence) RETURN {_FIELDS} ORDER BY ev.created_at")
+    where = "" if include_archives else "WHERE ev.evidence_type <> $archive_type "
+    params = {} if include_archives else {"archive_type": archive.ARCHIVE_TYPE}
+    result = conn.execute(f"MATCH (ev:Evidence) {where}RETURN {_FIELDS} ORDER BY ev.created_at", params)
     items = []
     for row in fetch_all(result):
         items.append(

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  Archive,
   CalendarClock,
   Compass,
   Database,
@@ -46,6 +47,10 @@ const NAV = [
   // bilginin güvenilirlik kazandığı adım.
   { href: "/corroboration", label: "Doğrulama", icon: Link2 },
   { href: "/evidence", label: "Kanıt Kasası", icon: FileCheck },
+  // Faz 26: arşiv kasadan AYRI bir satır. Kasa kullanıcının kendi yüklediği kanıtın yeri;
+  // arşiv her promote'ta kendiliğinden oluşan bir provenance kaydı. Aynı listeye konsalardı
+  // 3 belgelik kasa bir gecede 58 satır olur, elle yüklenen kanıt kendi kasasında kaybolurdu.
+  { href: "/archive", label: "Kaynak Arşivi", icon: Archive },
   { href: "/collectors", label: "Toplayıcılar", icon: Rss },
   // Faz 20: entity'ler bugüne kadar yalnızca ELLE yaratıldı (5 tane); claim metinlerindeki
   // düzinelerce ad hiçbir yerde önerilmiyordu.

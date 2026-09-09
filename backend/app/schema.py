@@ -86,6 +86,11 @@ NODE_TABLES = [
         text_source STRING,
         ocr_confidence DOUBLE,
         ocr_lang STRING,
+        archive_url STRING,
+        archive_status STRING,
+        archive_checked_at TIMESTAMP,
+        archive_match DOUBLE,
+        archive_note STRING,
         PRIMARY KEY(id)
     )
     """,
@@ -233,6 +238,12 @@ REL_TABLES = [
     "CREATE REL TABLE IF NOT EXISTS MENTIONS(FROM Claim TO Entity, matched_on STRING, status STRING, created_at TIMESTAMP)",
     "CREATE REL TABLE IF NOT EXISTS ABOUT_EVENT(FROM Claim TO Event)",
     "CREATE REL TABLE IF NOT EXISTS SUPPORTS(FROM Evidence TO Claim)",
+    # Faz 26 — arşiv bağı. SUPPORTS'tan AYRI bir kenar olması bu fazın merkezi kararı:
+    # arşiv, iddianın DOĞRU olduğunun kanıtı değil, kaynağın onu söylediğinin kaydıdır.
+    # Aynı kenarı kullansaydı her claim kendi kaynağının kopyasıyla "kanıtlı" sayılır ve
+    # kanıt alt-skoru source_quality'nin kopyası olurdu. SUPPORTS ancak arşiv CANLI
+    # sayfaya karşı doğrulandığında kurulur (bkz. app/archive.py).
+    "CREATE REL TABLE IF NOT EXISTS ARCHIVES(FROM Evidence TO Claim, created_at TIMESTAMP)",
     "CREATE REL TABLE IF NOT EXISTS CONTRADICTS(FROM Evidence TO Claim)",
     "CREATE REL TABLE IF NOT EXISTS INCLUDES(FROM Investigation TO Entity)",
     # Faz 15.3 (DOCINT): belge metadata'sindaki bir alanin (ornegin /Author) grafta bilinen
@@ -315,6 +326,18 @@ COLUMN_ADDITIONS = [
     "ALTER TABLE Observation ADD IF NOT EXISTS dismissed BOOLEAN",
     "ALTER TABLE Observation ADD IF NOT EXISTS dismissed_at TIMESTAMP",
     "ALTER TABLE Observation ADD IF NOT EXISTS dismiss_reason STRING",
+    # Faz 26 (Kanıt Katmanı) — bir claim'in dayandığı sayfanın arşiv kopyası. Evidence
+    # tablosunun kendi `file_path`/`content_hash`/`collected_at` alanları zaten var; eksik
+    # olan, arşivin NEREDEN geldiği ve o kaynağın HÂLÂ aynı şeyi söyleyip söylemediğiydi.
+    #
+    # `archive_status`: ARSIVLENDI (henüz canlıya karşı bakılmadı) | DOGRULANDI (canlı sayfa
+    # hâlâ aynı metni içeriyor) | DEGISMIS (sayfa değişti, arşiv artık tek kayıt) |
+    # ERISILEMEDI (404/engel/DNS — `source_url` ölü bağlantıya döndü).
+    "ALTER TABLE Evidence ADD IF NOT EXISTS archive_url STRING",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS archive_status STRING",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS archive_checked_at TIMESTAMP",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS archive_match DOUBLE",
+    "ALTER TABLE Evidence ADD IF NOT EXISTS archive_note STRING",
 ]
 
 

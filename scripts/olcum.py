@@ -91,6 +91,17 @@ def main() -> int:
     print("host=%s" % dict(collections.Counter(i.get("host") or "?" for i in queue["items"])))
 
     print()
+    print("### Arsiv (provenance)")
+    # Faz 26'nin actigi eksen. "Kac claim'in dayanagi hala ayakta" sorusu zamanla ANLAM
+    # KAZANIR: bugun kaynaklarin neredeyse hepsi duruyor, link rot yasla birlikte artar.
+    # Olcum setine simdi giriyor ki trend gorulebilsin.
+    archives = get("/archive")
+    print("arsiv=%d / %d claim (arsivi olmayan=%d)"
+          % (len(archives), len(claims), len(get("/archive/pending"))))
+    print("durum=%s" % dict(collections.Counter(a["archive_status"] for a in archives)))
+    print("skora giren=%d" % sum(1 for a in archives if a["scored"]))
+
+    print()
     print("### Bekleyen kararlar (aday kuyruklari)")
     print("entity=%d event=%d iliski=%d bag=%d dogrulama=%d" % (
         len(get("/entities/candidates")),

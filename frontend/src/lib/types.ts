@@ -653,6 +653,15 @@ export interface ClaimExplain {
     // doğruluyor ama bağımsızlık skoruna İKİNCİ kez katkı yapmıyor.
     counts_for_independence: boolean;
   }[];
+  /** Faz 26 — kanıt alt-skorunun kaynağı. Arşiv kayıtları `archive_status` ile ayrışıyor:
+   *  bir arşiv skora ancak DOGRULANDI durumundayken girer. */
+  evidence_from: {
+    evidence_id: string;
+    evidence_type: string;
+    archive_status: ArchiveStatus | null;
+    archive_url: string | null;
+    content_hash: string | null;
+  }[];
 }
 
 
@@ -779,4 +788,64 @@ export interface GraphEdge {
 export interface EntityGraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
+}
+
+/** Faz 26 — bir claim'in dayandığı içeriğin arşiv kopyası.
+ *
+ * `scored` arşivin VARLIĞINDAN ayrı bir soru: arşiv her promote'ta oluşur ama confidence'a
+ * ancak canlı sayfaya karşı doğrulandığında girer. İkisini tek bir alana toplamak, fazın
+ * merkezi ayrımını (kayıt ≠ kanıt) arayüzde görünmez kılardı. */
+export type ArchiveStatus = "ARSIVLENDI" | "DOGRULANDI" | "DEGISMIS" | "ERISILEMEDI";
+
+export interface ArchiveRecord {
+  evidence_id: string;
+  claim_id: string;
+  archive_url: string | null;
+  archive_status: ArchiveStatus;
+  archive_status_label: string;
+  archive_match: number | null;
+  archive_checked_at: string | null;
+  archive_note: string | null;
+  content_hash: string | null;
+  collected_at: string | null;
+  claim_headline: string | null;
+  claim_state: KnowledgeState | null;
+  claim_confidence: number | null;
+  scored: boolean;
+}
+
+export interface ArchiveBatchResult {
+  created: number;
+  already: number;
+  skipped: number;
+  items: {
+    claim_id: string;
+    action: string;
+    evidence_id: string | null;
+    archive_status: string | null;
+    reason: string | null;
+  }[];
+}
+
+export interface ArchiveVerifyItem {
+  evidence_id: string;
+  claim_id: string;
+  status: ArchiveStatus | null;
+  status_label: string | null;
+  match: number | null;
+  note: string | null;
+  scored: boolean;
+  confidence_before: number | null;
+  confidence_after: number | null;
+  state_before: KnowledgeState | null;
+  state_after: KnowledgeState | null;
+}
+
+export interface ArchiveVerifyResult {
+  checked: number;
+  verified: number;
+  changed: number;
+  unreachable: number;
+  state_changes: number;
+  items: ArchiveVerifyItem[];
 }

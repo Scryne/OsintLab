@@ -1,4 +1,7 @@
 import type {
+  ArchiveBatchResult,
+  ArchiveRecord,
+  ArchiveVerifyResult,
   Claim,
   ClaimExplain,
   ClaimLinkBatchResult,
@@ -483,6 +486,20 @@ export const api = {
     ) => patch<ScanSchedule>(`/collectors/schedules/${id}`, payload),
     deleteSchedule: (id: string) => del(`/collectors/schedules/${id}`),
     runSchedule: (id: string) => post<ScanRunResult>(`/collectors/schedules/${id}/run`),
+  },
+
+  // Faz 26 — kaynak arşivi. Arşivin kendisi promote'ta otomatik oluşuyor; buradaki uçlar
+  // geri doldurma ve canlı sayfaya karşı doğrulama içindir.
+  archive: {
+    list: () => get<ArchiveRecord[]>("/archive"),
+    pending: () => get<string[]>("/archive/pending"),
+    forClaim: (claimId: string) => get<ArchiveRecord>(`/archive/claims/${claimId}`),
+    create: (claimIds?: string[]) =>
+      post<ArchiveBatchResult>("/archive/create", { claim_ids: claimIds ?? null }),
+    // Doğrulama AĞ kullanır ve sayfa başına saniyeler sürebilir; arayüz bunu tek tek ya da
+    // seçili kayıtlar için tetikliyor, kendiliğinden değil.
+    verify: (claimIds?: string[]) =>
+      post<ArchiveVerifyResult>("/archive/verify", { claim_ids: claimIds ?? null }),
   },
 
   monitors: {

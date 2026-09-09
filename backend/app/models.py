@@ -847,6 +847,79 @@ class CollectorFetchRequest(BaseModel):
     since_days: int | None = Field(default=None, ge=1)
 
 
+# --- Faz 26: kanıt katmanı (arşiv) ---------------------------------------
+
+class ArchiveRecord(BaseModel):
+    """Bir claim'in dayandığı içeriğin arşiv kopyası."""
+
+    evidence_id: str
+    claim_id: str
+    archive_url: str | None = None
+    archive_status: str
+    archive_status_label: str
+    archive_match: float | None = None
+    archive_checked_at: datetime | None = None
+    archive_note: str | None = None
+    content_hash: str | None = None
+    collected_at: datetime | None = None
+    # Arşivin ait olduğu iddia. Başlık listede zorunlu: hash listesi kimseye bir şey söylemez.
+    claim_headline: str | None = None
+    claim_state: str | None = None
+    claim_confidence: float | None = None
+    # Skora GİRİYOR mu — arşivin varlığından ayrı bir soru. Yalnızca canlı sayfaya karşı
+    # doğrulanmış arşivler SUPPORTS kenarı kurar (bkz. app/archive.py).
+    scored: bool = False
+
+
+class ArchiveBatchRequest(BaseModel):
+    # Boş bırakılırsa arşivi olmayan TÜM claim'ler işlenir (geri doldurma).
+    claim_ids: list[str] | None = None
+
+
+class ArchiveBatchItem(BaseModel):
+    claim_id: str
+    action: str  # "olusturuldu" | "zaten_var" | "atlandi"
+    evidence_id: str | None = None
+    archive_status: str | None = None
+    reason: str | None = None
+
+
+class ArchiveBatchResult(BaseModel):
+    created: int
+    already: int
+    skipped: int
+    items: list[ArchiveBatchItem]
+
+
+class ArchiveVerifyRequest(BaseModel):
+    # Boş bırakılırsa var olan tüm arşivler doğrulanır.
+    claim_ids: list[str] | None = None
+
+
+class ArchiveVerifyItem(BaseModel):
+    evidence_id: str
+    claim_id: str
+    status: str | None = None
+    status_label: str | None = None
+    match: float | None = None
+    note: str | None = None
+    scored: bool = False
+    # Doğrulamanın claim'e ETKİSİ: skor ve durum değişti mi. Fazın sınavı tam olarak bu.
+    confidence_before: float | None = None
+    confidence_after: float | None = None
+    state_before: str | None = None
+    state_after: str | None = None
+
+
+class ArchiveVerifyResult(BaseModel):
+    checked: int
+    verified: int
+    changed: int
+    unreachable: int
+    state_changes: int
+    items: list[ArchiveVerifyItem]
+
+
 class ReparseRequest(BaseModel):
     """Faz 25 — saklanmış `mode=web` metnini yeni ayrıştırıcıyla onarma isteği."""
 

@@ -350,7 +350,7 @@ başına alması — Design Principle #7.
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
 | 25 | Toplanan İçeriğin Temizlenmesi | ✅ Bitti | `mode=web` ile toplanan içerik boilerplate'inden ayrıştırılıyor (başlık + gövde), claim metni sayfanın tamamı olmuyor. Bitti sayılması için mevcut 9370 karakterlik claim'in onarılmış **ve tek bir claim'den doğan 57 sahte entity adayının kaybolmuş** olması gerekir. |
-| 26 | Kanıt Katmanı: confidence'ın açılmamış %20'si | ⏳ Bekliyor | Bir claim promote edilirken dayandığı içeriğin arşiv kopyası (ham metin + hash + URL + zaman) Evidence olarak kaydedilebiliyor. Bitti sayılması için kanıt alt-skoru sıfır olan claim sayısının 54'ten belirgin biçimde düşmüş **ve en az bir claim'in yalnızca kanıt sayesinde durum değiştirmiş** olması gerekir. |
+| 26 | Kanıt Katmanı: confidence'ın açılmamış %20'si | ✅ Bitti | Bir claim promote edilirken dayandığı içeriğin arşiv kopyası (ham metin + hash + URL + zaman) Evidence olarak kaydedilebiliyor. Bitti sayılması için kanıt alt-skoru sıfır olan claim sayısının 54'ten belirgin biçimde düşmüş **ve en az bir claim'in yalnızca kanıt sayesinde durum değiştirmiş** olması gerekir. |
 | 27 | Kuyruk Sinyalinin Yeniden Kalibrasyonu | ⏳ Bekliyor | Sinyal skoru graf'ın yeni eksenlerini (olay, ilişki komşuluğu, değme) kullanıyor; kaynak/host bazında toplu eleme var. Bitti sayılması için 117 bekleyen gözlemin eritilmiş **ve skor dağılımının tek noktada (%88'i 0.1) yığılmaktan çıkmış** olması gerekir. |
 | 28 | Tek Kaynak Baskınlığı | ⏳ Bekliyor | Doğrulayanı olmayan claim'ler için, yeni kaynaklardan gelen gözlemler arasında aday eşleşme öneriliyor (elle arama gerekmeden). Bitti sayılması için doğrulayanı olmayan claim sayısının 30'dan belirgin düşmüş olması gerekir. |
 
@@ -2993,6 +2993,80 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Claim'in dayandığı içeriğin arşiv kopyası Evidence olarak
   kaydedilebiliyor. **Fazın sınavı:** kanıt alt-skoru sıfır olan claim sayısı 54'ten belirgin
   düşmüş ve en az bir claim yalnızca kanıt sayesinde durum değiştirmiş olmalı.
+
+- **✅ Bitti (2026-09-09).** Sınavın iki yarısı da geçildi: kanıt alt-skoru sıfır olan claim
+  **54 → 2**, ortalama kanıt alt-skoru **0.01 → 0.327**, ve **4 claim yalnızca kanıt sayesinde
+  durum değiştirdi** (3× SUPPORTED→CORROBORATED 0.630→0.697, 1× REPORTED→SUPPORTED
+  0.387→0.453). Graf'ta Evidence 3 → 58. `EVIDENCE_WEIGHT = 0.20` Faz 2'den beri ilk kez
+  fiilen çalışıyor.
+
+- **Arşiv yeniden indirmez, gözlemden doğar.** İlk tasarım promote anında sayfayı tekrar
+  çekmekti; yanlış olurdu. Arşivin doğru içeriği *gözlediğimiz* metindir — bugün indirilen
+  şey arşiv değil, yeni bir gözlemdir. Sonuç: arşivleme AĞSIZ, allowlist/erişim durumundan
+  bağımsız, 55 claim'in 55'i için çalıştı (atlanan 0). Metin `data/archive/<sha256>.txt`e
+  yazılıyor; dosya adının kendisi bütünlük kontrolü.
+
+- **Fazın merkezi kararı: `ARCHIVES` ile `SUPPORTS` ayrı kenarlar.** Roadmap'in uyarısı
+  ("her claim kendi kaynağının arşiviyle otomatik kanıtlı sayılırsa kanıt alt-skoru
+  source_quality'nin kopyası olur") doğrudur ve şu ayrımla karşılandı: **arşiv bir KAYIT,
+  doğrulama bir KANITTIR.** Arşiv promote'ta otomatik oluşur ve skora hiç dokunmaz; skora
+  ancak canlı sayfaya karşı doğrulandığında girer. Doğrulama otomatik DEĞİL, kullanıcının
+  tetiklediği bir eylem — yani roadmap'in istediği "kullanıcının onayına bağlı olmalı"
+  koşulu, arşivin kendisini feda etmeden sağlanıyor.
+
+- **İlk doğrulama tasarımı ölçümde çöktü ve değiştirildi.** Doğrulama önce "arşiv gövdesi
+  canlı sayfada duruyor mu" (Faz 25'in içerilme ölçüsü, eşik 0.8) diye kurulmuştu. 27
+  arşivlik ilk turda **doğrulanan 0** çıktı; dağılım 0.5 (21 kayıt), 0.0 (5), 0.25 (1).
+  Sebep tek cümlede: claim'lerin neredeyse tamamı `mode=rss` ile toplandı, yani arşivdeki
+  metin "başlık + RSS özeti", canlı sayfadaki ise makalenin GÖVDESİ — RSS özeti makalenin
+  içinde birebir geçmez. 0.5'ler tam olarak şunu söylüyordu: iki satırdan biri (başlık)
+  bulundu, özet bulunamadı. Ölçü, sormak istediğimiz soruyu değil iki farklı türden metnin
+  benzerliğini ölçüyordu. **Doğrulama başlığa taşındı**; gövde oranı ölçülmeye devam ediyor
+  ama kapı değil, bildirilen bir sayı.
+
+- **Karşılaştırma öncesi normalleştirme gerekliydi ve o da ölçümden çıktı.** İlk başlık
+  turunda 4 kayıt "değişmiş" göründü; dördü de bizim kendi izimizdi. İkisinde arşiv
+  `OpenAI&#8217;s` diyordu, canlı sayfa `OpenAI’s` (Faz 11/F13'ün HTML entity ayıklamasından
+  önce toplanmış kayıtlar); ikisinde openai.com başlığı bölünmez tire (U+2011) kullanıyordu,
+  RSS başlığı düz tire. `archive.normalize_for_compare` bunları çözüyor — kendi geçmiş
+  hatamızı kaynağın suçu gibi raporlamak, düzeltmeye çalıştığımız şeyin ta kendisi olurdu.
+  Kapsam dar tutuldu (entity + tipografik karakter); küçük harfe indirme/noktalama atma
+  gerçek bir başlık değişikliğini de yutardı.
+
+- **Doğrulama sonucu (55 arşiv): 53 DOĞRULANDI, 1 DEĞİŞMİŞ, 1 ERİŞİLEMEDİ.** Ve tam olarak
+  bu iki kayıt fazın niye var olduğunu gösteriyor:
+  - **The Verge yazıyı yeniden başlıklandırmış.** Arşiv `"Oh good, looks like yet another
+    swarm of rogue AI agents from OpenAI"` diyor; canlı sayfa artık `"Rogue OpenAI agents
+    appear to have organized another attack using a German wiki"`. Aynı yazı, editoryal
+    olarak değiştirilmiş bir başlık — ve orijinal ifadenin **tek kaydı** artık bizim
+    arşivimiz. Skora girmiyor, girmemeli de.
+  - **bleepingcomputer.com 403 döndürüyor:** o claim'in dayanağı bir daha otomatik
+    doğrulanamaz. `source_url` sessizce ölü bir bağlantı olacaktı; şimdi metin elimizde ve
+    durum kayıtlı.
+
+- **Dürüst sınır: bugün bu sinyal 55'te 54'ünü aynı yere koyuyor.** Yani şu an ayırt etme
+  gücü düşük ve kanıt bileşeni pratikte bir kaydırmaya yakın. Bunu kabul etmenin gerekçesi
+  iki katlı: (a) korpus genç — tüm claim'ler son iki hafta içinde toplandı, link rot yaşla
+  birlikte artar ve bu ölçünün ayırt etme gücü zamanla BÜYÜR; (b) puan hak edilmiş ve geri
+  alınabilir — kaynak düşerse ya da değişirse `SUPPORTS` silinir, skor geri iner. Yine de
+  bu bir gözlem altında: ölçüm setine `### Arsiv (provenance)` bölümü eklendi
+  (`scripts/olcum.py`). Bir sonraki turda oran hâlâ ~%98 doğrulanmışsa, kanıt bileşeninin
+  ayırt ediciliği yeniden tartışılmalı.
+
+- **Kanıtın kaynağı da gösteriliyor.** `GET /claims/{id}/explain` artık `evidence_from`
+  döndürüyor (tür, arşiv durumu, hash) ve confidence açıklama panelinde görünüyor. Faz 18'in
+  corroboration için kapattığı boşluğun aynısı: skor yükselip açıklanabilirliği düşmesin.
+
+- **Arayüz:** `/archive` — "Kaynak Arşivi". Durum filtreleri, seçili kayıtları doğrulama,
+  arşiv metnini açma ve canlı sayfaya gitme. Kanıt Kasası'ndan AYRI tutuldu
+  (`GET /evidence` arşivleri varsayılan olarak dışlıyor): kasa elle yüklenen kanıtın yeri,
+  karıştırılsalardı 3 belgelik kasa bir gecede 58 satır olurdu.
+
+- **Yan onarım — collector'de toplam süre sınırı yoktu.** İlk toplu doğrulama 48. kayıtta
+  takıldı ve 11 dakika hiç ilerlemedi. Sebep: `requests`in `timeout`u yalnızca bağlanma ve
+  tek bir okuma arasını sınırlar; veriyi damla damla gönderen bir sunucu sayacı her chunk'ta
+  sıfırlar. `MAX_FETCH_SECONDS = 45` eklendi ve sınır collector'ün kendisinde — aynı açık
+  zamanlanmış taramayı (Faz 12) da sessizce durdurabilirdi.
 
 ### Faz 27: Kuyruk Sinyalinin Yeniden Kalibrasyonu
 

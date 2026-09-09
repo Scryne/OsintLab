@@ -18,6 +18,7 @@ Host header'ı elle ayarlamak) ileride gerekirse eklenebilir.
 import ipaddress
 import json
 import socket
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -30,6 +31,13 @@ ALLOWED_SCHEMES = {"http", "https"}
 MAX_REDIRECTS = 3
 DEFAULT_TIMEOUT = 10
 MAX_BYTES = 5_000_000
+# Bir isteğin TOPLAM süresi. `requests`in `timeout`u yalnızca bağlanma ve TEK BİR okuma
+# arasındaki boşluğu sınırlar; veriyi damla damla gönderen bir sunucu her chunk'ta sayacı
+# sıfırlar ve istek sonsuza kadar sürebilir. Faz 26'nın ilk toplu doğrulamasında ölçüldü:
+# 55 kaynaklık tur 48. kayıtta takıldı ve 11 dakika boyunca hiç ilerlemedi. Tek bir yavaş
+# sunucunun bütün turu kilitlemesi, zamanlanmış taramayı da (Faz 12) aynı şekilde
+# durdurabilirdi — bu yüzden sınır collector'ün kendisinde, çağıranlarda değil.
+MAX_FETCH_SECONDS = 45
 MAX_OBSERVATION_TEXT_LENGTH = 20_000
 USER_AGENT = "OsintLab-Collector/0.1 (personal OSINT research tool)"
 
@@ -175,11 +183,18 @@ def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
             continue
 
         content = bytearray()
+        started = time.monotonic()
         for chunk in response.iter_content(chunk_size=65536):
             content.extend(chunk)
             if len(content) > MAX_BYTES:
                 response.close()
                 raise CollectorSecurityError(f"Yanıt çok büyük (> {MAX_BYTES} byte)")
+            if time.monotonic() - started > MAX_FETCH_SECONDS:
+                response.close()
+                raise CollectorFetchError(
+                    f"{urlparse(current_url).hostname} yanıtı {MAX_FETCH_SECONDS} saniyede "
+                    "bitmedi — sunucu içeriği çok yavaş gönderiyor, istek bırakıldı."
+                )
         content_type = response.headers.get("Content-Type", "")
 
         # Faz 11 (F25): 4xx/5xx gövdesi ASLA içerik değildir. Bu kontrol yokken cisa.gov'un

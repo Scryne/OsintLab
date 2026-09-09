@@ -121,6 +121,34 @@ export function ConfidenceExplainDisclosure({ claimId }: { claimId: string }) {
                   </ul>
                 )}
               </div>
+
+              {/* Faz 26: kanıt satırı bugüne kadar hep 0.0000 idi, gösterecek bir kaynağı da
+                  yoktu. Artık sıfır olmayabildiğine göre "hangi kanıt" sorusu da cevaplanmalı —
+                  yoksa skor yükselir ama açıklanabilirliği düşerdi. Arşiv kayıtlarında
+                  durumu da yazıyoruz: bir arşiv skora ancak doğrulanmışsa girer. */}
+              <div className="mt-2">
+                <p className="text-[11px] font-medium text-text-secondary">
+                  Kanıt ({data.evidence_from.length})
+                </p>
+                {data.evidence_from.length === 0 ? (
+                  <p className="mt-1 text-[11px] text-text-tertiary">
+                    Bu iddiaya bağlı kanıt yok. Kaynak sayfasının arşiv kopyası varsa, canlı
+                    sayfaya karşı doğrulandığında skora girer — Kaynak Arşivi sayfasına bak.
+                  </p>
+                ) : (
+                  <ul className="mt-1 flex flex-col gap-1">
+                    {data.evidence_from.map((e) => (
+                      <li key={e.evidence_id} className="flex flex-wrap items-center gap-2 text-[11px] text-text-tertiary">
+                        <span className="text-text-secondary">{e.evidence_type}</span>
+                        {e.archive_status && <span>{e.archive_status.toLowerCase()}</span>}
+                        {e.content_hash && (
+                          <span className="font-mono">sha256:{e.content_hash.slice(0, 12)}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </ProvenanceBlock>
           )}
         </div>

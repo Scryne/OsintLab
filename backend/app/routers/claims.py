@@ -583,6 +583,25 @@ def _corroborating_claims(conn, claim_id: str) -> list[dict]:
     return out
 
 
+def _supporting_evidence(conn, claim_id: str) -> list[dict]:
+    """Kanıt alt-skorunun KAYNAĞI. Faz 18'in corroboration için kapattığı boşluğun aynısı:
+    Faz 26'ya kadar kanıt skoru 55 claim'in 54'ünde sıfırdı, yani gösterilecek bir şey yoktu.
+    Artık sıfır olmadığına göre "hangi kanıt" sorusunun da bir cevabı olmalı — yoksa skor
+    yükseldi ama açıklanabilirliği düştü olurdu.
+
+    Arşiv kayıtları TÜRÜYLE ayrışıyor: bir arşivin skora girmesi doğrulanmış olmasına bağlı
+    ve kullanıcı hangisinin ne olduğunu görmeden "kanıt 0.33" satırına güvenemez."""
+    return fetch_all(
+        conn.execute(
+            "MATCH (ev:Evidence)-[:SUPPORTS]->(c:Claim {id: $id}) "
+            "RETURN ev.id AS evidence_id, ev.evidence_type AS evidence_type, "
+            "ev.archive_status AS archive_status, ev.archive_url AS archive_url, "
+            "ev.content_hash AS content_hash",
+            {"id": claim_id},
+        )
+    )
+
+
 @router.get("/{claim_id}/explain")
 def explain_claim(claim_id: str) -> dict:
     """Auditability: 'Sistem bunu neden düşünüyor?' — confidence'ın alt-skor kırılımı."""
@@ -609,6 +628,8 @@ def explain_claim(claim_id: str) -> dict:
         # doğruluyor" — Auditability'nin (Q4) eksik yarısı buydu. Olay kümelerini
         # hesaplarken de aday-uçları farkını almak gibi dolambaçlı bir yol gerekmişti.
         "corroborated_by": _corroborating_claims(conn, claim_id),
+        # Faz 26: kanıt artık gerçekten var, dolayısıyla kaynağı da gösteriliyor.
+        "evidence_from": _supporting_evidence(conn, claim_id),
     }
 
 

@@ -176,3 +176,34 @@ v3'e başlamadan önce bir **sertleştirme turu** yapıldı — detay: `docs/Fro
 - **Event.confidence elle girilmez, türetilir** (`app/eventcluster.py::recompute_event_confidence`):
   en iyi desteklenen claim'inin skoru; claim skorunu değiştiren her yol
   `_recompute_and_store` üzerinden olayı da tazeler.
+
+### Faz 25-26 sonrası (2026-09-09)
+
+- **Toplanan web sayfası artık başlık + gövde olarak ayrışıyor** (`app/collector.py::
+  extract_article_from_html`). İki kanıt kullanılıyor, ikisi de site-bağımsız: paragraf
+  yoğunluğu gövdeyi bulur, bağlantı yoğunluğu "ilgili haber" listelerini atar. Gövde
+  bulunamazsa (haber sayfası olmayan bir adres) eski daraltılmış tam-sayfa metnine düşülür —
+  bu fallback bilinçli, kaldırma.
+- **Geçmiş metni onarmanın yolu var:** `POST /collectors/reparse` (varsayılan
+  `dry_run=true`). Havuz yalnızca **web-mode** gözlemler: RSS gözlemini makale gövdesiyle
+  değiştirmek onarım değil, kaynağı değiştirmektir. Faz 25'ten öncekiler
+  `observed_at == created_at` izinden ayrılıyor.
+- **Her claim'in dayandığı metnin arşiv kopyası var** (`app/archive.py`, `/archive`).
+  Arşiv promote'ta OTOMATİK ve AĞSIZ oluşur — gözlemin ham metninden, yeniden indirerek
+  değil. Sayfayı bugün yeniden indirmek arşiv değil, yeni bir gözlem olurdu.
+- **`ARCHIVES` ile `SUPPORTS` ayrı kenarlardır ve karıştırılmamalı.** Arşiv bir KAYIT
+  (provenance, skora girmez); `SUPPORTS` ancak arşiv canlı sayfaya karşı DOĞRULANDIĞINDA
+  kurulur. Aynı kenar kullanılsaydı her claim kendi kaynağının kopyasıyla "kanıtlı" sayılır,
+  kanıt alt-skoru `source_quality`'nin kopyasına dönerdi.
+- **Doğrulama başlık üzerinden yapılır, gövde üzerinden değil.** Gövde içerilmesi ilk
+  denemede kapı olarak kullanıldı ve gerçek veride 0 doğrulama üretti: claim'lerin neredeyse
+  tamamı RSS'ten geliyor, yani arşivdeki metin "başlık + özet", canlı sayfadaki ise makale
+  gövdesi — RSS özeti makalenin içinde birebir geçmez. Gövde oranı hâlâ ölçülüyor ama
+  bildirilen bir sayı, karar değil.
+- **Karşılaştırma öncesi normalleştirme zorunlu** (`archive.normalize_for_compare`): HTML
+  entity'si ve tipografik karakterler (bölünmez tire, kıvrık kesme işareti) yüzünden aynı
+  başlık "değişmiş" görünüyordu. Bunlar bizim kendi toplama katmanımızın izleri; kaynağın
+  suçu gibi raporlanmamalı.
+- **Arşiv Kanıt Kasası'nda görünmez** (`GET /evidence?include_archives=true` ile istenebilir).
+  Kasa elle yüklenen kanıtın yeri; arşiv her promote'ta kendiliğinden oluşuyor, karıştırılsa
+  3 belgelik kasa 58 satır olurdu. Arşivlerin yeri `/archive`.
