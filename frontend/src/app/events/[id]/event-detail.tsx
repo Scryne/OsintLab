@@ -61,8 +61,8 @@ export function EventDetail({ eventId }: { eventId: string }) {
   }
 
   if (eventLoading || recallLoading) return <SkeletonDetail />;
-  if (eventError) return <ErrorState message={eventError.message} />;
-  if (recallError) return <ErrorState message={recallError.message} />;
+  if (eventError) return <ErrorState error={eventError} />;
+  if (recallError) return <ErrorState error={recallError} />;
   if (!event || !recall) return null;
 
   return (
@@ -522,7 +522,7 @@ function LinkSourceDialog({ eventId, onLinked }: { eventId: string; onLinked: ()
           <DialogDescription>Bu event&apos;i bildiren kaynağı işaretler; olayın provenance zinciri buradan kurulur.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <SearchablePicker items={items} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
+          <SearchablePicker items={items} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" aria-label="Bildiren kaynak" />
           {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>
         <DialogFooter>

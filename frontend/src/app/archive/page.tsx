@@ -173,19 +173,22 @@ export default function ArchivePage() {
       </p>
 
       <Tabs value={filtre} onValueChange={(v) => setFiltre(v as Filtre)}>
-        <TabsList>
-          {FILTRELER.map((f) => (
-            <TabsTrigger key={f.value} value={f.value}>
-              {f.label}
-              {f.value !== "hepsi" && (
-                <span className="ml-1.5 tabular-nums text-text-tertiary">{sayim[f.value] ?? 0}</span>
-              )}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        {/* Beş durum filtresi dar ekrana sığmıyor: şerit kendi içinde kayar. */}
+        <div className="overflow-x-auto">
+          <TabsList className="w-max">
+            {FILTRELER.map((f) => (
+              <TabsTrigger key={f.value} value={f.value}>
+                {f.label}
+                {f.value !== "hepsi" && (
+                  <span className="ml-1.5 tabular-nums text-text-tertiary">{sayim[f.value] ?? 0}</span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
       </Tabs>
 
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {loading && !records && <SkeletonRows count={6} />}
       {records && gosterilen.length === 0 && (
         <EmptyState

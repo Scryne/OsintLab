@@ -20,6 +20,7 @@ export function InvestigationNarrative({
   label,
   placeholder,
   hint,
+  readOnly = false,
   onSaved,
 }: {
   investigationId: string;
@@ -28,6 +29,8 @@ export function InvestigationNarrative({
   label: string;
   placeholder: string;
   hint?: string;
+  /** Kapanmış (CLOSED/ARCHIVED) araştırmada metin değişmez — backend de 409 döner. */
+  readOnly?: boolean;
   onSaved: () => void;
 }) {
   const toast = useToast();
@@ -59,7 +62,7 @@ export function InvestigationNarrative({
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">{label}</h3>
-        {!editing && (
+        {!editing && !readOnly && (
           <Button
             size="sm"
             variant="outline"
@@ -78,6 +81,7 @@ export function InvestigationNarrative({
       {editing ? (
         <div className="flex flex-col gap-2">
           <Textarea
+            aria-label={label}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={placeholder}

@@ -61,12 +61,13 @@ export default function EntitiesPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="İsim veya alias ara…"
+          aria-label="Entity ara"
           className="pl-9"
         />
       </div>
 
       {loading && <SkeletonList />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && filtered.length === 0 && (
         <EmptyState
           title={query ? "Eşleşen entity bulunamadı" : "Henüz entity yok"}

@@ -92,7 +92,7 @@ export default function GraphPage() {
       </div>
 
       {loading && <Skeleton className="h-[420px] w-full rounded-xl" />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && view.nodes.length === 0 && (
         <EmptyState
           title="Graf'ta gösterilecek bağ yok"

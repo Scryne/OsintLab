@@ -141,7 +141,7 @@ export default function MentionsPage() {
       )}
 
       {loading && <SkeletonRows />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && pairCount === 0 && (
         <EmptyState
           title="Bekleyen bağ adayı yok"

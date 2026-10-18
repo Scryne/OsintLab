@@ -42,7 +42,7 @@ export default function SameAsQueuePage() {
       </div>
 
       {loading && <LoadingState />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && (!pending || pending.length === 0) && (
         <EmptyState
           title="Onay bekleyen eşleşme yok"

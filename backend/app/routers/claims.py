@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from app.confidence import ConfidenceResult, compute_confidence
-from app.db import fetch_all, fetch_one, get_connection
+from app.db import fetch_all, fetch_one, get_connection, graph_lock
 from app.lineage import resolve_independent_root
 from app.corroboration import find_candidates, find_observation_candidates
-from app.eventcluster import recompute_event_confidence
+from app.eventcluster import recompute_event_confidence, set_claim_about
 from app.mentions import claim_mentions, mention_candidates, set_mention
 from app.models import (
     CandidateClaim,
@@ -140,12 +140,15 @@ def _gather_confidence_inputs(conn, claim_id: str) -> ConfidenceResult:
 
 
 def _recompute_and_store(conn, claim_id: str) -> ConfidenceResult:
-    result = _gather_confidence_inputs(conn, claim_id)
-    conn.execute(
-        "MATCH (c:Claim {id: $id}) SET c.confidence = $confidence, c.knowledge_state = $state, "
-        "c.updated_at = $now",
-        {"id": claim_id, "confidence": result.confidence, "state": result.knowledge_state, "now": datetime.now(timezone.utc)},
-    )
+    # Girdileri oku → skoru yaz arası kilitli: araya giren başka bir yeniden hesaplama (ör.
+    # arka planda arşiv doğrulaması) bayat bir skoru en son yazan olamasın.
+    with graph_lock:
+        result = _gather_confidence_inputs(conn, claim_id)
+        conn.execute(
+            "MATCH (c:Claim {id: $id}) SET c.confidence = $confidence, c.knowledge_state = $state, "
+            "c.updated_at = $now",
+            {"id": claim_id, "confidence": result.confidence, "state": result.knowledge_state, "now": datetime.now(timezone.utc)},
+        )
     # Faz 18: olayın confidence'ı claim'lerinden türetildiği için, claim'in skoru her
     # değiştiğinde (doğrulama bağı, kanıt, çelişki) olay da tazelenmeli. Tek boğaz noktası
     # burası — çağıran her uca ayrı ayrı eklenseydi biri mutlaka unutulurdu.
@@ -248,6 +251,64 @@ def _claim_supersede_links(conn, claim_id: str) -> tuple[str | None, str | None]
     return (yeni["id"] if yeni else None, eski["id"] if eski else None)
 
 
+def _corroboration_block_reason(conn, source_id: str | None, other_claim_id: str) -> str | None:
+    """İki claim arasında doğrulama bağı kurulamıyorsa sebebi, kurulabiliyorsa None.
+
+    Q6 — bağımsızlık bir NEZAKET KONTROLÜ DEĞİL. Aynı bağımsız köke inen iki claim birbirini
+    doğruladığında confidence SAHTE yükselirdi (corroboration alt-skoru doğrulayan claim
+    sayısını sayıyor). Bu kontrol önce yalnızca `links-batch`teydi; `POST /claims` ve promote
+    (`corroborates=[...]`) aynı bağı denetimsiz kuruyordu (2026-10-18 denetimi). Tek fonksiyon,
+    iki yol."""
+    other_source = _claim_source_id(conn, other_claim_id)
+    if source_id and other_source:
+        if resolve_independent_root(conn, source_id) == resolve_independent_root(conn, other_source["id"]):
+            return (
+                "İki claim aynı bağımsız kaynağa iniyor — doğrulama bağı kurulmadı. "
+                "Bağımsız olmayan bir doğrulama confidence'ı sahte yükseltirdi (Q6). "
+                "Aynı haberin iki kaydıysa biri supersede edilmeli."
+            )
+    return None
+
+
+def _supersede_block(conn, *, old_claim_id: str, new_valid_from, new_claim_id: str | None) -> tuple[int, str] | None:
+    """Supersede kurulamıyorsa (HTTP durum kodu, sebep), kurulabiliyorsa None.
+
+    Önce yalnızca sonradan bildirme ucunda (`/supersedes`) vardı; `POST /claims` ve promote
+    (`supersedes=`) iki kontrolü de atlıyordu: zaten yerini başka claim almış bir claim'e
+    ikinci bir SUPERSEDES kenarı ve `valid_to < valid_from` olan ters bir zaman çizgisi
+    kurulabiliyordu (2026-10-18 denetimi)."""
+    old = fetch_one(
+        conn.execute("MATCH (c:Claim {id: $id}) RETURN c.valid_from AS valid_from", {"id": old_claim_id})
+    )
+    if old is None:
+        return 404, f"Claim not found: {old_claim_id}"
+    mevcut = fetch_one(
+        conn.execute(
+            "MATCH (a:Claim)-[:SUPERSEDES]->(b:Claim {id: $oid}) RETURN a.id AS id",
+            {"oid": old_claim_id},
+        )
+    )
+    if mevcut:
+        return 409, f"Bu claim'in yerini zaten başka bir claim almış (claim {mevcut['id'][:8]}…)"
+    # Zaman çizgisi tersine dönmesin: yerini alan bilgi, aldığı bilgiden önce başlayamaz.
+    if new_valid_from is not None and old["valid_from"] is not None and new_valid_from < old["valid_from"]:
+        return 422, (
+            "Yerini alan claim daha ESKİ bir tarihte geçerli olmaya başlıyor "
+            f"({new_valid_from} < {old['valid_from']}) — zaman çizgisi tersine dönerdi. "
+            "Yön yanlış olabilir: hangisi yenisi?"
+        )
+    # Döngü: eski claim zaten (dolaylı olarak) yenisinin yerini almışsa bağ bir halka kurardı.
+    # Eşit `valid_from` tarihleri zaman kontrolünü geçtiği için A→B'den sonra B→A mümkündü.
+    if new_claim_id and fetch_one(
+        conn.execute(
+            "MATCH (b:Claim {id: $old})-[:SUPERSEDES*1..30]->(a:Claim {id: $new}) RETURN a.id AS id",
+            {"old": old_claim_id, "new": new_claim_id},
+        )
+    ):
+        return 422, "Bu bağ bir döngü kurardı: eski claim zaten bu claim'in yerini (dolaylı olarak) almış."
+    return None
+
+
 def _row_to_claim(conn, row: dict) -> Claim:
     source_row = _claim_source_id(conn, row["id"])
     about_entity_id, about_event_id = _claim_about(conn, row["id"])
@@ -265,7 +326,23 @@ def _row_to_claim(conn, row: dict) -> Claim:
 @router.post("", response_model=Claim, status_code=201)
 def create_claim(payload: ClaimCreate) -> Claim:
     conn = get_connection()
+    claim = create_claim_record(conn, payload)
+    safe_render_vault(conn)
+    return claim
 
+
+def create_claim_record(conn, payload: ClaimCreate) -> Claim:
+    """Claim'i yazar — vault RENDER ETMEZ (promote ve toplu promote da bunu çağırıyor; render
+    çağıranın işi, bkz. `_create_claim_from_observation`). 2026-10-18'e kadar promote bu
+    fonksiyonun route sürümünü çağırıyordu ve tek bir promote vault'u iki kez, 20'lik bir toplu
+    promote 21 kez baştan render ediyordu.
+
+    Bütün doğrulama HERHANGİ bir yazmadan ÖNCE: gömülü veritabanında çok adımlı yazma bir
+    işlem (transaction) değil, yani yarıda reddedilen bir istek grafı yarım bırakırdı."""
+    if payload.about_entity_id and payload.about_event_id:
+        raise HTTPException(
+            status_code=422, detail="Bir claim ya bir entity ya da bir event hakkında olabilir, ikisi birden değil"
+        )
     if not _node_exists(conn, "Source", payload.source_id):
         raise HTTPException(status_code=404, detail=f"Source not found: {payload.source_id}")
     if payload.about_entity_id and not _node_exists(conn, "Entity", payload.about_entity_id):
@@ -278,15 +355,28 @@ def create_claim(payload: ClaimCreate) -> Claim:
     for cid in payload.corroborates + payload.contradicts:
         if not _node_exists(conn, "Claim", cid):
             raise HTTPException(status_code=404, detail=f"Claim not found: {cid}")
-    if payload.supersedes and not _node_exists(conn, "Claim", payload.supersedes):
-        raise HTTPException(status_code=404, detail=f"Claim not found: {payload.supersedes}")
+    overlap = set(payload.corroborates) & set(payload.contradicts)
+    if overlap:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Bir claim aynı claim'i hem doğrulayıp hem onunla çelişemez: {', '.join(sorted(overlap))}",
+        )
+    for cid in dict.fromkeys(payload.corroborates):
+        reason = _corroboration_block_reason(conn, payload.source_id, cid)
+        if reason:
+            raise HTTPException(status_code=422, detail=f"{reason} (claim {cid[:8]}…)")
 
-    claim_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     # Faz 11 (F12): created_at = kaydın oluşturulduğu an (değişmez sistem kaydı),
     # valid_from = iddianın geçerli olduğu an (kaynağın yayın tarihi). İkisi aynı şey değil;
     # önceden ikisi de "şimdi" olduğu için arşivden gelen eski bilgi en yeni gibi sıralanıyordu.
     valid_from = payload.valid_from or now
+    if payload.supersedes:
+        blocked = _supersede_block(conn, old_claim_id=payload.supersedes, new_valid_from=valid_from, new_claim_id=None)
+        if blocked:
+            raise HTTPException(status_code=blocked[0], detail=blocked[1])
+
+    claim_id = str(uuid.uuid4())
 
     conn.execute(
         "CREATE (:Claim {id: $id, text: $text, knowledge_state: 'OBSERVED', confidence: 0.0, "
@@ -321,12 +411,8 @@ def create_claim(payload: ClaimCreate) -> Claim:
     # Q4 corroboration: simetrik bir ilişki — bağımsız iki claim aynı şeyi doğruluyorsa
     # ikisi de birbirini destekler, bu yüzden ilişki her iki yönde de kurulur ve her iki
     # claim de yeniden hesaplanır.
-    for cid in payload.corroborates:
-        conn.execute(
-            "MATCH (c:Claim {id: $cid}), (other:Claim {id: $oid}) "
-            "CREATE (c)-[:CORROBORATES]->(other) CREATE (other)-[:CORROBORATES]->(c)",
-            {"cid": claim_id, "oid": cid},
-        )
+    for cid in dict.fromkeys(payload.corroborates):
+        _link_corroborates(conn, claim_id, cid)
         other_result = _recompute_and_store(conn, cid)
         other_about_entity, other_about_event = _claim_about(conn, cid)
         _notify_change(
@@ -340,7 +426,7 @@ def create_claim(payload: ClaimCreate) -> Claim:
 
     # Q9 Contradiction: eski bilgi SİLİNMEZ, her iki claim de CONTRADICTED'a döner,
     # çelişki UNRESOLVED olarak kaydedilir.
-    for cid in payload.contradicts:
+    for cid in dict.fromkeys(payload.contradicts):
         conn.execute(
             "MATCH (c:Claim {id: $cid}), (other:Claim {id: $oid}) "
             "CREATE (c)-[:CLAIM_CONTRADICTS {status: 'UNRESOLVED', detected_at: $now}]->(other)",
@@ -370,15 +456,35 @@ def create_claim(payload: ClaimCreate) -> Claim:
         result=final_result,
         title=f"Yeni claim: {claim_headline(payload.text)}",
     )
-    safe_render_vault(conn)
     return get_claim(claim_id)
 
 
 @router.get("", response_model=list[Claim])
 def list_claims() -> list[Claim]:
+    """Tek sorgu. Eskiden claim başına 5 ek sorgu atılıyordu (kaynak, entity, olay, iki
+    supersede yönü): 261 claim'de 1.300+ sorgu, ~2,7 sn ve claim sayısıyla doğrusal büyüyen bir
+    ana sayfa yüklemesi (2026-10-18 denetimi)."""
     conn = get_connection()
-    result = conn.execute(f"MATCH (c:Claim) RETURN {_FIELDS} ORDER BY c.created_at")
-    return [_row_to_claim(conn, row) for row in fetch_all(result)]
+    rows = fetch_all(
+        conn.execute(
+            f"MATCH (c:Claim) "
+            "OPTIONAL MATCH (s:Source)-[:ASSERTS]->(c) "
+            "OPTIONAL MATCH (c)-[:ABOUT_ENTITY]->(en:Entity) "
+            "OPTIONAL MATCH (c)-[:ABOUT_EVENT]->(ev:Event) "
+            "OPTIONAL MATCH (yeni:Claim)-[:SUPERSEDES]->(c) "
+            "OPTIONAL MATCH (c)-[:SUPERSEDES]->(eski:Claim) "
+            f"RETURN {_FIELDS}, s.id AS source_id, en.id AS about_entity_id, "
+            "ev.id AS about_event_id, yeni.id AS superseded_by_claim_id, "
+            "eski.id AS supersedes_claim_id ORDER BY c.created_at"
+        )
+    )
+    claims: dict[str, Claim] = {}
+    for row in rows:
+        # OPTIONAL MATCH çoklu eşleşmede satır çoğaltır (veri bütünlüğü bozuksa); tek-satırlık
+        # okumanın (`fetch_one`) davranışıyla aynı: ilk gelen kazanır.
+        if row["id"] not in claims:
+            claims[row["id"]] = Claim(**{**row, "source_id": row["source_id"] or ""})
+    return list(claims.values())
 
 
 @router.get("/corroboration/candidates", response_model=list[CorroborationCandidate])
@@ -488,6 +594,25 @@ def _already_linked(conn, a_id: str, b_id: str) -> str | None:
     return None
 
 
+def _link_skip_reason(conn, a_id: str, b_id: str, link: str, raw_link: str) -> str | None:
+    if link not in ("CORROBORATES", "CONTRADICTS"):
+        return f"Bilinmeyen bağ türü: {raw_link}"
+    if a_id == b_id:
+        return "Bir claim kendisiyle bağlanamaz"
+    if not _node_exists(conn, "Claim", a_id) or not _node_exists(conn, "Claim", b_id):
+        return "Claim bulunamadı"
+    existing = _already_linked(conn, a_id, b_id)
+    if existing:
+        return f"Bu iki claim arasında zaten bir {existing} bağı var"
+    # Kullanıcı aday listesinde uyarıyı görse bile API'nin bunu kabul etmesi, arayüzün
+    # dışından gelen her çağrıda aynı hatayı mümkün kılardı. Çelişki için böyle bir kısıt
+    # YOK — aynı kaynak kendi kendisiyle pekâlâ çelişebilir (ve bu değerli bir sinyaldir).
+    if link == "CORROBORATES":
+        source_a = _claim_source_id(conn, a_id)
+        return _corroboration_block_reason(conn, source_a["id"] if source_a else None, b_id)
+    return None
+
+
 @router.post("/links-batch", response_model=ClaimLinkBatchResult)
 def link_claims_batch(payload: ClaimLinkBatch) -> ClaimLinkBatchResult:
     """Faz 17 — seçilen claim çiftlerini toplu olarak birbirine bağlar.
@@ -505,44 +630,12 @@ def link_claims_batch(payload: ClaimLinkBatch) -> ClaimLinkBatchResult:
 
     for pair in payload.pairs:
         a_id, b_id, link = pair.claim_a_id, pair.claim_b_id, pair.link.upper()
-
-        def skip(message: str) -> None:
+        message = _link_skip_reason(conn, a_id, b_id, link, pair.link)
+        if message:
             results.append(
                 ClaimLinkResult(claim_a_id=a_id, claim_b_id=b_id, link=link, status="SKIPPED", message=message)
             )
-
-        if link not in ("CORROBORATES", "CONTRADICTS"):
-            skip(f"Bilinmeyen bağ türü: {pair.link}")
             continue
-        if a_id == b_id:
-            skip("Bir claim kendisiyle bağlanamaz")
-            continue
-        if not _node_exists(conn, "Claim", a_id) or not _node_exists(conn, "Claim", b_id):
-            skip("Claim bulunamadı")
-            continue
-        existing = _already_linked(conn, a_id, b_id)
-        if existing:
-            skip(f"Bu iki claim arasında zaten bir {existing} bağı var")
-            continue
-
-        # Q6 — bağımsızlık bir NEZAKET KONTROLÜ DEĞİL, bu fazın varlık sebebi. Aynı bağımsız
-        # köke inen iki claim birbirini doğruladığında confidence SAHTE yükselirdi: kullanıcı
-        # aday listesinde uyarıyı görse bile API'nin bunu kabul etmesi, arayüzün dışından
-        # gelen her çağrıda aynı hatayı mümkün kılardı. Çelişki için böyle bir kısıt YOK —
-        # aynı kaynak kendi kendisiyle pekâlâ çelişebilir (ve bu değerli bir sinyaldir).
-        if link == "CORROBORATES":
-            source_a = _claim_source_id(conn, a_id)
-            source_b = _claim_source_id(conn, b_id)
-            if source_a and source_b:
-                root_a = resolve_independent_root(conn, source_a["id"])
-                root_b = resolve_independent_root(conn, source_b["id"])
-                if root_a == root_b:
-                    skip(
-                        "İki claim aynı bağımsız kaynağa iniyor — doğrulama bağı kurulmadı. "
-                        "Bağımsız olmayan bir doğrulama confidence'ı sahte yükseltirdi (Q6). "
-                        "Aynı haberin iki kaydıysa biri supersede edilmeli."
-                    )
-                    continue
 
         before = {
             a_id: _gather_confidence_inputs(conn, a_id).confidence,
@@ -718,33 +811,11 @@ def update_claim_about(claim_id: str, payload: ClaimAboutUpdate) -> Claim:
     if payload.about_event_id and not _node_exists(conn, "Event", payload.about_event_id):
         raise HTTPException(status_code=404, detail=f"Event not found: {payload.about_event_id}")
 
-    # Faz 18: bir olayın confidence'ı claim'lerinden türetiliyor, dolayısıyla claim ESKİ
-    # olayından koparken de yeni olayına bağlanırken de iki olayın da yeniden hesaplanması
-    # gerekir — yoksa boşalan bir olay eski (yüksek) skorunu göstermeye devam ederdi.
-    previous_event = fetch_one(
-        conn.execute(
-            "MATCH (c:Claim {id: $id})-[:ABOUT_EVENT]->(ev:Event) RETURN ev.id AS id", {"id": claim_id}
-        )
+    # Değişmezler (entity/event dışlayıcılığı, olaya taşınırken entity'nin INVOLVED_IN ile
+    # korunması, iki olayın da yeniden hesaplanması) tek yerde: `eventcluster.set_claim_about`.
+    set_claim_about(
+        conn, claim_id, entity_id=payload.about_entity_id, event_id=payload.about_event_id
     )
-    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_ENTITY]->(:Entity) DELETE r", {"id": claim_id})
-    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_EVENT]->(:Event) DELETE r", {"id": claim_id})
-
-    if payload.about_entity_id:
-        conn.execute(
-            "MATCH (c:Claim {id: $cid}), (e:Entity {id: $eid}) CREATE (c)-[:ABOUT_ENTITY]->(e)",
-            {"cid": claim_id, "eid": payload.about_entity_id},
-        )
-    if payload.about_event_id:
-        conn.execute(
-            "MATCH (c:Claim {id: $cid}), (e:Event {id: $eid}) CREATE (c)-[:ABOUT_EVENT]->(e)",
-            {"cid": claim_id, "eid": payload.about_event_id},
-        )
-    conn.execute(
-        "MATCH (c:Claim {id: $id}) SET c.updated_at = $now",
-        {"id": claim_id, "now": datetime.now(timezone.utc)},
-    )
-    for affected in {previous_event["id"] if previous_event else None, payload.about_event_id} - {None}:
-        recompute_event_confidence(conn, affected)
     safe_render_vault(conn)
     return get_claim(claim_id)
 
@@ -861,28 +932,11 @@ def add_claim_supersede(claim_id: str, payload: ClaimSupersedeAdd) -> Claim:
     if claim_id == payload.supersedes_claim_id:
         raise HTTPException(status_code=422, detail="Bir claim kendi yerini alamaz")
 
-    mevcut = fetch_one(
-        conn.execute(
-            "MATCH (a:Claim)-[:SUPERSEDES]->(b:Claim {id: $oid}) RETURN a.id AS id",
-            {"oid": payload.supersedes_claim_id},
-        )
+    blocked = _supersede_block(
+        conn, old_claim_id=payload.supersedes_claim_id, new_valid_from=yeni["valid_from"], new_claim_id=claim_id
     )
-    if mevcut:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Bu claim'in yerini zaten başka bir claim almış (claim {mevcut['id'][:8]}…)",
-        )
-
-    # Zaman çizgisi tersine dönmesin: yerini alan bilgi, aldığı bilgiden önce başlayamaz.
-    if yeni["valid_from"] < eski["valid_from"]:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "Yerini alan claim daha ESKİ bir tarihte geçerli olmaya başlıyor "
-                f"({yeni['valid_from']} < {eski['valid_from']}) — zaman çizgisi tersine dönerdi. "
-                "Yön yanlış olabilir: hangisi yenisi?"
-            ),
-        )
+    if blocked:
+        raise HTTPException(status_code=blocked[0], detail=blocked[1])
 
     now = datetime.now(timezone.utc)
     _apply_supersede(
@@ -919,16 +973,18 @@ def decide_mentions(payload: MentionBatch) -> MentionBatchResult:
     """Toplu onay/ret. Reddedilen çift SİLİNMEZ, `REJECTED` olarak işaretlenir — yoksa aynı
     öneri bir sonraki aday hesabında geri gelirdi (Faz 20'nin EntityCandidate kararı)."""
     conn = get_connection()
-    confirmed = rejected = 0
+    # Önce HEPSİ doğrulanır, sonra yazılır: k'ıncı kararda 404/422 dönüp ilk k-1'i yazmış
+    # bırakmak, istemciye "hiçbir şey olmadı" deyip grafı değiştirmiş olmak demekti.
     for decision in payload.decisions:
-        action = decision.action.upper()
-        if action not in ("CONFIRM", "REJECT"):
+        if decision.action.upper() not in ("CONFIRM", "REJECT"):
             raise HTTPException(status_code=422, detail=f"Geçersiz aksiyon: {decision.action}")
         if not _node_exists(conn, "Claim", decision.claim_id):
             raise HTTPException(status_code=404, detail=f"Claim not found: {decision.claim_id}")
         if not _node_exists(conn, "Entity", decision.entity_id):
             raise HTTPException(status_code=404, detail=f"Entity not found: {decision.entity_id}")
-        status = "CONFIRMED" if action == "CONFIRM" else "REJECTED"
+    confirmed = rejected = 0
+    for decision in payload.decisions:
+        status = "CONFIRMED" if decision.action.upper() == "CONFIRM" else "REJECTED"
         set_mention(conn, decision.claim_id, decision.entity_id, status, decision.matched_on)
         if status == "CONFIRMED":
             confirmed += 1
@@ -953,5 +1009,7 @@ def remove_claim_mention(claim_id: str, entity_id: str) -> None:
     conn = get_connection()
     if not _node_exists(conn, "Claim", claim_id):
         raise HTTPException(status_code=404, detail="Claim not found")
+    if not _node_exists(conn, "Entity", entity_id):
+        raise HTTPException(status_code=404, detail="Entity not found")
     set_mention(conn, claim_id, entity_id, "REJECTED")
     safe_render_vault(conn)

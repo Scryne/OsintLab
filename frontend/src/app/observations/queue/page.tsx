@@ -255,7 +255,7 @@ export default function QueuePage() {
       </div>
 
       {loading && <SkeletonRows />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && data && items.length === 0 && (
         <EmptyState
           title={data.stats.pending === 0 ? "Kuyruk boş" : "Bu filtrede gözlem yok"}
@@ -337,7 +337,7 @@ function Stat({
 }) {
   const toneClass =
     tone === "accent"
-      ? "text-[var(--brand-accent)]"
+      ? "text-brand-accent-text"
       : tone === "warn"
         ? "text-priority-medium-text"
         : tone === "muted"

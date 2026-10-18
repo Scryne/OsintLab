@@ -27,7 +27,7 @@ import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import timezone
 
 from app.db import fetch_all
 from app.lineage import containment_similarity, resolve_independent_root, shingles
@@ -187,13 +187,40 @@ def _days_apart(a, b) -> float:
     return abs((a - b).total_seconds()) / 86400
 
 
-def _projected_confidence(claim: dict, corroborator_count: int, independent: bool) -> float:
+def _corroboration_state(conn, roots: dict[str, str]) -> dict[str, tuple[int, set[str]]]:
+    """Her claim'in MEVCUT doğrulaması: (doğrulayan claim sayısı, doğrulayanların bağımsız
+    kökleri — claim'in kendi kökü hariç). Önizleme bunun üzerine eklemeli, sıfırdan değil."""
+    state: dict[str, tuple[int, set[str]]] = {}
+    for row in fetch_all(
+        conn.execute(
+            "MATCH (s:Source)-[:ASSERTS]->(other:Claim)-[:CORROBORATES]->(c:Claim) "
+            "MATCH (own:Source)-[:ASSERTS]->(c) "
+            "RETURN c.id AS id, other.id AS other_id, s.id AS source_id, own.id AS own_source_id"
+        )
+    ):
+        for sid in (row["source_id"], row["own_source_id"]):
+            if sid not in roots:
+                roots[sid] = resolve_independent_root(conn, sid)
+        count, root_set = state.get(row["id"], (0, set()))
+        own_root = roots[row["own_source_id"]]
+        other_root = roots[row["source_id"]]
+        if other_root != own_root:
+            root_set = root_set | {other_root}
+        state[row["id"]] = (count + 1, root_set)
+    return state
+
+
+def _projected_confidence(
+    claim: dict, *, new_root: str | None, own_root: str | None, state: dict[str, tuple[int, set[str]]]
+) -> float:
     """Bağlantı kurulunca confidence'ın nereye gideceğinin ÖNİZLEMESİ.
 
     `confidence.py`'nin formülü burada tekrar edilmiyor — gerçek hesap bağlantı kurulduğunda
-    `_gather_confidence_inputs` üzerinden yapılıyor. Bu yalnızca kullanıcıya "buna değer mi"
-    dedirtecek kadarını gösteren bir tahmin ve claim'in mevcut kanıt/çelişki durumunu
-    bilmediği için ihtiyatlı: yalnızca corroboration'ın EKLEYECEĞİ katkıyı ekliyor."""
+    `_gather_confidence_inputs` üzerinden yapılıyor. Bu, yeni bağın EKLEYECEĞİ katkı: claim'in
+    mevcut doğrulayan sayısı ve bağımsız kökleri üzerine. Eskiden her claim sıfırdan doğrulanmış
+    gibi +0,05 ve +0,125 ekleniyordu; zaten doygun bir claim de bağlanınca +0,175 "kazanacak"
+    görünüyordu, ki bu hiç olmazdı (2026-10-18 denetimi). Kanıt cezası bilinmediği için önizleme
+    hâlâ bir üst sınır — ama artık gerçekleşmeyecek bir artış göstermiyor."""
     from app.confidence import (
         CORROBORATION_SATURATION,
         CORROBORATION_WEIGHT,
@@ -201,9 +228,15 @@ def _projected_confidence(claim: dict, corroborator_count: int, independent: boo
         INDEPENDENCE_WEIGHT,
     )
 
-    added = CORROBORATION_WEIGHT * min(corroborator_count / CORROBORATION_SATURATION, 1.0)
-    if independent:
-        added += INDEPENDENCE_WEIGHT * min(corroborator_count / INDEPENDENCE_SATURATION, 1.0)
+    count, root_set = state.get(claim["id"], (0, set()))
+    added = CORROBORATION_WEIGHT * (
+        min((count + 1) / CORROBORATION_SATURATION, 1.0) - min(count / CORROBORATION_SATURATION, 1.0)
+    )
+    if new_root and new_root != own_root and new_root not in root_set:
+        added += INDEPENDENCE_WEIGHT * (
+            min((len(root_set) + 1) / INDEPENDENCE_SATURATION, 1.0)
+            - min(len(root_set) / INDEPENDENCE_SATURATION, 1.0)
+        )
     return round(min((claim["confidence"] or 0.0) + added, 1.0), 4)
 
 
@@ -225,6 +258,7 @@ def find_candidates(
     linked = set() if include_linked else _existing_links(conn)
     # Bağımsız kök çözümü claim başına bir kez — çift başına çözmek O(n²) graf sorgusu olurdu.
     roots = {c["source_id"]: resolve_independent_root(conn, c["source_id"]) for c in claims}
+    corroboration = _corroboration_state(conn, roots)
     shingle_cache: dict[str, set[str]] = {}
 
     def _shingles(claim: dict) -> set[str]:
@@ -312,8 +346,9 @@ def find_candidates(
                 reasons=reasons,
             )
             if kind == "CORROBORATION":
-                pair.projected_a = _projected_confidence(a, 1, independent=True)
-                pair.projected_b = _projected_confidence(b, 1, independent=True)
+                root_a, root_b = roots.get(a["source_id"]), roots.get(b["source_id"])
+                pair.projected_a = _projected_confidence(a, new_root=root_b, own_root=root_a, state=corroboration)
+                pair.projected_b = _projected_confidence(b, new_root=root_a, own_root=root_b, state=corroboration)
             out.append(pair)
 
     # Sıralama: önce gerçek doğrulama adayları (asıl iş), sonra uyarı kategorileri; her grup
@@ -456,6 +491,7 @@ def find_observation_candidates(
     for o in pool:
         if o["source_id"] and o["source_id"] not in roots:
             roots[o["source_id"]] = resolve_independent_root(conn, o["source_id"])
+    corroboration = _corroboration_state(conn, roots)
 
     out: list[ObservationCandidate] = []
     for ci, claim in enumerate(claims):
@@ -509,7 +545,10 @@ def find_observation_candidates(
                 suggested_source_id=obs["source_id"], suggested_source_name=obs["source_name"],
             )
             if kind == "CORROBORATION":
-                candidate.projected_confidence = _projected_confidence(claim, 1, independent=True)
+                candidate.projected_confidence = _projected_confidence(
+                    claim, new_root=roots.get(obs["source_id"]), own_root=roots.get(claim["source_id"]),
+                    state=corroboration,
+                )
             out.append(candidate)
 
     order = {"CORROBORATION": 0, "DERIVED_SUSPECT": 1, "SHARED_ROOT": 2, "SAME_SOURCE": 3}

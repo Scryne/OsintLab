@@ -42,8 +42,10 @@ export default function EntityCandidatesPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const { data: pending, error, loading, reload } = useApi(() => api.entities.extractedCandidates(), []);
-  const { data: all, reload: reloadAll } = useApi(() => api.entities.extractedCandidates(true), []);
+  // Tek çağrı: aday çıkarma pahalı (her çağrıda bütün claim metinleri yeniden taranıyor) ve
+  // eskiden aynı iş iki kez yapılıyordu — biri bekleyenler, biri karar verilmişler için.
+  const { data: all, error, loading, reload } = useApi(() => api.entities.extractedCandidates(true), []);
+  const pending = useMemo(() => (all ?? []).filter((c) => c.status === "PENDING"), [all]);
 
   const dismissed = useMemo(
     () => (all ?? []).filter((c) => c.status === "DISMISSED"),
@@ -51,9 +53,7 @@ export default function EntityCandidatesPage() {
   );
   const promoted = useMemo(() => (all ?? []).filter((c) => c.status === "PROMOTED"), [all]);
 
-  // `pending ?? []` her render'da yeni bir dizi üretir; aşağıdaki useMemo'nun bağımlılığı
-  // olduğu için memo hiç tutmazdı (lint bunu yakalıyor).
-  const shown = useMemo(() => pending ?? [], [pending]);
+  const shown = pending;
   // Görünür olmayan bir aday seçili SAYILMAZ — Faz 16 kuyruğunda alınan karar: liste
   // değiştiğinde ekranda olmayan bir şeyi elemek sürpriz olurdu.
   const visibleKeys = useMemo(() => new Set(shown.map((c) => c.key)), [shown]);
@@ -61,7 +61,6 @@ export default function EntityCandidatesPage() {
 
   function reloadBoth() {
     reload();
-    reloadAll();
   }
 
   async function dismissSelected() {
@@ -161,7 +160,7 @@ export default function EntityCandidatesPage() {
           )}
 
           {loading && <SkeletonRows />}
-          {error && <ErrorState message={error.message} onRetry={reload} />}
+          {error && <ErrorState error={error} onRetry={reload} />}
           {!loading && !error && shown.length === 0 && (
             <EmptyState
               title="Bekleyen aday yok"

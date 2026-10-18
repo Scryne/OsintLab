@@ -2,7 +2,7 @@ import hashlib
 import re
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from app import archive, doc_worker, docint
 from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
 from app.models import (
+    _to_utc,
     Evidence,
     EvidenceClaimLink,
     EvidenceCreate,
@@ -59,6 +60,10 @@ EVIDENCE_DIR = DATA_ROOT / "evidence"
 # Tek kullanıcılı yerel bir araç; sınır kötü niyete karşı değil, kazara 4 GB'lık bir dosyayı
 # belleğe okumaya karşı.
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+# Belgeden tek seferde üretilebilecek gözlemin sayfa tavanı (bkz. create_observation_from_evidence).
+MAX_OBSERVATION_PAGES = 50
+MAX_OCR_OBSERVATION_PAGES = 20
 # Yol güvenliği ASCII gerektirmiyor: tehlikeli olan ayraçlar ve '..', harfler değil. Sadece
 # ASCII'ye indirgemek Türkçe dosya adlarını bozuyordu ("İhale Sonucu.pdf" -> "hale_Sonucu").
 # `\w` UNICODE modunda Türkçe harfleri de kapsıyor.
@@ -91,12 +96,24 @@ def _stored_path(content_hash: str, original_name: str) -> Path:
     return EVIDENCE_DIR / content_hash[:2] / f"{content_hash[:16]}-{original_name}"
 
 
+def _is_anchored(file_path: str) -> bool:
+    """Mutlak, sürücü harfli ya da UNC (`\\\\sunucu\\paylaşım`) bir yol mu.
+
+    Bunlar vault'a göre göreli olamaz ve `.resolve()`a bile verilmemeli: Windows bir UNC
+    yolunu çözerken uzak makineye SMB ile bağlanır ve kullanıcının NTLM özetini gönderir.
+    `POST /evidence`in `file_path` alanı elle doldurulabildiği için bu, dışarıdan tetiklenebilir
+    bir sızıntıydı (2026-10-18 denetimi)."""
+    if file_path.startswith(("\\\\", "//")):
+        return True
+    return Path(file_path).is_absolute() or bool(PureWindowsPath(file_path).anchor)
+
+
 def _resolve_stored_file(file_path: str | None) -> Path | None:
     """Graf'taki göreli yolu gerçek dosyaya çevirir — vault dışına çıkan yolu reddederek.
 
     `file_path` kullanıcı girdisi olabilir (`POST /evidence` alanı elle doldurulabiliyor),
     dolayısıyla '../../etc/passwd' gibi bir değer indirme ucundan okunabilir olurdu."""
-    if not file_path:
+    if not file_path or _is_anchored(file_path):
         return None
     candidate = (EVIDENCE_DIR / file_path).resolve()
     try:
@@ -107,15 +124,21 @@ def _resolve_stored_file(file_path: str | None) -> Path | None:
 
 
 def _hash_file_if_present(file_path: str | None) -> str | None:
-    """Q18: dosya yerelde varsa bütünlük hash'i hesaplanır; yoksa None döner (caller
-    kendi hash'ini vermiş olabilir, ya da dosya henüz collector tarafından indirilmemiştir)."""
-    if not file_path:
-        return None
-    path = Path(file_path)
-    if not path.is_file():
+    """Q18: dosya vault'ta varsa bütünlük hash'i hesaplanır; yoksa None döner (caller
+    kendi hash'ini vermiş olabilir, ya da dosya henüz collector tarafından indirilmemiştir).
+
+    Yalnızca vault İÇİNDEKİ dosyalar: eskiden verilen her yol (mutlak, `..`, UNC) okunup
+    hash'i döndürülüyordu — yani API diskteki herhangi bir dosyanın varlığını ve içeriğinin
+    özetini söyleyen bir kahine dönüşüyordu. Göreli yollar da artık çalışma dizinine değil
+    vault'a göre çözülüyor (önceden doğru bir vault yolu hiç hash'lenmiyordu). Dosya parça
+    parça okunuyor: büyük bir dosya belleğe tek seferde yüklenmesin."""
+    path = _resolve_stored_file(file_path)
+    if path is None or path.stat().st_size > MAX_UPLOAD_BYTES:
         return None
     digest = hashlib.sha256()
-    digest.update(path.read_bytes())
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
     return digest.hexdigest()
 
 
@@ -145,10 +168,10 @@ def create_evidence(payload: EvidenceCreate) -> Evidence:
 
 
 @router.post("/upload", response_model=Evidence, status_code=201)
-async def upload_evidence(
-    file: UploadFile = File(...),
-    evidence_type: str = Form(...),
-    collected_at: datetime | None = Form(None),
+def upload_evidence(
+    file: UploadFile = File(...),  # noqa: B008 — FastAPI'nin form/dosya bildirimi böyle
+    evidence_type: str = Form(...),  # noqa: B008
+    collected_at: datetime | None = Form(None),  # noqa: B008
 ) -> Evidence:
     """Faz 13 — Evidence Vault: bir dosyayı doğrudan arayüzden yükler.
 
@@ -159,8 +182,17 @@ async def upload_evidence(
     Depolama içerik-adresli (SHA-256): aynı bayt dizisi iki kez yüklenirse ikinci çağrı 409
     döner ve mevcut Evidence'ın id'sini söyler. Sessizce ikinci bir kayıt yaratmak, aynı
     kanıtın grafta iki ayrı düğüm olarak durması demekti — confidence formülündeki evidence
-    sayacını da şişirirdi (Q18/bütünlük)."""
-    raw = await file.read(MAX_UPLOAD_BYTES + 1)
+    sayacını da şişirirdi (Q18/bütünlük).
+
+    Senkron (`def`) bilerek: `async` iken veritabanı yazması ve dosya diske yazımı olay
+    döngüsünün kendi iş parçacığında yapılıyordu — büyük bir dosya yazılırken zamanlayıcı ve
+    diğer bütün istekler bekliyordu. FastAPI senkron ucu iş parçacığı havuzunda çalıştırır;
+    `UploadFile.file` zaten diskte yedeklenmiş bir dosya nesnesi."""
+    raw = file.file.read(MAX_UPLOAD_BYTES + 1)
+    collected_at = _to_utc(collected_at)  # JSON uçlarındaki UTC garantisi form alanında da
+    evidence_type = evidence_type.strip()
+    if not evidence_type:
+        raise HTTPException(status_code=422, detail="Kanıt türü boş olamaz.")
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
@@ -449,6 +481,21 @@ def create_observation_from_evidence(
 
     conn = get_connection()
     evidence = get_evidence(evidence_id)
+    if payload.page_to < payload.page_from:
+        raise HTTPException(status_code=422, detail="Bitiş sayfası başlangıçtan önce olamaz.")
+    # Bu uç SENKRON: OCR sayfa başına ~1,3 sn, metin katmanı ~0,02 sn. Sınırsız bir aralık
+    # isteği dakikalarca bekletiyor ve modülün kendi notunun kaçınmak istediği dev gözlemi
+    # (1,6 milyon karakterlik bir claim) üretiyordu.
+    sayfa = payload.page_to - payload.page_from + 1
+    tavan = MAX_OCR_OBSERVATION_PAGES if evidence.text_source == "ocr" else MAX_OBSERVATION_PAGES
+    if sayfa > tavan:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Tek gözlem için en fazla {tavan} sayfa seçilebilir ({sayfa} seçildi). "
+                "Bir gözlem tek bir iddiaya dönüşecek birim olmalı — aralığı daralt."
+            ),
+        )
     path = _resolve_stored_file(evidence.file_path)
     if path is None:
         raise HTTPException(

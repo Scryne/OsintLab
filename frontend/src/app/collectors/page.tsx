@@ -65,6 +65,7 @@ export default function CollectorsPage() {
             value={hostname}
             onChange={(e) => setHostname(e.target.value)}
             placeholder="ör. feeds.bbci.co.uk"
+            aria-label="Allowlist'e eklenecek hostname"
             onKeyDown={(e) => e.key === "Enter" && addHostname()}
           />
           <Button onClick={addHostname} disabled={adding || !hostname.trim()}>
@@ -79,7 +80,7 @@ export default function CollectorsPage() {
             <Skeleton className="h-7 w-32 rounded-full" />
           </div>
         )}
-        {error && <ErrorState message={error.message} onRetry={reload} />}
+        {error && <ErrorState error={error} onRetry={reload} />}
         {!loading && !error && (!allowlist || allowlist.hostnames.length === 0) && (
           <EmptyState
               title="Allowlist boş"

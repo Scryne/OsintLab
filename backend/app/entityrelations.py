@@ -276,7 +276,9 @@ def entity_graph(conn) -> dict:
         {"source": row["a"], "target": row["b"], "kind": "same_as", "label": "aynı kayıt"}
         for row in fetch_all(
             conn.execute(
-                "MATCH (a:Entity)-[r:SAME_AS]->(b:Entity) WHERE r.status = 'CONFIRMED' "
+                # SAME_AS iki yönde saklanıyor; yalnızca bir yönü almazsak her çift iki kenar
+                # ve iki kat derece olarak sayılıyordu.
+                "MATCH (a:Entity)-[r:SAME_AS]->(b:Entity) WHERE r.status = 'CONFIRMED' AND a.id < b.id "
                 "RETURN a.id AS a, b.id AS b"
             )
         )

@@ -25,18 +25,24 @@ export function WhyMattersDisclosure({ claimId }: { claimId: string }) {
   const [open, setOpen] = useState(false);
   const [reasons, setReasons] = useState<WhyMattersReason[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Panel ÖNCE açılır (bkz. ConfidenceExplainDisclosure): "Hesaplanıyor…" görünür olsun ve
+  // yavaş istekte ikinci tıklama ikinci isteği başlatmasın. Hata artık yutulmuyor.
   async function toggle() {
-    if (!open && reasons === null) {
-      setLoading(true);
-      try {
-        const res = await api.claims.whyMatters(claimId);
-        setReasons(res.reasons);
-      } finally {
-        setLoading(false);
-      }
+    const next = !open;
+    setOpen(next);
+    if (!next || reasons !== null || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.claims.whyMatters(claimId);
+      setReasons(res.reasons);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gerekçe alınamadı");
+    } finally {
+      setLoading(false);
     }
-    setOpen((o) => !o);
   }
 
   return (
@@ -44,14 +50,16 @@ export function WhyMattersDisclosure({ claimId }: { claimId: string }) {
       <button
         type="button"
         onClick={toggle}
+        aria-expanded={open}
         className="flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-foreground"
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {open ? <ChevronDown aria-hidden className="h-3 w-3" /> : <ChevronRight aria-hidden className="h-3 w-3" />}
         Neden önemli?
       </button>
       {open && (
         <div className="mt-1.5">
           {loading && <p className="text-xs text-text-tertiary">Hesaplanıyor…</p>}
+          {error && <p className="text-xs text-priority-critical-text">{error}</p>}
           {reasons?.map((reason, i) => (
             <ProvenanceBlock key={i} type="SYSTEM_INFERENCE" className="mb-1.5">
               {reason.text}

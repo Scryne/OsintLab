@@ -24,11 +24,12 @@ deneyimden sonra bilinir. Kuralı deneyimden önce yazmak, Faz 12'de yapılan ha
 (roadmap'in "otomatik geçer" varsayımının yanlış çıkması) aynısı olurdu.
 """
 import logging
-import re
+import threading
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from app.db import fetch_all, fetch_one
+from app.db import data_version, fetch_all, fetch_one, graph_lock
 from app.models import (
     ObservationDismiss,
     ObservationDismissResult,
@@ -39,7 +40,7 @@ from app.models import (
     SignalReason,
 )
 from app.monitoring import _ACTIVE_INVESTIGATION_STATUSES
-from app.scanning import load_entity_rows, match_entities_in_text
+from app.scanning import contains_word, load_entity_rows, match_entities_in_text
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +123,9 @@ HIGH_SIGNAL_THRESHOLD = 0.40
 # ile "hep eleniyor" aynı şey değildir ve bilinmeyene uydurma bir değer atamak, ölçmediğimiz
 # şeyi ölçmüş gibi göstermek olurdu.
 #
-# Döngü riski üç şekilde sınırlandı: (1) ağırlık küçük ve yalnızca NEGATİF — hiçbir şeyi
-# kuyruktan çıkarmaz, sadece aşağı sıralar; (2) yeterli kanıt şartı var (aşağıdaki eşik) —
+# Döngü riski üç şekilde sınırlandı: (1) ağırlık küçük ve yalnızca POZİTİF (yukarıdaki not:
+# önce negatif denendi, dağılımı bozdu) — hiçbir şeyi kuyruktan çıkarmaz ya da cezalandırmaz,
+# çok elenen kaynak yalnızca bu puanı kazanamaz; (2) yeterli kanıt şartı var (aşağıdaki eşik) —
 # üç kayıtlık bir host'un oranı istatistik değil gürültüdür; (3) gerekçe listesinde AÇIKÇA
 # yazılır ("bu kaynağın %88'ini eledin"), yani kullanıcı skorun neden düştüğünü görür ve
 # host filtresiyle o kaynağın tamamını her an tam olarak görebilir.
@@ -150,13 +152,16 @@ def normalize_host(url: str | None) -> str | None:
     return host[4:] if host.startswith("www.") else host
 
 
-def _name_in(text_low: str, name: str) -> bool:
-    """Kelime sınırlı ad araması. `scanning.match_entities_in_text` ile AYNI disiplin:
-    düz `in` kontrolü "Meta"yı "metadata" içinde bulurdu."""
-    needle = (name or "").strip().lower()
-    if len(needle) < MIN_CANDIDATE_MATCH_LENGTH:
-        return False
-    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", text_low) is not None
+def _needles(names: list[str]) -> list[tuple[str, str]]:
+    """(görünen ad, aranacak küçük harf) çiftleri. Arama kelime sınırlı (`contains_word`):
+    `scanning.match_entities_in_text` ile AYNI disiplin — düz `in` kontrolü "Meta"yı
+    "metadata" içinde bulurdu."""
+    out = []
+    for name in names:
+        needle = (name or "").strip().lower()
+        if len(needle) >= MIN_CANDIDATE_MATCH_LENGTH:
+            out.append((name, needle))
+    return out
 
 
 # ---- Bağlam yükleme (kuyruk başına BİR kez) ------------------------------
@@ -283,6 +288,10 @@ def _load_context(conn) -> dict:
         "related_pairs": related_pairs,
         "pending_candidate_names": pending_candidate_names,
         "dismissed_candidate_names": dismissed_candidate_names,
+        # Ad başına normalizasyon kuyruk başına BİR kez: 3.000+ gözlem × 500+ ad için her
+        # karşılaştırmada strip/lower yapmak kuyruk süresinin yarısıydı.
+        "pending_candidate_needles": _needles(pending_candidate_names),
+        "dismissed_candidate_needles": _needles(dismissed_candidate_names),
         "host_dismiss_rate": host_dismiss_rate,
         "host_totals": host_totals,
     }
@@ -410,7 +419,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
     # bilinen hiçbir entity'ye değmeyen gözlemlerde. Ölçüm: 26 öğede ateşliyor, 23'ünde
     # başka hiçbir pozitif sinyal yok.
     low = (observation.raw_content or "").lower()
-    pending_hits = [n for n in ctx["pending_candidate_names"] if _name_in(low, n)]
+    pending_hits = [n for n, needle in ctx["pending_candidate_needles"] if contains_word(low, needle)]
     if pending_hits:
         reasons.append(
             SignalReason(
@@ -420,7 +429,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
                 weight=SIGNAL_WEIGHTS["PENDING_CANDIDATE"],
             )
         )
-    dismissed_hits = [n for n in ctx["dismissed_candidate_names"] if _name_in(low, n)]
+    dismissed_hits = [n for n, needle in ctx["dismissed_candidate_needles"] if contains_word(low, needle)]
     if dismissed_hits:
         reasons.append(
             SignalReason(
@@ -519,6 +528,16 @@ def _counts(conn) -> dict:
     return {"total": total, "dismissed": dismissed}
 
 
+# Skorlanmış kuyruğun önbelleği. Arayüz kuyruk derinliğini her sayfada 60 sn'de bir soruyor
+# (nav rozeti) ve kuyruk büyüdükçe her soru 3.000+ gözlemin baştan skorlanması demekti. Anahtar
+# grafın sürümü (`db.data_version`): herhangi bir yazma isteği ya da yeni gözlem önbelleği
+# geçersiz kılar. Süre tavanı yaş bilgisinin (`age_days`) bayatlamaması ve sürüm sayacını
+# artırmayı unutan olası bir yazma yolu için emniyet.
+QUEUE_CACHE_TTL_SECONDS = 300
+_queue_cache: dict = {"version": None, "at": 0.0, "scored": None, "stats": None}
+_queue_cache_lock = threading.Lock()
+
+
 def build_queue(
     conn,
     *,
@@ -534,6 +553,50 @@ def build_queue(
     değil — yoksa "kaç gözlem bekliyor" sorusu sayfa boyutuna göre farklı cevap verirdi.
     `host`/`max_score` filtreleri toplu eleme içindir: "bu feed'in tamamı" ya da "sinyalsiz
     olanların tamamı" tek seferde seçilebilsin diye."""
+    scored, stats = _scored_queue(conn)
+
+    filtered = scored
+    if host:
+        wanted = normalize_host(f"//{host}") or host.lower()
+        filtered = [i for i in filtered if (i.host or "(adres yok)") in (wanted, host)]
+    # `min_score` KAPSAYICI (>=), `max_score` DIŞLAYICI (<). Simetrik olmamaları bilinçli:
+    # kuyruğun iki yakası tam olarak HIGH_SIGNAL_THRESHOLD'da ayrılıyor ve ikisi de kapsayıcı
+    # olsaydı eşiğe tam oturan bir gözlem hem "yüksek sinyal" hem "gürültü" listesinde
+    # çıkardı — toplu elemede bu, bakılması gereken bir kaydın yanlışlıkla elenmesi demek.
+    if max_score is not None:
+        filtered = [i for i in filtered if i.signal_score < max_score]
+    if min_score is not None:
+        filtered = [i for i in filtered if i.signal_score >= min_score]
+
+    # Eşit puanda yeni olan üstte: aynı derecede ilgili iki haberden taze olanı üzerine iş
+    # yapılabilir olandır. `sorted` (yerinde değil): liste önbellekle paylaşılıyor.
+    filtered = sorted(filtered, key=lambda i: (-i.signal_score, -(i.created_at.timestamp() if i.created_at else 0)))
+
+    return ObservationQueue(
+        stats=stats,
+        items=filtered[offset : offset + limit],
+        matched=len(filtered),
+        high_signal_threshold=HIGH_SIGNAL_THRESHOLD,
+    )
+
+
+def _scored_queue(conn) -> tuple[list[QueueItem], QueueStats]:
+    version = data_version()
+    with _queue_cache_lock:
+        cached = _queue_cache
+        if (
+            cached["version"] == version
+            and cached["scored"] is not None
+            and time.monotonic() - cached["at"] < QUEUE_CACHE_TTL_SECONDS
+        ):
+            return cached["scored"], cached["stats"]
+    scored, stats = _score_all(conn)
+    with _queue_cache_lock:
+        _queue_cache.update(version=version, at=time.monotonic(), scored=scored, stats=stats)
+    return scored, stats
+
+
+def _score_all(conn) -> tuple[list[QueueItem], QueueStats]:
     ctx = _load_context(conn)
     pending = _pending_observations(conn)
 
@@ -582,30 +645,7 @@ def build_queue(
             key=lambda b: (-b.count, b.host),
         ),
     )
-
-    filtered = scored
-    if host:
-        wanted = normalize_host(f"//{host}") or host.lower()
-        filtered = [i for i in filtered if (i.host or "(adres yok)") in (wanted, host)]
-    # `min_score` KAPSAYICI (>=), `max_score` DIŞLAYICI (<). Simetrik olmamaları bilinçli:
-    # kuyruğun iki yakası tam olarak HIGH_SIGNAL_THRESHOLD'da ayrılıyor ve ikisi de kapsayıcı
-    # olsaydı eşiğe tam oturan bir gözlem hem "yüksek sinyal" hem "gürültü" listesinde
-    # çıkardı — toplu elemede bu, bakılması gereken bir kaydın yanlışlıkla elenmesi demek.
-    if max_score is not None:
-        filtered = [i for i in filtered if i.signal_score < max_score]
-    if min_score is not None:
-        filtered = [i for i in filtered if i.signal_score >= min_score]
-
-    # Eşit puanda yeni olan üstte: aynı derecede ilgili iki haberden taze olanı üzerine iş
-    # yapılabilir olandır.
-    filtered.sort(key=lambda i: (-i.signal_score, -(i.created_at.timestamp() if i.created_at else 0)))
-
-    return ObservationQueue(
-        stats=stats,
-        items=filtered[offset : offset + limit],
-        matched=len(filtered),
-        high_signal_threshold=HIGH_SIGNAL_THRESHOLD,
-    )
+    return scored, stats
 
 
 def suggestions_for(conn, observations: list) -> dict[str, dict]:
@@ -628,7 +668,13 @@ def dismiss(conn, payload: ObservationDismiss) -> ObservationDismissResult:
     ids = [i for i in dict.fromkeys(payload.observation_ids) if i]
     if not ids:
         return ObservationDismissResult(dismissed=0, skipped=[])
+    # "Claim üretmemiş" kontrolü ile işaretleme arasına bir promote girerse, gözlem hem
+    # elenmiş hem claim üretmiş olarak kalırdı (kuyruk sayaçları bozulur).
+    with graph_lock:
+        return _dismiss(conn, ids, payload)
 
+
+def _dismiss(conn, ids: list[str], payload: ObservationDismiss) -> ObservationDismissResult:
     rows = fetch_all(
         conn.execute(
             "MATCH (o:Observation) WHERE o.id IN $ids "

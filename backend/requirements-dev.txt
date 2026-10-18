@@ -1,0 +1,7 @@
+# Test bağımlılıkları — çalışma zamanına girmez. Kurulum:
+#   .venv\Scripts\pip install -r requirements-dev.txt
+# Çalıştırma (backend klasöründen): .venv\Scripts\python -m pytest
+# Testler kendi geçici veri kökünde çalışır (OSINTLAB_DATA_DIR), gerçek data/'ya dokunmaz.
+-r requirements.txt
+pytest==8.4.2
+httpx==0.28.1

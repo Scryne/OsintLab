@@ -60,6 +60,8 @@ export default function CorroborationPage() {
   // olmasını gerektiriyor, oysa doğrulayan çoğu zaman hâlâ ham gözlem olarak duruyor.
   const {
     data: obsCandidates,
+    error: obsError,
+    loading: obsLoading,
     reload: reloadObs,
   } = useApi(() => api.claims.observationCandidates({ limit: 300 }), []);
 
@@ -179,17 +181,21 @@ export default function CorroborationPage() {
       {claims && <Scoreboard claims={claims} candidateCount={corroboration.length} />}
 
       <Tabs value={tab} onValueChange={(v) => v && setTab(v as Tab)}>
-        <TabsList>
-          <TabsTrigger value="corroboration">
-            Doğrulama adayları{corroboration.length > 0 ? ` · ${corroboration.length}` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="observations">
-            Gözlemden doğrulama{obsCorroboration.length > 0 ? ` · ${obsCorroboration.length}` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="warnings">
-            Uyarılar{warnings.length > 0 ? ` · ${warnings.length}` : ""}
-          </TabsTrigger>
-        </TabsList>
+        {/* Sayaçlar dolunca üç sekme dar ekrana sığmıyor: sekme şeridi kendi içinde kayar,
+            sayfa yatay taşmaz (kaynak detayındaki desenin aynısı). */}
+        <div className="overflow-x-auto">
+          <TabsList className="w-max">
+            <TabsTrigger value="corroboration">
+              Doğrulama adayları{corroboration.length > 0 ? ` · ${corroboration.length}` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="observations">
+              Gözlemden doğrulama{obsCorroboration.length > 0 ? ` · ${obsCorroboration.length}` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="warnings">
+              Uyarılar{warnings.length > 0 ? ` · ${warnings.length}` : ""}
+            </TabsTrigger>
+          </TabsList>
+        </div>
       </Tabs>
 
       {tab === "corroboration" && corroboration.length > 0 && (
@@ -238,9 +244,11 @@ export default function CorroborationPage() {
 
       {result && <LinkResult result={result} onDismiss={() => setResult(null)} />}
 
-      {loading && <SkeletonRows />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
-      {!loading && !error && shown.length === 0 && (
+      {/* Gözlem sekmesinin kendi yükleme/hata durumu var — üstteki claim çifti
+          durumları orada gösterilirse "Uyarı yok" gibi alakasız bir boş durum beliriyordu. */}
+      {tab !== "observations" && loading && <SkeletonRows />}
+      {tab !== "observations" && error && <ErrorState error={error} onRetry={reload} />}
+      {tab !== "observations" && !loading && !error && shown.length === 0 && (
         <EmptyState
           title={tab === "corroboration" ? "Doğrulama adayı yok" : "Uyarı yok"}
           description={
@@ -253,7 +261,9 @@ export default function CorroborationPage() {
 
       {tab === "observations" && (
         <div className="flex flex-col gap-3">
-          {obsCorroboration.length === 0 && (
+          {obsLoading && <SkeletonRows />}
+          {obsError && <ErrorState error={obsError} onRetry={reloadObs} />}
+          {!obsLoading && !obsError && obsCorroboration.length === 0 && (
             <EmptyState
               title="Gözlemlerden doğrulama adayı yok"
               description="Doğrulayanı olmayan claim'leri, sistemde bekleyen ham gözlemler arasında arıyoruz. Aday çıkmaması kaynakların aynı olayı bağımsız olarak raporlamadığı anlamına gelir — yeni içerik toplandıkça burası dolar."

@@ -112,7 +112,7 @@ export default function EventsPage() {
       {tab === "events" && (
         <>
           {loading && <SkeletonList />}
-          {error && <ErrorState message={error.message} onRetry={reload} />}
+          {error && <ErrorState error={error} onRetry={reload} />}
           {!loading && !error && sorted.length === 0 && (
             <EmptyState
               title="Henüz olay yok"

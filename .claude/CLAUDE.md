@@ -68,6 +68,19 @@ ortasında yeniden açar. Ürünü kullanırken kapalı bırak, bug düzeltirken
 `cd backend; py -3.12 -m venv .venv; .venv\Scripts\pip install -r requirements.txt`
 ve `cd frontend; npm install`.
 
+### Kontrol ve yedek (2026-10-18'den beri)
+
+```powershell
+.\scripts\kontrol.ps1   # backend pytest + ruff, frontend tsc + eslint — taban çizgisi: hepsi temiz
+.\scripts\yedek.ps1     # backend'i birkaç sn durdurup data\backups\osintlab-<zaman>.zip (son 10 tutulur)
+```
+
+- **Testler gerçek veriye dokunmaz:** `backend/tests/conftest.py` geçici bir `OSINTLAB_DATA_DIR`
+  kurar ve veri kökü gerçek `data/` ise koşuyu durdurur. Backend ayaktayken de koşturulabilir.
+  Yeni bir yazma ucu ya da değişmez eklerken `backend/tests/` altına regresyon testi yaz.
+- **Yedek neden script:** KùzuDB dosyası backend çalışırken kilitli; elle kopya yarıda kalır.
+  Yedek graph + evidence + archive + config + daily'yi alır; vault türetilmiş olduğu için yok.
+
 ### OCR (Faz 15.4) — projenin tek sistem-seviyesi bağımlılığı
 
 Taranmış belgeleri okumak Tesseract'a bağlı; geri kalan her şey venv'in içinde durur.
@@ -207,3 +220,32 @@ v3'e başlamadan önce bir **sertleştirme turu** yapıldı — detay: `docs/Fro
 - **Arşiv Kanıt Kasası'nda görünmez** (`GET /evidence?include_archives=true` ile istenebilir).
   Kasa elle yüklenen kanıtın yeri; arşiv her promote'ta kendiliğinden oluşuyor, karıştırılsa
   3 belgelik kasa 58 satır olurdu. Arşivlerin yeri `/archive`.
+
+### Denetim ve sertleştirme turu sonrası (2026-10-18)
+
+Ayrıntı ve ölçümler: `docs/Roadmap.md` → "Ara iş: Denetim ve Sertleştirme Turu". Yeni kod
+yazarken bilinmesi gerekenler:
+
+- **Claim'in öznesini değiştirmenin tek yolu `eventcluster.set_claim_about`.** Entity/event
+  dışlayıcılığı, olaya taşınırken entity'nin `INVOLVED_IN` ile korunması ve eski+yeni olayın
+  yeniden hesaplanması orada. `ABOUT_ENTITY`/`ABOUT_EVENT` kenarını elle silip kuran yeni bir
+  yol yazma — iki uç tam olarak bunu yapıp entity bağını sessizce düşürüyordu.
+- **Yazma uçları önce HEPSİNİ doğrular, sonra yazar.** Gömülü KùzuDB'de çok adımlı yazma bir
+  transaction değil; yarıda reddedilen istek grafı yarım bırakır (`create_claim_record`,
+  toplu ilişki/değme kararları bu düzende).
+- **Kontrol-sonra-yazma `db.graph_lock` altında** (promote, eleme, aday promote, tarama dedup,
+  confidence yeniden hesabı). Bağlantı tek ve paylaşılan; ağ beklemesi kilidin İÇİNE girmez.
+- **Vault arka planda render edilir.** Yazma uçları `safe_render_vault` ile yalnızca istek bırakır,
+  tek iş parçacığı birleştirip render eder (`/health` → `vault`). `POST /vault/render` senkron
+  kalır (oturum-sonu hook'u ona güveniyor). Klasörler silinip yazılmıyor, eşitleniyor.
+- **Kuyruk önbellekli:** `triage` skorlanmış listeyi `db.data_version` ile tutar. HTTP dışından
+  yeni bir yazma yolu eklersen `bump_data_version()` çağır (`create_observation_record` yapıyor).
+- **Tarayıcıdan yazma yalnız `localhost:3000` origin'inden** (CSRF); `Host` yalnız yerel adlar
+  (DNS rebinding). Başlıksız istemciler (curl, hook, script) etkilenmez.
+- **CLOSED/ARCHIVED investigation salt-okunurdur** (backend 409, arayüz düzenlemeyi gizler).
+  Bulgular yalnızca CLOSED'da yükselir — ARCHIVED "bıraktım" demek.
+- **Kullanılan bir entity, claim'i olan bir olay silinmez** (409, neyin bağlı olduğu söylenir).
+- **Arşiv doğrulaması yalnız 404/410'da kanıtı düşürür;** geçici kesinti durumu değiştirmez.
+- **Frontend `useApi`:** `loading` yalnız gösterilecek veri yokken; `reload()` ekranı yıkmaz
+  (`refreshing`). Sayfalar iskeleti `loading`'e bağlar — tazelemede editör/sekme/kaydırma korunur.
+  Binlerce satırlık listeler parça parça çizilir (`/observations`, 50'şer).

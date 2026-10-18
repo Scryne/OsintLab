@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Bell, BellOff, Calendar, GitBranchPlus, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
-import type { Claim, RelationCandidate, SameAsCandidate, Source } from "@/lib/types";
+import type { RelationCandidate, SameAsCandidate } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -49,46 +49,37 @@ export function EntityDetail({ entityId }: { entityId: string }) {
     [entityId]
   );
 
-  // recall.related_claims'de source_id/updated_at yok (recall.py bilerek dar bir alan
-  // seti döndürüyor) — Sources/Recent Changes panelleri için her claim'i tekil çekiyoruz.
-  const [fullClaims, setFullClaims] = useState<Claim[] | null>(null);
-  const [sources, setSources] = useState<Record<string, Source>>({});
-
-  useEffect(() => {
-    if (!recall) return;
-    let cancelled = false;
-    Promise.all(recall.related_claims.map((c) => api.claims.get(c.id))).then(async (claims) => {
-      if (cancelled) return;
-      setFullClaims(claims);
-      const uniqueSourceIds = Array.from(new Set(claims.map((c) => c.source_id)));
-      const resolved = await Promise.all(uniqueSourceIds.map((sid) => api.sources.get(sid)));
-      if (cancelled) return;
-      setSources(Object.fromEntries(resolved.map((s) => [s.id, s])));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [recall]);
-
   const [monitor, setMonitor] = useState<{ id: string } | null | undefined>(undefined);
   useEffect(() => {
     let cancelled = false;
-    api.monitors.list(true).then((monitors) => {
-      if (cancelled) return;
-      setMonitor(monitors.find((m) => m.target_type === "Entity" && m.target_id === entityId) ?? null);
-    });
+    api.monitors
+      .list(true)
+      .then((monitors) => {
+        if (cancelled) return;
+        setMonitor(monitors.find((m) => m.target_type === "Entity" && m.target_id === entityId) ?? null);
+      })
+      .catch(() => {
+        // Liste okunamazsa düğme sonsuza dek kilitli kalmasın: "izlenmiyor" varsay.
+        if (!cancelled) setMonitor(null);
+      });
     return () => {
       cancelled = true;
     };
   }, [entityId]);
 
   async function toggleMonitor() {
-    if (monitor) {
-      await api.monitors.delete(monitor.id);
-      setMonitor(null);
-    } else {
-      const created = await api.monitors.create({ target_type: "Entity", target_id: entityId });
-      setMonitor(created);
+    try {
+      if (monitor) {
+        await api.monitors.delete(monitor.id);
+        setMonitor(null);
+        toast("İzleme kapatıldı", "default");
+      } else {
+        const created = await api.monitors.create({ target_type: "Entity", target_id: entityId });
+        setMonitor(created);
+        toast("İzlemeye alındı", "success");
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "İşlem başarısız", "error");
     }
   }
 
@@ -107,13 +98,9 @@ export function EntityDetail({ entityId }: { entityId: string }) {
   const [confidenceFilter, setConfidenceFilter] = useState<KnowledgeState | null>(null);
 
   const timelineItems = useMemo(() => {
-    // F31/F33: `fullClaims` doğrudan /claims/{id}'den geliyor, `via_entity_name` orada yok —
-    // o bilgi recall'ın kendisinde. Timeline da Claim'ler sekmesiyle aynı şeyi göstermeli,
+    // F31/F33: Timeline da Claim'ler sekmesiyle aynı şeyi göstermeli (`via_entity_name` dahil),
     // yoksa aynı claim bir sekmede "nereden geldiği" belli, diğerinde belirsiz oluyor.
-    const viaByClaimId = new Map(
-      (recall?.related_claims ?? []).map((c) => [c.id, c.via_entity_name])
-    );
-    const claims = (fullClaims ?? []).map((c) => ({
+    const claims = (recall?.related_claims ?? []).map((c) => ({
       id: c.id,
       kind: "claim" as const,
       title: c.text,
@@ -121,7 +108,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       approximate: false,
       knowledge_state: c.knowledge_state as KnowledgeState | null,
       confidence: c.confidence as number | undefined,
-      via_entity_name: viaByClaimId.get(c.id) ?? null,
+      via_entity_name: c.via_entity_name,
       superseded: Boolean(c.superseded_by_claim_id),
     }));
     // Faz 18: olay çizgideki yerini OLDUĞU tarihe göre alır, kaydedildiği tarihe göre
@@ -142,11 +129,11 @@ export function EntityDetail({ entityId }: { entityId: string }) {
     return [...claims, ...events]
       .filter((item) => !confidenceFilter || item.knowledge_state === confidenceFilter)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [fullClaims, recall, confidenceFilter]);
+  }, [recall, confidenceFilter]);
 
   if (entityLoading || recallLoading) return <SkeletonDetail />;
-  if (entityError) return <ErrorState message={entityError.message} />;
-  if (recallError) return <ErrorState message={recallError.message} />;
+  if (entityError) return <ErrorState error={entityError} />;
+  if (recallError) return <ErrorState error={recallError} />;
   if (!entity || !recall) return null;
 
   return (
@@ -265,7 +252,9 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                             kaydından geliyor
                           </p>
                         )}
-                        <div className="flex items-center gap-2">
+                        {/* flex-wrap: tarih + rozet + bağlantı dar sütuna sığmayınca satır
+                            sayfayı yatayda taşırıyordu (768 px'te +30 px). */}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="font-mono text-[11px] text-text-tertiary">
                             {new Date(item.timestamp).toLocaleString("tr-TR")}
                             {/* Olayın tarihi girilmediyse çizgideki yeri kayıt anıdır —
@@ -306,8 +295,6 @@ export function EntityDetail({ entityId }: { entityId: string }) {
           ) : (
             <div className="flex flex-col gap-3">
               {recall.related_claims.map((claim) => {
-                const full = fullClaims?.find((c) => c.id === claim.id);
-                const source = full ? sources[full.source_id] : undefined;
                 return (
                   <ProvenanceBlock key={claim.id} type="SOURCE_FACT">
                     <div className="flex items-start justify-between gap-3">
@@ -328,14 +315,14 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                         kaydından geliyor
                       </p>
                     )}
-                    {source && (
+                    {claim.source_name && (
                       <p className="mt-1 text-xs text-text-tertiary">
-                        Kaynak: {source.name}
-                        {source.url && (
+                        Kaynak: {claim.source_name}
+                        {claim.source_url && (
                           <>
                             {" · "}
-                            <a href={source.url} target="_blank" rel="noreferrer" className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
-                              {source.url}
+                            <a href={claim.source_url} target="_blank" rel="noreferrer" className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
+                              {claim.source_url}
                             </a>
                           </>
                         )}
@@ -366,7 +353,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 değiyor — adı metinde geçiyor. Öznesi olduğu iddialar &quot;Claim&apos;ler&quot; sekmesinde.
               </p>
               {recall.mentioned_in.map((m) => (
-                <div key={m.claim_id} className="rounded-lg border border-border bg-surface p-3">
+                <div key={m.id} className="rounded-lg border border-border bg-surface p-3">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm text-pretty text-foreground">{m.text.split("\n")[0]}</p>
                     <ConfidenceBadge state={m.knowledge_state} confidence={m.confidence} className="shrink-0" />

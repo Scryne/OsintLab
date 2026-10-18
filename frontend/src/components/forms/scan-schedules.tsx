@@ -59,7 +59,7 @@ export function ScanScheduleList({ sourceId, emptyText }: { sourceId?: string; e
   return (
     <div className="flex flex-col gap-2">
       {loading && <SkeletonRows count={2} />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && schedules?.length === 0 && (
         <EmptyState
           title="Zamanlanmış tarama yok"

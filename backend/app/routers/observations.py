@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from app import archive, docint, triage
-from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
+from app.db import DATA_ROOT, bump_data_version, fetch_all, fetch_one, get_connection, graph_lock
 from app.models import (
     Claim,
     ClaimCreate,
@@ -23,7 +23,7 @@ from app.models import (
 from app.monitoring import claim_headline
 from app.recall import entity_recall, event_recall
 from app.recall import why_matters as compute_why_matters
-from app.routers.claims import _claim_about, _gather_confidence_inputs, create_claim, get_claim
+from app.routers.claims import _claim_about, _gather_confidence_inputs, create_claim_record, get_claim
 from app.vault import safe_render_vault
 
 router = APIRouter(prefix="/observations", tags=["observations"])
@@ -146,6 +146,8 @@ def create_observation_record(
         },
     )
     _append_daily_log(observation_id, raw_content, observed_at, created_at, source_url, log_extra)
+    # Zamanlanmış tarama HTTP dışından yazıyor; kuyruk önbelleği (triage) bunu da görmeli.
+    bump_data_version()
     return Observation(
         id=observation_id, promoted=False, created_at=created_at,
         raw_content=raw_content, observed_at=observed_at, source_url=source_url,
@@ -234,8 +236,10 @@ def _create_claim_from_observation(
     """promote'un çekirdeği: gözlem metninden claim üretir ve PRODUCED kenarını kurar.
 
     `safe_render_vault` BİLEREK burada değil — toplu promote 36 kaydı işlerken vault'u 36 kez
-    yeniden yazardı. Çağıran katman render'ı bir kez, sonda tetikliyor."""
-    claim = create_claim(
+    yeniden yazardı. Çağıran katman render'ı bir kez, sonda tetikliyor. (2026-10-18'e kadar bu
+    söz tutulmuyordu: çağrılan `create_claim` route'u kendi içinde render ediyordu.)"""
+    claim = create_claim_record(
+        conn,
         ClaimCreate(
             text=observation.raw_content,
             source_id=payload.source_id,
@@ -340,17 +344,6 @@ def promote_observations_batch(payload: ObservationPromoteBatch) -> ObservationP
             continue
 
         head = claim_headline(observation.raw_content)
-        existing = _existing_claim_id(conn, observation_id)
-        if existing:
-            items.append(
-                ObservationPromoteBatchItem(
-                    observation_id=observation_id, status="SKIPPED", headline=head,
-                    claim_id=existing,
-                    message=f"Bu gözlemden zaten bir claim üretilmiş ({existing[:8]}…).",
-                )
-            )
-            continue
-
         suggestion = suggestions.get(observation_id, {})
         source_id = payload.source_id or suggestion.get("suggested_source_id")
         entity_id = payload.about_entity_id or suggestion.get("suggested_entity_id")
@@ -381,11 +374,25 @@ def promote_observations_batch(payload: ObservationPromoteBatch) -> ObservationP
             continue
 
         try:
-            claim = _create_claim_from_observation(
-                conn,
-                observation,
-                ObservationPromote(source_id=source_id, about_entity_id=entity_id),
-            )
+            # "Zaten claim üretmiş mi?" kontrolü ile üretim arasına başka bir promote
+            # girmemeli (çift tıklama, iki sekme): ikisi de "yok" görüp iki claim yazıyordu.
+            with graph_lock:
+                existing = _existing_claim_id(conn, observation_id)
+                if existing is None:
+                    claim = _create_claim_from_observation(
+                        conn,
+                        observation,
+                        ObservationPromote(source_id=source_id, about_entity_id=entity_id),
+                    )
+            if existing:
+                items.append(
+                    ObservationPromoteBatchItem(
+                        observation_id=observation_id, status="SKIPPED", headline=head,
+                        claim_id=existing,
+                        message=f"Bu gözlemden zaten bir claim üretilmiş ({existing[:8]}…).",
+                    )
+                )
+                continue
         except HTTPException as exc:
             # Bir kaydın reddi (ör. geçersiz kaynak id'si) kümenin geri kalanını durdurmamalı.
             items.append(
@@ -459,27 +466,31 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
     sessizce geride kalırdı; bu dosyanın geçmişi tam olarak o hatanın kaydı."""
     conn = get_connection()
     observation = get_observation(observation_id)
-    already_produced = _existing_claim_id(conn, observation_id)
-    if already_produced:
-        # F32: eski mesaj ("already processed") kullanıcıya hiçbir şey söylemiyordu — özellikle
-        # eşiği geçmemiş bir promote sonrası, arayüz gözlemi hâlâ "işlenmemiş" gösterdiği için
-        # tekrar denemek doğal bir davranıştı ve bu hata onu şaşırtıyordu.
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "Bu gözlemden zaten bir claim üretilmiş "
-                f"(claim {already_produced[:8]}…). Confidence eşiği geçilmemiş olsa bile "
-                "claim graf'ta duruyor — aynı gözlemden ikinci bir claim üretilmez."
-            ),
-        )
 
-    recall_before: dict | None = None
-    if payload.about_entity_id:
-        recall_before = {"about": "entity", "id": payload.about_entity_id, **entity_recall(conn, payload.about_entity_id)}
-    elif payload.about_event_id:
-        recall_before = {"about": "event", "id": payload.about_event_id, **event_recall(conn, payload.about_event_id)}
+    # Kontrol ile üretim aynı kilit altında: çift tıklamada iki istek birden "claim yok"
+    # görüp aynı gözlemden iki claim yazabiliyordu.
+    with graph_lock:
+        already_produced = _existing_claim_id(conn, observation_id)
+        if already_produced:
+            # F32: eski mesaj ("already processed") kullanıcıya hiçbir şey söylemiyordu — özellikle
+            # eşiği geçmemiş bir promote sonrası, arayüz gözlemi hâlâ "işlenmemiş" gösterdiği için
+            # tekrar denemek doğal bir davranıştı ve bu hata onu şaşırtıyordu.
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Bu gözlemden zaten bir claim üretilmiş "
+                    f"(claim {already_produced[:8]}…). Confidence eşiği geçilmemiş olsa bile "
+                    "claim graf'ta duruyor — aynı gözlemden ikinci bir claim üretilmez."
+                ),
+            )
 
-    claim = _create_claim_from_observation(conn, observation, payload)
+        recall_before: dict | None = None
+        if payload.about_entity_id:
+            recall_before = {"about": "entity", "id": payload.about_entity_id, **entity_recall(conn, payload.about_entity_id)}
+        elif payload.about_event_id:
+            recall_before = {"about": "event", "id": payload.about_event_id, **event_recall(conn, payload.about_event_id)}
+
+        claim = _create_claim_from_observation(conn, observation, payload)
 
     # Faz 11 (dogfooding F18): promote bir Claim üretiyor ama observations.py hiçbir yerde
     # vault render'ı tetiklemiyordu — diğer tüm yazma uçları tetikliyor. Sonuç: Obsidian'da

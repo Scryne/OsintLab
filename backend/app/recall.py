@@ -5,7 +5,7 @@ Bu modül LLM çağırmaz. Çıktısı yapılandırılmış, kaynağı her zaman
 gerekçelerdir. Akıcı/doğal dile çevirme işi Claude Code Agent katmanına (bkz.
 .claude/skills/osint-brain/) bırakılır — SOURCE FACT/SYSTEM INFERENCE ayrımı burada korunur.
 """
-from app.db import fetch_all
+from app.db import fetch_all, fetch_one
 
 
 def same_as_group(conn, entity_id: str) -> list[dict]:
@@ -17,7 +17,7 @@ def same_as_group(conn, entity_id: str) -> list[dict]:
     TEK anlamı, iki kaydın bilgisinin birlikte hatırlanmasıdır.
 
     Q7 gereği node'lar fiziksel olarak birleştirilmez/silinmez, dolayısıyla "aynılık" okuma
-    zamanında çözülmek zorunda. Kenar tek yön saklanır ama anlamı simetriktir, ve aynılık
+    zamanında çözülmek zorunda. Kenar iki yönde de saklanır (bkz. `suggest_same_as`) ve aynılık
     geçişlidir (A=B, B=C ⇒ A=C) — bu yüzden düz bir komşu sorgusu değil, CONFIRMED kenarlar
     üzerinde genişlik-öncelikli bir gezinti yapılır. Başlangıç entity'si sonuca dahil DEĞİL."""
     seen = {entity_id}
@@ -68,9 +68,13 @@ def entity_recall(conn, entity_id: str) -> dict:
                 # — aksi halde eskimiş bilgi güncel olanla aynı görünüyordu.
                 "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity {id: $id}) "
                 "OPTIONAL MATCH (yeni:Claim)-[:SUPERSEDES]->(c) "
+                # Kaynak da burada: entity sayfası eskiden kaynağı göstermek için claim başına
+                # `GET /claims/{id}` + kaynak başına `GET /sources/{id}` atıyordu (N+1).
+                "OPTIONAL MATCH (s:Source)-[:ASSERTS]->(c) "
                 "RETURN c.id AS id, c.text AS text, c.knowledge_state AS knowledge_state, "
                 "c.confidence AS confidence, c.created_at AS created_at, "
-                "yeni.id AS superseded_by_claim_id ORDER BY c.created_at",
+                "yeni.id AS superseded_by_claim_id, s.id AS source_id, s.name AS source_name, "
+                "s.url AS source_url ORDER BY c.created_at",
                 {"id": t["id"]},
             )
         ):
@@ -110,13 +114,27 @@ def entity_recall(conn, entity_id: str) -> dict:
         ):
             mentioned_in.append({**row, "via_entity_name": t["name"]})
 
+    # Aynılık grubunda aynı kayıt iki kez gelebiliyor: A ve B'yi birlikte kapsayan bir
+    # investigation, ya da hem A'dan hem B'den bahseden bir claim. İlk gelen (kendi kaydı önce
+    # tarandığı için `via` boş olan) kalır.
     return {
-        "related_investigations": investigations,
-        "related_claims": claims,
-        "related_events": events,
-        "mentioned_in": mentioned_in,
+        "related_investigations": _unique_by_id(investigations),
+        "related_claims": _unique_by_id(claims),
+        "related_events": _unique_by_id(events),
+        "mentioned_in": _unique_by_id(mentioned_in),
         "same_as": merged,
     }
+
+
+def _unique_by_id(rows: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    out = []
+    for row in rows:
+        if row["id"] in seen:
+            continue
+        seen.add(row["id"])
+        out.append(row)
+    return out
 
 
 def event_recall(conn, event_id: str) -> dict:
@@ -216,7 +234,7 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
             "detail": {
                 "contradicting_claim_ids": [o["id"] for o in others],
                 "contradicting_claims": [
-                    {"id": o["id"], "excerpt": e} for o, e in zip(others, excerpts)
+                    {"id": o["id"], "excerpt": e} for o, e in zip(others, excerpts, strict=True)
                 ],
             },
         })
@@ -250,7 +268,20 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
                 "detail": {"investigation_ids": [i["id"] for i in resolved_investigations]},
             })
 
-        prior_claims = [c for c in recall["related_claims"] if c["id"] != claim_id]
+        # "ÖNCEDEN bilinen": bu claim'den önce kaydedilmiş olanlar. Tarih süzgeci yokken bir
+        # entity'nin ilk claim'i, sonradan gelenler yüzünden "zaten N bilinen claim var"
+        # gösteriyordu ve NEWLY_DISCOVERED ona hiç verilemiyordu (2026-10-18 denetimi).
+        created_at = claim_row.get("created_at")
+        if created_at is None:
+            row = fetch_one(
+                conn.execute("MATCH (c:Claim {id: $id}) RETURN c.created_at AS created_at", {"id": claim_id})
+            )
+            created_at = row["created_at"] if row else None
+        prior_claims = [
+            c for c in recall["related_claims"]
+            if c["id"] != claim_id
+            and (created_at is None or c["created_at"] is None or c["created_at"] < created_at)
+        ]
         if not prior_claims:
             reasons.append({
                 "code": "NEWLY_DISCOVERED",

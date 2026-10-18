@@ -20,8 +20,18 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
   const toast = useToast();
   const { data: source, error, loading } = useApi(() => api.sources.get(sourceId), [sourceId]);
   const { data: allSources } = useApi(() => api.sources.list(), []);
-  const { data: lineage, reload: reloadLineage } = useApi(() => api.sources.lineage(sourceId), [sourceId]);
-  const { data: claims } = useApi(() => api.sources.claims(sourceId), [sourceId]);
+  const {
+    data: lineage,
+    error: lineageError,
+    loading: lineageLoading,
+    reload: reloadLineage,
+  } = useApi(() => api.sources.lineage(sourceId), [sourceId]);
+  const {
+    data: claims,
+    error: claimsError,
+    loading: claimsLoading,
+    reload: reloadClaims,
+  } = useApi(() => api.sources.claims(sourceId), [sourceId]);
 
   // undefined = henüz bilinmiyor (butonu kilitler), null = izlenmiyor.
   const [monitor, setMonitor] = useState<{ id: string } | null | undefined>(undefined);
@@ -58,7 +68,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
   }
 
   if (loading) return <SkeletonDetail />;
-  if (error) return <ErrorState message={error.message} />;
+  if (error) return <ErrorState error={error} />;
   if (!source) return null;
 
   const ancestors = lineage?.ancestors ?? [];
@@ -78,7 +88,13 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
           <p className="mt-1 text-sm text-text-secondary">
             <span className="tabular-nums">Güvenilirlik %{Math.round(source.reliability * 100)}</span>
             {" · "}
-            {isDerived ? (
+            {/* Lineage bilinmeden "Bağımsız kaynak" demek yanlış bir provenance beyanıydı:
+                yüklenirken ve istek başarısızken başlık kaynağı bağımsız gösteriyordu. */}
+            {lineageLoading ? (
+              <span className="text-text-tertiary">Lineage yükleniyor…</span>
+            ) : lineageError ? (
+              <span className="text-priority-high-text">Lineage okunamadı — bağımsızlık bilinmiyor</span>
+            ) : isDerived ? (
               <span className="text-priority-medium-text">Türetilmiş kaynak ({ancestors.length} üst kaynak)</span>
             ) : (
               <span>Bağımsız kaynak</span>
@@ -120,7 +136,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
         <div className="overflow-x-auto">
           <TabsList className="w-max">
             <TabsTrigger value="lineage">Lineage ({ancestors.length + descendants.length})</TabsTrigger>
-            <TabsTrigger value="claims">Claim&apos;ler ({claims?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="claims">Claim&apos;ler ({claims ? claims.length : "…"})</TabsTrigger>
             <TabsTrigger value="scans">Otomatik Tarama</TabsTrigger>
           </TabsList>
         </div>
@@ -135,7 +151,13 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
         </TabsContent>
 
         <TabsContent value="claims" className="mt-4">
-          <ClaimsPanel claims={claims ?? []} />
+          {claimsError ? (
+            <ErrorState error={claimsError} onRetry={reloadClaims} />
+          ) : claimsLoading ? (
+            <SkeletonDetail />
+          ) : (
+            <ClaimsPanel claims={claims ?? []} />
+          )}
         </TabsContent>
 
         <TabsContent value="scans" className="mt-4">

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Database, Eye, FileCheck, Plus } from "lucide-react";
+import { Database, Eye, FileCheck, Lock, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { InvestigationScope } from "@/components/forms/investigation-scope";
@@ -10,7 +10,7 @@ import { HypothesisEvidenceDialog } from "@/components/forms/hypothesis-evidence
 import { AddFindingDialog } from "@/components/forms/add-finding-dialog";
 import { InvestigationNarrative } from "@/components/forms/investigation-narrative";
 import { WorkflowRail } from "@/components/forms/workflow-rail";
-import type { InvestigationStatus, KnowledgeState } from "@/lib/types";
+import type { Hypothesis, InvestigationStatus, KnowledgeState } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorState, EmptyState } from "@/components/ui/state";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { useToast } from "@/components/ui/toast";
 
 const TRANSITIONS: Record<InvestigationStatus, InvestigationStatus[]> = {
@@ -36,6 +37,15 @@ const TRANSITIONS: Record<InvestigationStatus, InvestigationStatus[]> = {
   RESOLVED: ["ACTIVE", "CLOSED", "ARCHIVED"],
   CLOSED: ["ARCHIVED"],
   ARCHIVED: [],
+};
+
+// Kapanmış defter: kapsam, bulgu, hipotez ve metin değişmez (backend de 409 döner).
+const READ_ONLY_STATUSES: InvestigationStatus[] = ["CLOSED", "ARCHIVED"];
+
+const STANCE_LABEL: Record<"SUPPORTS" | "WEAKENS" | "REFUTES", string> = {
+  SUPPORTS: "destekliyor",
+  WEAKENS: "zayıflatıyor",
+  REFUTES: "çürütüyor",
 };
 
 export function InvestigationDetail({ investigationId }: { investigationId: string }) {
@@ -74,10 +84,11 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
   }
 
   if (loading) return <SkeletonDetail />;
-  if (error) return <ErrorState message={error.message} />;
+  if (error) return <ErrorState error={error} />;
   if (!ws) return null;
 
   const inv = ws.investigation;
+  const readOnly = READ_ONLY_STATUSES.includes(inv.status);
   const visibleClaims = confidenceFilter
     ? ws.claims.filter((c) => c.knowledge_state === confidenceFilter)
     : ws.claims;
@@ -102,6 +113,14 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
             </Button>
           ))}
         </div>
+        {readOnly && (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-tertiary">
+            <Lock aria-hidden className="h-3.5 w-3.5" />
+            {inv.status === "CLOSED"
+              ? "Kapatıldı — kapsam, bulgular ve metin artık değişmez; doğrulanmış bulgular Knowledge Graph'a yükseldi."
+              : "Arşivlendi — araştırma bırakıldı; kayıt olduğu gibi duruyor, bulgular doğrulanmış sayılmadı."}
+          </p>
+        )}
         {inv.status === "RESOLVED" && !inv.conclusion && (
           <p className="mt-2 text-xs text-priority-medium-text">
             Kapatmak için önce Sonuç yazılmalı — kapanış, doğrulanmış bulguları Knowledge
@@ -114,7 +133,12 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
 
       {/* Zincir sırası (madde 30): Scope → Kaynaklar → Gözlemler → Claim'ler → Kanıtlar →
           Hipotezler → Analiz → Findings → Sonuç. */}
-      <InvestigationScope investigationId={investigationId} />
+      <InvestigationScope
+        investigationId={investigationId}
+        scope={ws.scope}
+        readOnly={readOnly}
+        onChanged={reloadAll}
+      />
 
       <DerivedSection
         title="Kaynaklar"
@@ -231,24 +255,18 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
           <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">
             Hipotezler {ws.hypotheses.length > 0 && `(${ws.hypotheses.length})`}
           </h2>
-          <NewHypothesisDialog investigationId={investigationId} onCreated={reloadAll} />
+          {!readOnly && <NewHypothesisDialog investigationId={investigationId} onCreated={reloadAll} />}
         </div>
         {ws.hypotheses.length === 0 ? (
           <EmptyState
             title="Henüz hipotez yok"
             description="Sınanabilir bir hipotez yaz; kanıtları ona bağlayarak destekleyip çürütebilirsin."
-            action={<NewHypothesisDialog investigationId={investigationId} onCreated={reloadAll} />}
+            action={readOnly ? undefined : <NewHypothesisDialog investigationId={investigationId} onCreated={reloadAll} />}
           />
         ) : (
           <div className="flex flex-col gap-2">
             {ws.hypotheses.map((h) => (
-              <div key={h.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-surface p-3">
-                <p className="text-sm text-foreground">{h.text}</p>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <HypothesisEvidenceDialog hypothesisId={h.id} onLinked={reloadAll} />
-                  <Badge variant="outline">{h.status}</Badge>
-                </div>
-              </div>
+              <HypothesisCard key={h.id} hypothesis={h} readOnly={readOnly} onChanged={reloadAll} />
             ))}
           </div>
         )}
@@ -261,6 +279,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         label="Analiz"
         placeholder="Kanıtlar ne söylüyor, hangi hipotez ayakta kaldı, hangi boşluk kapanmadı?"
         hint="Henüz analiz yazılmadı. Muhakemeni buraya yazmazsan, sonuca nasıl vardığın altı ay sonra kayıp olur."
+        readOnly={readOnly}
         onSaved={reloadAll}
       />
 
@@ -269,7 +288,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
           <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">
             Findings {findings && findings.length > 0 && `(${findings.length})`}
           </h2>
-          <AddFindingDialog investigationId={investigationId} onAdded={reloadAll} />
+          {!readOnly && <AddFindingDialog investigationId={investigationId} onAdded={reloadAll} />}
         </div>
         {!findings || findings.length === 0 ? (
           <EmptyState
@@ -298,8 +317,75 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         label="Sonuç"
         placeholder="Araştırma sorusunun cevabı — ve ne kadar güvenle."
         hint="Henüz sonuç yazılmadı. Kapatmak (CLOSED) için gerekli."
+        readOnly={readOnly}
         onSaved={reloadAll}
       />
+    </div>
+  );
+}
+
+/** Hipotez + durumunu belirleyen kanıtlar. Durum etiketi tek başına "neden REFUTED?"
+ * sorusunu cevaplamıyordu; bağlı kanıtlar ve duruşları artık görünür ve geri alınabilir. */
+function HypothesisCard({
+  hypothesis,
+  readOnly,
+  onChanged,
+}: {
+  hypothesis: Hypothesis;
+  readOnly: boolean;
+  onChanged: () => void;
+}) {
+  const { data: links, reload } = useApi(
+    () => api.investigations.hypothesisEvidence(hypothesis.id),
+    [hypothesis.id, hypothesis.status]
+  );
+
+  return (
+    <div className="rounded-lg border border-border bg-surface p-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-foreground">{hypothesis.text}</p>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {!readOnly && (
+            <HypothesisEvidenceDialog
+              hypothesisId={hypothesis.id}
+              onLinked={() => {
+                reload();
+                onChanged();
+              }}
+            />
+          )}
+          <Badge variant="outline">{hypothesis.status}</Badge>
+        </div>
+      </div>
+      {links && links.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1">
+          {links.map((link) => (
+            <li key={link.evidence_id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate text-text-secondary">
+                <span className="text-foreground">{link.evidence_type}</span>
+                {link.file_path && <span className="font-mono text-text-tertiary"> · {link.file_path}</span>}
+                {" — "}
+                {STANCE_LABEL[link.stance]}
+              </span>
+              {!readOnly && (
+                <ConfirmButton
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label={`${link.evidence_type} kanıtını hipotezden ayır`}
+                  confirmAction="Ayır"
+                  onConfirm={async () => {
+                    await api.investigations.unlinkHypothesisEvidence(hypothesis.id, link.evidence_id);
+                    reload();
+                    onChanged();
+                  }}
+                >
+                  <X aria-hidden className="h-3 w-3" />
+                </ConfirmButton>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

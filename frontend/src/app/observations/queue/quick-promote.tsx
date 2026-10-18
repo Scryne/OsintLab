@@ -83,7 +83,8 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
           : "Claim üretildi (REPORTED) — tek kaynak, doğrulanmayı bekliyor",
         "success"
       );
-      onPromoted();
+      // Liste kapanışta tazeleniyor, şimdi değil: gözlem kuyruktan düştüğü an bu satır (ve
+      // diyalog) kaldırılıyordu — sonuç paneli hiç görünmüyordu (2026-10-18 denetimi).
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bilinmeyen hata");
     } finally {
@@ -96,7 +97,10 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) reset();
+        if (!next) {
+          if (result) onPromoted();
+          reset();
+        }
       }}
     >
       <DialogTrigger

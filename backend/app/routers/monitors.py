@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.db import fetch_all, fetch_one, get_connection
 from app.models import (
+    _to_utc,
     INBOX_ITEM_STATUSES,
     MONITOR_TARGET_TYPES,
     PRIORITY_LEVELS,
@@ -156,13 +157,15 @@ def update_inbox_item(item_id: str, payload: InboxStatusUpdate) -> InboxItem:
 @router.get("/intelligence/diff")
 def intelligence_diff(
     days: int = Query(30, ge=1, le=3650, description="Kaç gün öncesinden itibaren"),
-    since: datetime | None = Query(None, description="Verilirse days yerine bu zaman kullanılır"),
+    since: datetime | None = Query(None, description="Verilirse days yerine bu zaman kullanılır"),  # noqa: B008
 ) -> dict:
     """Q10: World State on-demand hesaplanır (materialize edilmez) — bu uç iki 'an' arasındaki
     farkı (WORLD STATE A -> DIFF -> WORLD STATE B) anlık sorgularla üretir. Q11: kapsam hepsi
     birden — entity/event/source/claim/confidence/contradiction/investigation/relationship."""
     conn = get_connection()
-    since_ts = since or (datetime.now(timezone.utc) - timedelta(days=days))
+    # Ofsetli ya da ofsetsiz bir `since` UTC'ye çekilir — KùzuDB saat dilimini çevirmeden
+    # sakladığı için karşılaştırma ancak iki taraf da UTC iken doğru (bkz. models._to_utc).
+    since_ts = _to_utc(since) or (datetime.now(timezone.utc) - timedelta(days=days))
     until_ts = datetime.now(timezone.utc)
 
     def q(cypher: str, **params) -> list[dict]:

@@ -17,15 +17,20 @@ Host header'ı elle ayarlamak) ileride gerekirse eklenebilir.
 """
 import ipaddress
 import json
+import logging
 import socket
+import threading
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+
+from app.db import DATA_ROOT, atomic_write_text
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_SCHEMES = {"http", "https"}
 MAX_REDIRECTS = 3
@@ -52,7 +57,8 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-ALLOWLIST_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "config" / "collector_allowlist.json"
+# Veri kökünün altında: izole bir test kökü (`OSINTLAB_DATA_DIR`) gerçek allowlist'e dokunmasın.
+ALLOWLIST_PATH = DATA_ROOT / "config" / "collector_allowlist.json"
 
 
 class CollectorSecurityError(Exception):
@@ -65,18 +71,32 @@ class CollectorFetchError(Exception):
     Faz 11 (dogfooding F25): bu sınıf yokken 403/404 gövdesi "içerik" sayılıyordu. Güvenlik
     ihlalinden (CollectorSecurityError) ayrı tutuluyor: orada BİZ reddediyoruz, burada
     KARŞI TARAF. İkisini aynı hataya toplamak "kendi allowlist'im mi engelledi, site mi
-    engelledi" sorusunu cevapsız bırakırdı."""
+    engelledi" sorusunu cevapsız bırakırdı.
+
+    `status_code`: karşı tarafın HTTP cevabı; bağlantı hiç kurulamadıysa (DNS, zaman aşımı,
+    TLS) None. Arşiv doğrulaması "sayfa kalıcı olarak yok" (404/410) ile "şu an ulaşılamıyor"
+    ayrımını buna bakarak yapıyor."""
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def load_allowlist() -> set[str]:
     if not ALLOWLIST_PATH.is_file():
         return set()
-    return set(json.loads(ALLOWLIST_PATH.read_text(encoding="utf-8")))
+    try:
+        hosts = json.loads(ALLOWLIST_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        # Bozuk dosya bütün toplamayı beklenmedik bir istisnayla düşürüyordu. Güvenli taraf
+        # boş allowlist: her istek "allowlist'te değil" diye reddedilir ve sebep görünür.
+        logger.exception("Allowlist okunamadı (%s) — boş kabul ediliyor", ALLOWLIST_PATH)
+        return set()
+    return {h for h in hosts if isinstance(h, str)} if isinstance(hosts, list) else set()
 
 
 def save_allowlist(hosts: set[str]) -> None:
-    ALLOWLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ALLOWLIST_PATH.write_text(json.dumps(sorted(hosts), ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_text(ALLOWLIST_PATH, json.dumps(sorted(hosts), ensure_ascii=False, indent=2))
 
 
 def is_safe_ip(ip_str: str) -> bool:
@@ -161,69 +181,128 @@ def _validate_hop(url: str, allowlist: set[str]) -> str:
     return hostname
 
 
+def _session() -> requests.Session:
+    """Ortamdan proxy/.netrc OKUMAYAN bir oturum. `requests` varsayılan olarak `.netrc`'deki
+    kimlik bilgilerini eşleşen host'a gönderir ve `HTTP(S)_PROXY`yi izler — toplanan adresler
+    dış feed'lerden geldiği için ikisi de istenmeyen bir sızıntı/yönlendirme yüzeyi."""
+    session = requests.Session()
+    session.trust_env = False
+    return session
+
+
 def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
     """Allowlist + SSRF doğrulaması yapılmış GET isteği. Her redirect hop'u ayrıca doğrulanır
-    (yönlendirme zinciriyle korumayı atlatmak mümkün olmasın diye). Dönen: (final_url, content, content_type)."""
-    current_url = url
-    for _ in range(MAX_REDIRECTS + 1):
-        _validate_hop(current_url, allowlist)
-        response = requests.get(
-            current_url,
-            timeout=DEFAULT_TIMEOUT,
-            allow_redirects=False,
-            stream=True,
-            headers=DEFAULT_HEADERS,
-        )
-        if response.status_code in (301, 302, 303, 307, 308):
-            location = response.headers.get("Location")
-            response.close()
-            if not location:
-                raise CollectorSecurityError("Location header'sız redirect")
-            current_url = urljoin(current_url, location)
-            continue
+    (yönlendirme zinciriyle korumayı atlatmak mümkün olmasın diye). Dönen: (final_url, content, content_type).
 
-        content = bytearray()
-        started = time.monotonic()
+    Ağ katmanının kendi hataları (DNS, bağlantı reddi, TLS, zaman aşımı) `CollectorFetchError`a
+    çevrilir. 2026-10-18 denetiminde bulundu: bunlar ham `requests` istisnası olarak sızıyordu ve
+    her çağıran yalnızca iki collector hatasını yakaladığı için zamanlanmış tarama hatayı
+    KAYDETMEDEN çöküyordu — `last_run_at` ilerlemiyor, tarama her dakika yeniden deneniyor,
+    `consecutive_failures` hiç artmıyor ve SCAN_FAILED bildirimi hiç düşmüyordu (logda
+    "beklenmedik şekilde çöktü" olarak görülüyordu)."""
+    deadline = time.monotonic() + MAX_FETCH_SECONDS
+    with _session() as session:
+        current_url = url
+        for _ in range(MAX_REDIRECTS + 1):
+            _validate_hop(current_url, allowlist)
+            hostname = urlparse(current_url).hostname or current_url
+            try:
+                response = session.get(
+                    current_url,
+                    timeout=DEFAULT_TIMEOUT,
+                    allow_redirects=False,
+                    stream=True,
+                    headers=DEFAULT_HEADERS,
+                )
+            except requests.RequestException as exc:
+                raise CollectorFetchError(
+                    f"{hostname} adresine ulaşılamadı ({type(exc).__name__}) — ağ, DNS ya da "
+                    "kaynağın sunucusu yanıt vermiyor; sonra tekrar denenecek."
+                ) from exc
+            try:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("Location")
+                    if not location:
+                        raise CollectorSecurityError("Location header'sız redirect")
+                    current_url = urljoin(current_url, location)
+                    continue
+                content = _read_body(response, hostname, deadline)
+            finally:
+                response.close()
+            return _finish(response, current_url, content)
+
+    raise CollectorSecurityError("Çok fazla redirect")
+
+
+def _read_body(response: requests.Response, hostname: str, deadline: float) -> bytes:
+    """Gövdeyi boyut ve TOPLAM süre sınırıyla okur.
+
+    Süre yalnızca chunk'lar ARASINDA kontrol edilseydi yetmezdi: `read(65536)` 64 KiB dolana
+    kadar bloklar ve her soket okuması `DEFAULT_TIMEOUT`u sıfırlar — 9 sn'de bir bayt yollayan
+    bir sunucu tek bir iterasyonu günlerce sürdürebilir. Bir bekçi zamanlayıcı süre dolunca
+    bağlantıyı dışarıdan kapatır; okuma o anda patlar ve süre aşımı olarak raporlanır."""
+    timed_out = threading.Event()
+
+    def _expire() -> None:
+        timed_out.set()
+        response.close()
+
+    remaining = max(0.0, deadline - time.monotonic())
+    watchdog = threading.Timer(remaining, _expire)
+    watchdog.daemon = True
+    watchdog.start()
+    content = bytearray()
+    try:
         for chunk in response.iter_content(chunk_size=65536):
             content.extend(chunk)
             if len(content) > MAX_BYTES:
-                response.close()
                 raise CollectorSecurityError(f"Yanıt çok büyük (> {MAX_BYTES} byte)")
-            if time.monotonic() - started > MAX_FETCH_SECONDS:
-                response.close()
-                raise CollectorFetchError(
-                    f"{urlparse(current_url).hostname} yanıtı {MAX_FETCH_SECONDS} saniyede "
-                    "bitmedi — sunucu içeriği çok yavaş gönderiyor, istek bırakıldı."
-                )
-        content_type = response.headers.get("Content-Type", "")
-
-        # Faz 11 (F25): 4xx/5xx gövdesi ASLA içerik değildir. Bu kontrol yokken cisa.gov'un
-        # 403 "Access Denied" sayfası (410 byte HTML) feed sanılıp parse ediliyor, 0 item
-        # çıkıyor ve arayüz "Kaynakta 0 öğe" diyordu — yani "site seni engelledi" ile
-        # "kaynakta yeni haber yok" ayırt edilemiyordu. `web` modunda daha da kötüsü olurdu:
-        # engelleme sayfası kalıcı bir Observation olarak graf'a girerdi.
-        if response.status_code >= 400:
-            hostname = urlparse(current_url).hostname or current_url
-            # Durum koduna göre AYRI teşhis: "engellendin", "adres yok" ve "site arızalı"
-            # kullanıcı için tamamen farklı eylemler gerektiriyor. Hepsine aynı cümleyi
-            # yazmak, düzeltmeye çalıştığımız belirsizliği bir katman yukarıda tekrar üretir.
-            if response.status_code in (401, 403, 429):
-                teshis = "kaynak otomatik erişimi engelledi (kaynakta içerik yok demek DEĞİL)"
-            elif response.status_code == 404:
-                teshis = "böyle bir adres yok — feed adresini kontrol et"
-            elif response.status_code >= 500:
-                teshis = "kaynağın kendi sunucusu arızalı, sonra tekrar dene"
-            else:
-                teshis = "istek kabul edilmedi"
+            if timed_out.is_set():
+                break
+    except (requests.RequestException, OSError, AttributeError, ValueError) as exc:
+        if not timed_out.is_set():
             raise CollectorFetchError(
-                f"{hostname} {response.status_code} döndü: {teshis}. "
-                f"(Yanıt gövdesi {len(content)} byte, {content_type or 'tür belirtilmemiş'} — "
-                "içerik olarak kaydedilmedi.)"
-            )
+                f"{hostname} yanıtı okunurken bağlantı koptu ({type(exc).__name__})."
+            ) from exc
+    finally:
+        watchdog.cancel()
+    if timed_out.is_set():
+        raise CollectorFetchError(
+            f"{hostname} yanıtı {MAX_FETCH_SECONDS} saniyede bitmedi — sunucu içeriği çok "
+            "yavaş gönderiyor, istek bırakıldı."
+        )
+    return bytes(content)
 
-        return current_url, bytes(content), content_type
 
-    raise CollectorSecurityError("Çok fazla redirect")
+def _finish(response: requests.Response, current_url: str, content: bytes) -> tuple[str, bytes, str]:
+    content_type = response.headers.get("Content-Type", "")
+
+    # Faz 11 (F25): 4xx/5xx gövdesi ASLA içerik değildir. Bu kontrol yokken cisa.gov'un
+    # 403 "Access Denied" sayfası (410 byte HTML) feed sanılıp parse ediliyor, 0 item
+    # çıkıyor ve arayüz "Kaynakta 0 öğe" diyordu — yani "site seni engelledi" ile
+    # "kaynakta yeni haber yok" ayırt edilemiyordu. `web` modunda daha da kötüsü olurdu:
+    # engelleme sayfası kalıcı bir Observation olarak graf'a girerdi.
+    if response.status_code >= 400:
+        hostname = urlparse(current_url).hostname or current_url
+        # Durum koduna göre AYRI teşhis: "engellendin", "adres yok" ve "site arızalı"
+        # kullanıcı için tamamen farklı eylemler gerektiriyor. Hepsine aynı cümleyi
+        # yazmak, düzeltmeye çalıştığımız belirsizliği bir katman yukarıda tekrar üretir.
+        if response.status_code in (401, 403, 429):
+            teshis = "kaynak otomatik erişimi engelledi (kaynakta içerik yok demek DEĞİL)"
+        elif response.status_code in (404, 410):
+            teshis = "böyle bir adres yok — feed adresini kontrol et"
+        elif response.status_code >= 500:
+            teshis = "kaynağın kendi sunucusu arızalı, sonra tekrar dene"
+        else:
+            teshis = "istek kabul edilmedi"
+        raise CollectorFetchError(
+            f"{hostname} {response.status_code} döndü: {teshis}. "
+            f"(Yanıt gövdesi {len(content)} byte, {content_type or 'tür belirtilmemiş'} — "
+            "içerik olarak kaydedilmedi.)",
+            status_code=response.status_code,
+        )
+
+    return current_url, content, content_type
 
 
 def _truncate(text: str) -> str:
@@ -422,14 +501,29 @@ def _clean_feed_text(value: str) -> str:
     return BeautifulSoup(value, "html.parser").get_text(separator=" ").strip()
 
 
-def parse_rss(content: bytes) -> list[dict]:
+def _entry_link(raw: str, base_url: str | None) -> str:
+    """Feed öğesinin bağlantısı, mutlak ve yalnızca http(s).
+
+    Feed'ler göreli bağlantı (`/2026/10/haber`) ya da `javascript:`/`mailto:` taşıyabiliyor.
+    Olduğu gibi saklanınca arşiv doğrulaması ve yeniden ayrıştırma sonradan "izin verilmeyen
+    scheme" ile düşüyor ve bu ERISILEMEDI sayılıp kanıt bağını koparıyordu. Kullanılamayan
+    bağlantı boş döner; çağıran feed adresine düşer."""
+    link = (raw or "").strip()
+    if not link:
+        return ""
+    if base_url:
+        link = urljoin(base_url, link)
+    return link if urlparse(link).scheme in ALLOWED_SCHEMES else ""
+
+
+def parse_rss(content: bytes, base_url: str | None = None) -> list[dict]:
     parsed = feedparser.parse(content)
     items = []
     for entry in parsed.entries:
         text = f"{_clean_feed_text(entry.get('title', ''))}\n\n{_clean_feed_text(entry.get('summary', ''))}"
         items.append({
             "text": _truncate(text.strip()),
-            "link": entry.get("link", ""),
+            "link": _entry_link(entry.get("link", ""), base_url),
             "published": _entry_published(entry),
         })
     return items

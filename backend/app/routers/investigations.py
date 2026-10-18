@@ -30,11 +30,36 @@ _HYP_FIELDS = "h.id AS id, h.text AS text, h.status AS status, h.created_at AS c
 # Q17: kapanışta sadece bu knowledge_state'lere sahip finding'ler "doğrulanmış" sayılıp
 # long-term memory'ye (VALIDATED_FINDING ilişkisiyle) promote edilir.
 VERIFIED_KNOWLEDGE_STATES = {"SUPPORTED", "CORROBORATED", "HIGH_CONFIDENCE"}
-CLOSING_STATUSES = {"CLOSED", "ARCHIVED"}
+
+# Bulguların uzun süreli hafızaya yükseldiği TEK geçiş. Faz 3'te ARCHIVED da buradaydı; Faz 13
+# ARCHIVED'ın anlamını "cevabı buldum" değil "bunu bıraktım" olarak koydu (sonuçsuz serbest) ve
+# iki karar çelişti: yarıda bırakılan, sonucu yazılmamış bir araştırmanın bulguları "doğrulanmış
+# bulgu" olarak işaretleniyordu (2026-10-18 denetimi). CLOSED → ARCHIVED geçişinde bulgular
+# zaten CLOSED'da yükselmiş oluyor; kaybolan bir şey yok.
+CLOSING_STATUSES = {"CLOSED"}
+
+# Kapanmış defter: sonucu yazılmış (CLOSED) ya da bırakılmış (ARCHIVED) bir araştırmanın kapsamı,
+# bulguları, hipotezleri ve metni artık değişmez — yalnızca durum geçişi yapılabilir. Aksi halde
+# CLOSED bir araştırmanın sonucu boşaltılabiliyor, bulgusu çıkarılınca "doğrulanmış" işareti
+# yerinde kalıyordu.
+READ_ONLY_STATUSES = {"CLOSED", "ARCHIVED"}
 
 
 def _node_exists(conn, label: str, node_id: str) -> bool:
     return fetch_one(conn.execute(f"MATCH (n:{label} {{id: $id}}) RETURN n.id AS id", {"id": node_id})) is not None
+
+
+def _require_editable(conn, investigation_id: str) -> None:
+    row = fetch_one(
+        conn.execute("MATCH (i:Investigation {id: $id}) RETURN i.status AS status", {"id": investigation_id})
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    if row["status"] in READ_ONLY_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Investigation {row['status']} durumunda — kapanmış bir defter değiştirilmez.",
+        )
 
 
 # ---- Investigations ---------------------------------------------------
@@ -114,6 +139,7 @@ def update_narrative(investigation_id: str, payload: InvestigationNarrativeUpdat
     araştırma sürerken gelişmesi beklenen bir defter. `concluded_at` yalnızca sonuç ilk kez
     yazıldığında damgalanıyor; sonraki düzeltmeler ilk sonuca varış anını değiştirmiyor."""
     conn = get_connection()
+    _require_editable(conn, investigation_id)
     current = get_investigation(investigation_id)
     updates = payload.model_dump(exclude_unset=True)
     if not updates:
@@ -389,8 +415,7 @@ def get_workspace(investigation_id: str) -> dict:
 @router.put("/{investigation_id}/entities/{entity_id}", status_code=204)
 def include_entity(investigation_id: str, entity_id: str) -> None:
     conn = get_connection()
-    if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+    _require_editable(conn, investigation_id)
     if not _node_exists(conn, "Entity", entity_id):
         raise HTTPException(status_code=404, detail="Entity not found")
     # F35: PUT idempotent olmalı; guard yokken aynı entity iki kez eklenince graf'ta iki
@@ -410,8 +435,7 @@ def exclude_entity(investigation_id: str, entity_id: str) -> None:
     yolu olmaması, Faz 11'de üç kez tekrarlanan hatanın (F16, F23b, F29) aynısı olurdu.
     Kapsam bir çalışma alanı tanımıdır, geçmiş kaydı değil — düzeltilebilir olmalı."""
     conn = get_connection()
-    if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+    _require_editable(conn, investigation_id)
     conn.execute(
         "MATCH (i:Investigation {id: $iid})-[r:INCLUDES]->(e:Entity {id: $eid}) DELETE r",
         {"iid": investigation_id, "eid": entity_id},
@@ -422,8 +446,7 @@ def exclude_entity(investigation_id: str, entity_id: str) -> None:
 @router.put("/{investigation_id}/events/{event_id}", status_code=204)
 def investigate_event(investigation_id: str, event_id: str) -> None:
     conn = get_connection()
-    if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+    _require_editable(conn, investigation_id)
     if not _node_exists(conn, "Event", event_id):
         raise HTTPException(status_code=404, detail="Event not found")
     if _scope_edge_exists(conn, investigation_id, "INVESTIGATES", event_id):
@@ -438,8 +461,7 @@ def investigate_event(investigation_id: str, event_id: str) -> None:
 @router.delete("/{investigation_id}/events/{event_id}", status_code=204)
 def uninvestigate_event(investigation_id: str, event_id: str) -> None:
     conn = get_connection()
-    if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+    _require_editable(conn, investigation_id)
     conn.execute(
         "MATCH (i:Investigation {id: $iid})-[r:INVESTIGATES]->(e:Event {id: $eid}) DELETE r",
         {"iid": investigation_id, "eid": event_id},
@@ -450,8 +472,7 @@ def uninvestigate_event(investigation_id: str, event_id: str) -> None:
 @router.put("/{investigation_id}/findings/{claim_id}", status_code=204)
 def add_finding(investigation_id: str, claim_id: str) -> None:
     conn = get_connection()
-    if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+    _require_editable(conn, investigation_id)
     if not _node_exists(conn, "Claim", claim_id):
         raise HTTPException(status_code=404, detail="Claim not found")
     # F38: kapsam PUT'larıyla aynı sorun — guard yokken aynı claim iki kez eklenince iki
@@ -470,8 +491,7 @@ def remove_finding(investigation_id: str, claim_id: str) -> None:
     """F38: yanlış eklenen finding geri alınabilmeli. Claim SİLİNMEZ — yalnızca bu
     investigation'ın bulgu listesinden çıkarılır."""
     conn = get_connection()
-    if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+    _require_editable(conn, investigation_id)
     conn.execute(
         "MATCH (i:Investigation {id: $iid})-[r:HAS_FINDING]->(c:Claim {id: $cid}) DELETE r",
         {"iid": investigation_id, "cid": claim_id},
@@ -518,8 +538,7 @@ def list_findings(investigation_id: str) -> list[dict]:
 @router.post("/{investigation_id}/hypotheses", response_model=Hypothesis, status_code=201)
 def create_hypothesis(investigation_id: str, payload: HypothesisCreate) -> Hypothesis:
     conn = get_connection()
-    if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+    _require_editable(conn, investigation_id)
     hyp_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc)
     conn.execute(
@@ -583,19 +602,79 @@ def _recompute_hypothesis_status(conn, hypothesis_id: str) -> str:
     return status
 
 
+def _hypothesis_investigation(conn, hypothesis_id: str) -> str:
+    row = fetch_one(
+        conn.execute(
+            "MATCH (i:Investigation)-[:HAS_HYPOTHESIS]->(h:Hypothesis {id: $id}) RETURN i.id AS id",
+            {"id": hypothesis_id},
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    return row["id"]
+
+
 @hypotheses_router.put("/{hypothesis_id}/evidence", response_model=Hypothesis)
 def link_hypothesis_evidence(hypothesis_id: str, payload: HypothesisEvidenceLink) -> Hypothesis:
+    """Kanıtın bu hipotez karşısındaki duruşunu yazar — bir kanıtın bir hipoteze TEK duruşu var.
+
+    Eskiden her çağrı yeni bir kenar ekliyordu: aynı kanıtı iki kez SUPPORTS bağlamak iki destek
+    sayılıyor, duruşu değiştirmek ikinci bir kenar ekliyordu (SUPPORTS + REFUTES aynı kanıttan
+    → hipotez REFUTED) ve geri almanın yolu yoktu (2026-10-18 denetimi). Artık var olan bağın
+    duruşu güncelleniyor; kaldırmak için DELETE ucu var."""
     conn = get_connection()
-    if not _node_exists(conn, "Hypothesis", hypothesis_id):
-        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    _require_editable(conn, _hypothesis_investigation(conn, hypothesis_id))
     if not _node_exists(conn, "Evidence", payload.evidence_id):
         raise HTTPException(status_code=404, detail="Evidence not found")
     if payload.stance not in ("SUPPORTS", "WEAKENS", "REFUTES"):
         raise HTTPException(status_code=422, detail="stance must be SUPPORTS, WEAKENS or REFUTES")
+    # Varsa ikizler dahil eski bağlar silinip tek bağ yazılıyor (önceki sürümün bıraktığı
+    # mükerrer kenarları da kendiliğinden temizler).
+    conn.execute(
+        "MATCH (ev:Evidence {id: $eid})-[r:HYPOTHESIS_EVIDENCE]->(h:Hypothesis {id: $hid}) DELETE r",
+        {"eid": payload.evidence_id, "hid": hypothesis_id},
+    )
     conn.execute(
         "MATCH (ev:Evidence {id: $eid}), (h:Hypothesis {id: $hid}) "
         "CREATE (ev)-[:HYPOTHESIS_EVIDENCE {stance: $stance}]->(h)",
         {"eid": payload.evidence_id, "hid": hypothesis_id, "stance": payload.stance},
+    )
+    _recompute_hypothesis_status(conn, hypothesis_id)
+    safe_render_vault(conn)
+    return get_hypothesis(hypothesis_id)
+
+
+@hypotheses_router.get("/{hypothesis_id}/evidence")
+def list_hypothesis_evidence(hypothesis_id: str) -> list[dict]:
+    """Hipotezin durumunu belirleyen kanıtlar ve duruşları — durum etiketinin KAYNAĞI.
+    "Neden REFUTED?" sorusu, cevabı görünmeden sorulamaz (Auditability)."""
+    conn = get_connection()
+    if not _node_exists(conn, "Hypothesis", hypothesis_id):
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    return fetch_all(
+        conn.execute(
+            "MATCH (ev:Evidence)-[r:HYPOTHESIS_EVIDENCE]->(h:Hypothesis {id: $id}) "
+            "RETURN ev.id AS evidence_id, ev.evidence_type AS evidence_type, "
+            "ev.file_path AS file_path, r.stance AS stance ORDER BY ev.created_at",
+            {"id": hypothesis_id},
+        )
+    )
+
+
+@hypotheses_router.delete("/{hypothesis_id}/evidence/{evidence_id}", response_model=Hypothesis)
+def unlink_hypothesis_evidence(hypothesis_id: str, evidence_id: str) -> Hypothesis:
+    conn = get_connection()
+    _require_editable(conn, _hypothesis_investigation(conn, hypothesis_id))
+    if fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $eid})-[:HYPOTHESIS_EVIDENCE]->(h:Hypothesis {id: $hid}) RETURN ev.id AS id",
+            {"eid": evidence_id, "hid": hypothesis_id},
+        )
+    ) is None:
+        raise HTTPException(status_code=404, detail="Bu kanıt bu hipoteze bağlı değil")
+    conn.execute(
+        "MATCH (ev:Evidence {id: $eid})-[r:HYPOTHESIS_EVIDENCE]->(h:Hypothesis {id: $hid}) DELETE r",
+        {"eid": evidence_id, "hid": hypothesis_id},
     )
     _recompute_hypothesis_status(conn, hypothesis_id)
     safe_render_vault(conn)

@@ -34,6 +34,11 @@ import { useToast } from "@/components/ui/toast";
 
 type Filter = "all" | "promoted" | "pending" | "dismissed";
 
+// Bir seferde çizilen satır sayısı. 2026-10-18 denetiminde gözlem sayısı 3.918'e çıkmıştı ve
+// sayfa hepsini (her biri kendi promote diyaloğuyla) tek seferde çiziyordu: tarayıcı sekmesi
+// çöküyordu. Arama yine TÜM kayıtlar üzerinde çalışıyor; yalnızca çizim parça parça.
+const PAGE_SIZE = 50;
+
 /** Faz 16: sekme -> sorgu parametreleri. "Bekliyor" artık `dismissed=false` da geçiriyor —
  * elenen gözlem silinmediği için, geçirmezse sekme "bekliyor" derken elenmişleri de sayardı. */
 const FILTER_QUERY: Record<Filter, { promoted?: boolean; dismissed?: boolean }> = {
@@ -57,6 +62,7 @@ export default function ObservationsPage() {
 function ObservationsView() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const filterQuery = FILTER_QUERY[filter];
   // F58: Inbox'taki bir tarama bildiriminden "bu 17 gözlemi göster" diye gelinebiliyor.
   // Bildirim hangi gözlemlerden bahsettiğini zaten biliyordu; eksik olan aradaki bağdı.
@@ -71,27 +77,32 @@ function ObservationsView() {
   // Faz 11 (dogfooding F10): tek bir collector taraması bile onlarca gözlem üretiyor
   // (gerçek bir feed'de yüzlerce). Metin araması olmadan belirli bir gözlemi bulmak
   // elle kaydırmaya kalıyordu.
+  //
+  // En yeni üstte: liste kayıt sırasıyla (eskiden yeniye) geliyordu ve binlerce kayıtta yeni
+  // toplanan gözlem en altta kalıyordu.
   const filtered = useMemo(() => {
     if (!observations) return [];
     const q = query.trim().toLowerCase();
-    if (!q) return observations;
-    return observations.filter(
+    const newestFirst = [...observations].reverse();
+    if (!q) return newestFirst;
+    return newestFirst.filter(
       (o) =>
         o.raw_content.toLowerCase().includes(q) ||
         (o.source_url ?? "").toLowerCase().includes(q)
     );
   }, [observations, query]);
+  const visible = filtered.slice(0, limit);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Gözlemler</h1>
           <p className="text-sm text-text-secondary">
             Ham metin/haber yapıştır, sisteme sok — eşiği geçerse Knowledge Graph&apos;a Claim olarak yükselir.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {/* Faz 16: değerlendirme kuyruğu ayrı bir ekran — bu sayfa tekil kayıt üzerinde
               çalışmak için, kuyruk biriken yığını eritmek için. */}
           {/* Bir <a> olarak render edildiği için `nativeButton={false}` şart: Base UI
@@ -128,7 +139,14 @@ function ObservationsView() {
         </div>
       )}
 
-      <Tabs value={filter} onValueChange={(v) => v && setFilter(v as Filter)}>
+      <Tabs
+        value={filter}
+        onValueChange={(v) => {
+          if (!v) return;
+          setFilter(v as Filter);
+          setLimit(PAGE_SIZE);
+        }}
+      >
         <TabsList>
           <TabsTrigger value="all">Tümü</TabsTrigger>
           <TabsTrigger value="pending">Bekliyor</TabsTrigger>
@@ -139,7 +157,10 @@ function ObservationsView() {
           <div className="flex items-center gap-3">
             <Input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setLimit(PAGE_SIZE);
+              }}
               placeholder="Gözlem metninde veya kaynak adresinde ara…"
               aria-label="Gözlemlerde ara"
             />
@@ -150,7 +171,7 @@ function ObservationsView() {
             )}
           </div>
           {loading && <SkeletonRows />}
-          {error && <ErrorState message={error.message} onRetry={reload} />}
+          {error && <ErrorState error={error} onRetry={reload} />}
           {!loading && !error && (!observations || observations.length === 0) && (
             <EmptyState
             title="Bu filtrede gözlem yok"
@@ -161,9 +182,14 @@ function ObservationsView() {
           )}
           {!loading && (
             <div className="flex flex-col gap-2">
-              {filtered.map((o) => (
+              {visible.map((o) => (
                 <ObservationRow key={o.id} observation={o} onPromoted={reload} />
               ))}
+              {filtered.length > visible.length && (
+                <Button variant="outline" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
+                  Daha fazla göster ({filtered.length - visible.length} kaldı)
+                </Button>
+              )}
             </div>
           )}
         </TabsContent>
@@ -197,8 +223,8 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
           uyarı yalnızca kaynak belgede dursaydı burada görünmezdi. */}
       <InjectionWarning hits={observation.injection_hits} />
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="font-mono text-[11px] text-text-tertiary">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 break-all font-mono text-[11px] text-text-tertiary">
           {new Date(observation.created_at).toLocaleString("tr-TR")}
           {observation.source_url && <> · {observation.source_url}</>}
           {/* Faz 15.2 — belge tabanlı gözlemin provenance'ı: hangi belgenin hangi sayfaları.
@@ -227,7 +253,7 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
             </>
           )}
         </p>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {observation.dismissed && <UndismissButton observation={observation} onDone={onPromoted} />}
           <PromoteDialog observation={observation} onPromoted={onPromoted} />
         </div>
@@ -448,7 +474,8 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
           : "Claim üretildi (REPORTED) — tek kaynak, doğrulanmayı bekliyor",
         "success"
       );
-      onPromoted();
+      // Liste diyalog kapanınca tazeleniyor: tazelenen satır `produced_claim_id` taşıdığı
+      // için diyalog kaldırılıyor ve sonuç paneli hiç görünmüyordu (2026-10-18 denetimi).
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bilinmeyen hata");
     } finally {
@@ -463,6 +490,8 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
     setEvidenceIds([]);
     setContradictingIds([]);
     setCorroborates([]);
+    setContradicts([]);
+    setSupersedes(null);
     setError(null);
     setResult(null);
   }
@@ -477,7 +506,10 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) reset();
+        if (!next) {
+          if (result) onPromoted();
+          reset();
+        }
       }}
     >
       <DialogTrigger render={<Button size="sm">Promote</Button>} />
@@ -533,13 +565,19 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               </Select>
             </div>
             {aboutType !== "none" && (
-              <SearchablePicker items={aboutItems} value={aboutId} onChange={setAboutId} placeholder="Ara…" />
+              <SearchablePicker
+                items={aboutItems}
+                value={aboutId}
+                onChange={setAboutId}
+                placeholder="Ara…"
+                aria-label={aboutType === "entity" ? "İlgili entity" : "İlgili event"}
+              />
             )}
             {(aboutType === "none" || !aboutId) && (
               <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
                 <span className="font-medium text-foreground">Bağlanmazsa bu claim yalıtık kalır.</span>{" "}
                 Memory Recall onu bulamaz, entity sayfasında ve Obsidian vault notunda görünmez.
-                Claim oluşturulduktan sonra bu bağ <span className="font-medium">şu an</span> değiştirilemiyor.
+                Bağ sonradan entity sayfasındaki &ldquo;Mevcut claim&apos;i bağla&rdquo; ile de kurulabilir.
               </p>
             )}
             <div className="flex flex-col gap-1.5">

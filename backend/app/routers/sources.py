@@ -150,6 +150,22 @@ def detect_lineage(payload: LineageDetectRequest) -> dict:
         result["upstream_source_id"] = upstream_id
         return result
 
+    # Elle bağlama ucundaki döngü koruması burada da: yön claim'lerin oluşturulma sırasından
+    # seçildiği için ters sırada gelen ikinci bir çift A→B'nin üstüne B→A kurabiliyordu.
+    if fetch_one(
+        conn.execute(
+            "MATCH (:Source {id: $up})-[:DERIVED_FROM*1..10]->(:Source {id: $down}) RETURN 1 AS hit",
+            {"up": upstream_id, "down": downstream_id},
+        )
+    ) is not None:
+        result["note"] = (
+            "Ters yönde bir lineage zaten var (üst kaynak bu kaynaktan türetilmiş) — döngü "
+            "kurulmadı. Yön yanlışsa var olan bağı kaldırıp elle kur."
+        )
+        result["downstream_source_id"] = downstream_id
+        result["upstream_source_id"] = upstream_id
+        return result
+
     now = datetime.now(timezone.utc)
     conn.execute(
         "MATCH (down:Source {id: $down}), (up:Source {id: $up}) "

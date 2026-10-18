@@ -8,18 +8,33 @@ lineage'li bir ground truth var (Q4/Q6/Q12), vault sadece bunu Obsidian'da okuna
 getiriyor. Hiçbir not içeriği LLM'den geçmez — hepsi graph sorgularından doğrudan üretilir
 (bkz. docs/Roadmap.md Faz 9 karar notu).
 
-Entity/Event/Investigation/Source klasörleri her render'da SIFIRDAN yeniden yazılır (silinip
-yeniden oluşturulur) — bir isim değiştiğinde (ör. Entity PATCH ile yeniden adlandırılırsa)
-eski slug'lı dosyanın vault'ta öksüz kalmaması için. `daily/` bunun dışında: append-only,
-session-end hook'u tarafından güncellenir (bkz. .claude/hooks/vault-session-end.ps1).
+Entity/Event/Investigation/Source klasörleri her render'da graf ile EŞİTLENİR: yazılması
+gereken her not yazılır (içeriği değişmediyse dokunulmaz), artık karşılığı olmayan not silinir
+— bir isim değiştiğinde (ör. Entity PATCH ile yeniden adlandırılırsa) eski slug'lı dosyanın
+vault'ta öksüz kalmaması için. `daily/` bunun dışında: append-only, session-end hook'u
+tarafından güncellenir (bkz. .claude/hooks/vault-session-end.ps1).
+
+**Render arka planda ve birleştirilerek yapılır (2026-10-18).** Eskiden her yazma isteği
+yanıt vermeden önce tüm vault'u baştan render ediyordu (gerçek veride ~4 sn, yük altında
+25 sn). İki hızlı tıklama iki render'ı üst üste bindiriyor, biri klasörü silerken diğeri
+yazıyordu; Obsidian bir notu açık tuttuğunda klasör silme Windows'ta patlıyor ve vault yarı
+boş kalıyordu. Artık yazma uçları yalnızca "render gerekiyor" der (`safe_render_vault`), tek
+bir arka plan iş parçacığı birikmiş istekleri birleştirip tek render yapar. `POST
+/vault/render` (oturum-sonu hook'u) hâlâ SENKRON: o çağrı döndüğünde vault günceldir.
 """
+import json
+import logging
 import re
-import shutil
 import sys
+import threading
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
-from app.db import DATA_ROOT, fetch_all, fetch_one
+from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
 from app.recall import same_as_group
+
+logger = logging.getLogger(__name__)
 
 # `OSINTLAB_DATA_DIR` ile taşınabilir (db.py'deki DATA_ROOT). Faz 16'da düzeltildi: sabit
 # proje yolu, izole bir veri köküyle çalıştırılan bir test koşusunun GERÇEK vault'u baştan
@@ -78,9 +93,10 @@ def _yaml_scalar(value) -> str:
         return "true" if value else "false"
     if isinstance(value, (int, float)):
         return str(value)
-    s = str(value)
-    s = s.replace('"', '\\"')
-    return f'"{s}"'
+    # JSON dizgesi geçerli bir YAML çift tırnaklı skalerdir ve ters bölü, satır sonu, kontrol
+    # karakterlerini doğru kaçırır. Eskiden yalnızca `"` kaçırılıyordu: `\` ile biten bir ad
+    # (`"x\"`) ya da çok satırlı bir konum frontmatter'ı bozuyordu.
+    return json.dumps(str(value), ensure_ascii=False)
 
 
 def _frontmatter(fields: dict) -> str:
@@ -98,15 +114,38 @@ def _frontmatter(fields: dict) -> str:
     return "\n".join(lines)
 
 
-def _write(path: Path, content: str) -> None:
+def _write(path: Path, content: str) -> bool:
+    """Notu yazar; içerik aynıysa dokunmaz. Dönen: dosya değişti mi.
+
+    Değişmeyen notu yeniden yazmamak hem render'ı hızlandırıyor hem de Obsidian'ın her
+    render'da bütün notları "dışarıdan değişti" diye yeniden yüklemesini engelliyor."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    encoded = content.encode("utf-8")
+    try:
+        if path.read_bytes() == encoded:
+            return False
+    except OSError:
+        pass
+    path.write_bytes(encoded)
+    return True
 
 
-def _reset_dir(path: Path) -> None:
-    if path.is_dir():
-        shutil.rmtree(path)
-    path.mkdir(parents=True, exist_ok=True)
+def _sync_dir(directory: Path, notes: dict[str, str]) -> None:
+    """Klasörü `notes` (dosya adı → içerik) ile eşitler: yazar, artakalanı siler.
+
+    Klasörü önce silip sonra yazmak (eski `_reset_dir`) iki şekilde kırılıyordu: render
+    yarıda kalırsa klasör boş kalıyordu, ve Obsidian bir notu açık tutarken klasör silme
+    Windows'ta PermissionError veriyordu. Silinemeyen tek bir artakalan not artık render'ın
+    geri kalanını düşürmüyor."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, content in notes.items():
+        _write(directory / name, content)
+    for existing in directory.glob("*.md"):
+        if existing.name not in notes:
+            try:
+                existing.unlink()
+            except OSError:
+                logger.warning("Vault: artakalan not silinemedi (açık olabilir): %s", existing)
 
 
 # --------------------------------------------------------------------------
@@ -877,10 +916,28 @@ def _queue_stats(conn) -> dict:
     }
 
 
+# Aynı anda tek render. Arka plan iş parçacığı ve senkron `POST /vault/render` aynı klasörlere
+# yazıyor; üst üste binmeleri bir notun yarım yazılmasına ya da yeni yazılanın silinmesine yol
+# açabilirdi.
+_render_lock = threading.Lock()
+
+
 def render_all(conn) -> dict:
     """Tam, idempotent re-render — tüm graph'ı tarar, entities/events/investigations/
-    sources klasörlerini sıfırdan yazar (isim değişikliklerinde öksüz dosya kalmasın diye),
+    sources klasörlerini grafla eşitler (isim değişikliklerinde öksüz dosya kalmasın diye),
     Inbox ve Dashboard notlarını günceller. daily/'ye dokunmaz (append-only, ayrı akış)."""
+    with _render_lock:
+        started = time.monotonic()
+        stats = _render_all(conn)
+        _status.update(
+            last_rendered_at=datetime.now(timezone.utc).isoformat(),
+            last_duration_seconds=round(time.monotonic() - started, 2),
+            last_error=None,
+        )
+        return stats
+
+
+def _render_all(conn) -> dict:
     VAULT_DIR.mkdir(parents=True, exist_ok=True)
 
     entities = fetch_all(conn.execute(
@@ -903,21 +960,18 @@ def render_all(conn) -> dict:
         "n.url AS url, n.reliability AS reliability, n.created_at AS created_at"
     ))
 
-    _reset_dir(VAULT_DIR / "entities")
-    for e in entities:
-        _write(VAULT_DIR / "entities" / f"{note_stem(e['id'], e['name'])}.md", render_entity_note(conn, e))
-
-    _reset_dir(VAULT_DIR / "events")
-    for e in events:
-        _write(VAULT_DIR / "events" / f"{note_stem(e['id'], e['title'])}.md", render_event_note(conn, e))
-
-    _reset_dir(VAULT_DIR / "investigations")
-    for i in investigations:
-        _write(VAULT_DIR / "investigations" / f"{note_stem(i['id'], i['title'])}.md", render_investigation_note(conn, i))
-
-    _reset_dir(VAULT_DIR / "sources")
-    for s in sources:
-        _write(VAULT_DIR / "sources" / f"{note_stem(s['id'], s['name'])}.md", render_source_note(conn, s))
+    _sync_dir(VAULT_DIR / "entities", {
+        f"{note_stem(e['id'], e['name'])}.md": render_entity_note(conn, e) for e in entities
+    })
+    _sync_dir(VAULT_DIR / "events", {
+        f"{note_stem(e['id'], e['title'])}.md": render_event_note(conn, e) for e in events
+    })
+    _sync_dir(VAULT_DIR / "investigations", {
+        f"{note_stem(i['id'], i['title'])}.md": render_investigation_note(conn, i) for i in investigations
+    })
+    _sync_dir(VAULT_DIR / "sources", {
+        f"{note_stem(s['id'], s['name'])}.md": render_source_note(conn, s) for s in sources
+    })
 
     (VAULT_DIR / "inbox").mkdir(parents=True, exist_ok=True)
     _write(VAULT_DIR / "inbox" / "Intelligence-Inbox.md", render_inbox_note(conn))
@@ -934,7 +988,10 @@ def render_all(conn) -> dict:
 
 def safe_render_inbox_only(conn) -> None:
     """Inbox durum değişiklikleri (Q14 Confirm/Reject/...) sık olabilir ve sadece
-    inbox/Intelligence-Inbox.md'yi etkiler — tam graph taramasına gerek yok."""
+    inbox/Intelligence-Inbox.md'yi etkiler — tam graph taramasına gerek yok. Arka plan
+    render'ı çalışıyorsa ona bırakılır (aynı dosyaya iki iş parçacığı yazmasın)."""
+    if _worker.request():
+        return
     try:
         VAULT_DIR.mkdir(parents=True, exist_ok=True)
         (VAULT_DIR / "inbox").mkdir(parents=True, exist_ok=True)
@@ -944,10 +1001,93 @@ def safe_render_inbox_only(conn) -> None:
 
 
 def safe_render_vault(conn) -> None:
-    """render_all()'ı çağıran mutasyon uçlarının kullandığı sarmalayıcı — vault sadece
-    graph'ın türetilmiş bir görünümü, bir render hatası asıl API isteğini ASLA
-    başarısız kılmamalı (bkz. Faz 9 karar notu)."""
+    """Mutasyon uçlarının kullandığı giriş — vault sadece graph'ın türetilmiş bir görünümü,
+    bir render hatası asıl API isteğini ASLA başarısız kılmamalı (bkz. Faz 9 karar notu).
+
+    Arka plan render'ı çalışıyorsa yalnızca istek bırakılır ve hemen dönülür; çalışmıyorsa
+    (testler, script'ler) eskisi gibi senkron render edilir."""
+    if _worker.request():
+        return
     try:
         render_all(conn)
     except Exception as exc:  # noqa: BLE001 - kasıtlı: render hatası API'yi kırmasın
+        _status["last_error"] = f"{type(exc).__name__}: {exc}"
         print(f"[vault] render_all başarısız oldu, isteğe devam ediliyor: {exc}", file=sys.stderr)
+
+
+# Son render'ın durumu — `/health`'te görünür (sessiz bir arka plan mekanizması kurmamak:
+# Faz 11'in tekrar eden dersi).
+_status: dict = {"last_rendered_at": None, "last_duration_seconds": None, "last_error": None}
+
+
+class _RenderWorker:
+    """Birikmiş render isteklerini birleştiren tek arka plan iş parçacığı.
+
+    Bir istek geldiğinde kısa bir süre (DEBOUNCE) beklenir: toplu bir işlem (ör. 20 öğelik
+    promote) art arda düzinelerce istek bırakır ve hepsi TEK render'a iner."""
+
+    DEBOUNCE_SECONDS = 1.0
+
+    def __init__(self) -> None:
+        self._wake = threading.Event()
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def request(self) -> bool:
+        if not self.running():
+            return False
+        self._wake.set()
+        return True
+
+    def start(self) -> None:
+        if self.running():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._loop, name="osintlab-vault-render", daemon=True)
+        self._thread.start()
+
+    def stop(self, timeout: float = 30.0) -> None:
+        if not self.running():
+            return
+        self._stop.set()
+        self._wake.set()
+        self._thread.join(timeout)
+        self._thread = None
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            self._wake.wait()
+            if self._stop.is_set():
+                break
+            time.sleep(self.DEBOUNCE_SECONDS)
+            self._wake.clear()
+            try:
+                render_all(get_connection())
+            except Exception as exc:  # noqa: BLE001 — iş parçacığı hiçbir hatada ölmemeli
+                _status["last_error"] = f"{type(exc).__name__}: {exc}"
+                logger.exception("Vault arka plan render'ı başarısız oldu")
+        # Kapanışta bekleyen bir istek varsa son bir kez render: kapatmadan hemen önceki
+        # değişiklik vault'a yansımadan kalmasın.
+        if self._wake.is_set():
+            try:
+                render_all(get_connection())
+            except Exception:  # noqa: BLE001
+                logger.exception("Vault kapanış render'ı başarısız oldu")
+
+
+_worker = _RenderWorker()
+
+
+def start_background_renderer() -> None:
+    _worker.start()
+
+
+def stop_background_renderer() -> None:
+    _worker.stop()
+
+
+def render_status() -> dict:
+    return {"background": _worker.running(), **_status}

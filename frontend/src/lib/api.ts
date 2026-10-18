@@ -23,6 +23,7 @@ import type {
   EventItem,
   EventRecall,
   Hypothesis,
+  HypothesisEvidenceLink,
   InboxItem,
   Investigation,
   InvestigationWorkspace,
@@ -106,7 +107,7 @@ const put = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined });
 const patch = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
-const del = (path: string) => request<void>(path, { method: "DELETE" });
+const del = <T = void>(path: string) => request<T>(path, { method: "DELETE" });
 
 export const api = {
   health: () => get<{ status: string }>("/health"),
@@ -407,6 +408,12 @@ export const api = {
     // ilişkisi ve hipotez durumunun (SUPPORTED/WEAKENED) yeniden hesabı UI'dan erişilemezdi.
     linkHypothesisEvidence: (hypothesisId: string, evidenceId: string, stance: "SUPPORTS" | "WEAKENS" | "REFUTES") =>
       put<Hypothesis>(`/hypotheses/${hypothesisId}/evidence`, { evidence_id: evidenceId, stance }),
+    // Hipotezin durumunu belirleyen kanıtlar — "neden REFUTED?" sorusunun cevabı. Bir kanıtın
+    // bir hipoteze tek duruşu var; yeniden bağlamak duruşu değiştirir, kaldırmak geri alır.
+    hypothesisEvidence: (hypothesisId: string) =>
+      get<HypothesisEvidenceLink[]>(`/hypotheses/${hypothesisId}/evidence`),
+    unlinkHypothesisEvidence: (hypothesisId: string, evidenceId: string) =>
+      del<Hypothesis>(`/hypotheses/${hypothesisId}/evidence/${evidenceId}`),
   },
 
   observations: {

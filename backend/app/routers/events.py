@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
 from app.db import fetch_all, fetch_one, get_connection
-from app.eventcluster import event_candidates, recompute_event_confidence
+from app.eventcluster import event_candidates, recompute_event_confidence, set_claim_about
 from app.models import (
     Event,
     EventCandidate,
@@ -34,6 +34,12 @@ _FIELDS = (
 @router.post("", response_model=Event, status_code=201)
 def create_event(payload: EventCreate) -> Event:
     conn = get_connection()
+    event = _insert_event(conn, payload)
+    safe_render_vault(conn)
+    return event
+
+
+def _insert_event(conn, payload: EventCreate) -> Event:
     event_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc)
     # Yeni oluşturulan bir Event'in henüz hiç claim/evidence'ı yok — Q1/Q8: eşiği geçmemiş
@@ -51,7 +57,6 @@ def create_event(payload: EventCreate) -> Event:
             "created_at": created_at,
         },
     )
-    safe_render_vault(conn)
     return Event(id=event_id, knowledge_state="OBSERVED", confidence=0.0, created_at=created_at, **payload.model_dump())
 
 
@@ -88,19 +93,20 @@ def create_event_from_cluster(payload: EventFromCluster) -> EventFromClusterResu
     conn = get_connection()
     if not payload.claim_ids:
         raise HTTPException(status_code=422, detail="En az bir claim seçilmeli")
+    claim_ids = list(dict.fromkeys(payload.claim_ids))
     missing = [
         cid
-        for cid in payload.claim_ids
+        for cid in claim_ids
         if fetch_one(conn.execute("MATCH (c:Claim {id: $id}) RETURN c.id AS id", {"id": cid})) is None
     ]
     if missing:
         raise HTTPException(status_code=404, detail=f"Claim not found: {', '.join(missing)}")
 
-    event = create_event(EventCreate(**payload.model_dump(include=set(EventCreate.model_fields))))
+    event = _insert_event(conn, EventCreate(**payload.model_dump(include=set(EventCreate.model_fields))))
 
     entities: dict[str, str] = {}
     sources: set[str] = set()
-    for claim_id in payload.claim_ids:
+    for claim_id in claim_ids:
         row = fetch_one(
             conn.execute(
                 "MATCH (c:Claim {id: $id}) "
@@ -114,16 +120,10 @@ def create_event_from_cluster(payload: EventFromCluster) -> EventFromClusterResu
             entities[row["entity_id"]] = row["entity_name"]
         if row and row["source_id"]:
             sources.add(row["source_id"])
-        conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_ENTITY]->(:Entity) DELETE r", {"id": claim_id})
-        conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_EVENT]->(:Event) DELETE r", {"id": claim_id})
-        conn.execute(
-            "MATCH (c:Claim {id: $cid}), (ev:Event {id: $evid}) CREATE (c)-[:ABOUT_EVENT]->(ev)",
-            {"cid": claim_id, "evid": event.id},
-        )
-        conn.execute(
-            "MATCH (c:Claim {id: $id}) SET c.updated_at = $now",
-            {"id": claim_id, "now": datetime.now(timezone.utc)},
-        )
+        # Taşıma burada TOPLU yapılıyor (rol ve bildirim kullanıcının seçimiyle, aşağıda);
+        # yardımcının kendi taşıması kapalı. Yardımcı claim'in ESKİ olayını yeniden hesaplıyor —
+        # başka bir olaydan kopartılan claim'in eski olayı bayat skoru göstermeye devam ediyordu.
+        set_claim_about(conn, claim_id, event_id=event.id, carry_entity=False, recompute_new_event=False)
 
     linked_entities = []
     if payload.carry_entities:
@@ -159,7 +159,7 @@ def create_event_from_cluster(payload: EventFromCluster) -> EventFromClusterResu
     safe_render_vault(conn)
     return EventFromClusterResult(
         event=event,
-        linked_claims=len(payload.claim_ids),
+        linked_claims=len(claim_ids),
         linked_entities=linked_entities,
         linked_sources=len(sources),
     )
@@ -203,17 +203,21 @@ def link_claim(event_id: str, claim_id: str) -> Event:
         raise HTTPException(status_code=404, detail="Event not found")
     if fetch_one(conn.execute("MATCH (c:Claim {id: $id}) RETURN c.id AS id", {"id": claim_id})) is None:
         raise HTTPException(status_code=404, detail="Claim not found")
-    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_ENTITY]->(:Entity) DELETE r", {"id": claim_id})
-    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_EVENT]->(:Event) DELETE r", {"id": claim_id})
-    conn.execute(
-        "MATCH (c:Claim {id: $cid}), (ev:Event {id: $evid}) CREATE (c)-[:ABOUT_EVENT]->(ev)",
-        {"cid": claim_id, "evid": event_id},
-    )
-    conn.execute(
-        "MATCH (c:Claim {id: $id}) SET c.updated_at = $now",
-        {"id": claim_id, "now": datetime.now(timezone.utc)},
-    )
-    recompute_event_confidence(conn, event_id)
+    # Claim'in entity'si olaya INVOLVED_IN ile taşınır, eski olayı yeniden hesaplanır
+    # (bkz. `eventcluster.set_claim_about` — bu uç ikisini de atlıyordu).
+    moved = set_claim_about(conn, claim_id, event_id=event_id)
+    if moved["carried_entity_id"]:
+        event = get_event(event_id)
+        notify_if_monitored(
+            conn,
+            target_type="Entity",
+            target_id=moved["carried_entity_id"],
+            item_type="NEW_EVENT",
+            title=f"Yeni bir event'e karıştı: {event.title}",
+            detail={"event_id": event_id, "role": "ilgili"},
+            confidence=event.confidence,
+            is_novel=True,
+        )
     safe_render_vault(conn)
     return get_event(event_id)
 
@@ -225,6 +229,13 @@ def unlink_claim(event_id: str, claim_id: str) -> Event:
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Event {id: $id}) RETURN e.id AS id", {"id": event_id})) is None:
         raise HTTPException(status_code=404, detail="Event not found")
+    if fetch_one(
+        conn.execute(
+            "MATCH (c:Claim {id: $cid})-[:ABOUT_EVENT]->(:Event {id: $evid}) RETURN c.id AS id",
+            {"cid": claim_id, "evid": event_id},
+        )
+    ) is None:
+        raise HTTPException(status_code=404, detail="Bu claim bu event'e bağlı değil")
     conn.execute(
         "MATCH (c:Claim {id: $cid})-[r:ABOUT_EVENT]->(:Event {id: $evid}) DELETE r",
         {"cid": claim_id, "evid": event_id},
@@ -274,6 +285,13 @@ def link_entity(event_id: str, entity_id: str, payload: InvolvedInLink) -> None:
 @router.delete("/{event_id}/entities/{entity_id}", status_code=204)
 def unlink_entity(event_id: str, entity_id: str) -> None:
     conn = get_connection()
+    if fetch_one(
+        conn.execute(
+            "MATCH (e:Entity {id: $eid})-[:INVOLVED_IN]->(ev:Event {id: $evid}) RETURN e.id AS id",
+            {"eid": entity_id, "evid": event_id},
+        )
+    ) is None:
+        raise HTTPException(status_code=404, detail="Bu entity bu event'e bağlı değil")
     conn.execute(
         "MATCH (e:Entity {id: $eid})-[r:INVOLVED_IN]->(ev:Event {id: $evid}) DELETE r",
         {"eid": entity_id, "evid": event_id},
@@ -316,8 +334,28 @@ def recall_event(event_id: str) -> dict:
 
 @router.delete("/{event_id}", status_code=204)
 def delete_event(event_id: str) -> None:
+    """Yalnızca BOŞ bir olay silinir.
+
+    `DETACH DELETE` ABOUT_EVENT'i de götürüyordu: olay adayından kurulmuş bir olayın
+    claim'leri ABOUT_ENTITY'lerini zaten kaybetmişti (entity INVOLVED_IN ile olaya taşınmıştı),
+    yani silme sonrası claim'ler HİÇBİR ŞEY hakkında kalmıyor ve entity bağı geri dönülmez
+    biçimde kayboluyordu (2026-10-18 denetimi). Önce claim'ler ayrılmalı ya da başka bir
+    öznede toplanmalı — hangi claim'in hangi entity'ye döneceği bir karar, sistem tahmin etmez."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Event {id: $id}) RETURN e.id AS id", {"id": event_id})) is None:
         raise HTTPException(status_code=404, detail="Event not found")
+    attached = fetch_one(
+        conn.execute(
+            "MATCH (c:Claim)-[:ABOUT_EVENT]->(:Event {id: $id}) RETURN count(c) AS n", {"id": event_id}
+        )
+    )
+    if attached and attached["n"]:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Bu olaya bağlı {attached['n']} claim var. Silmeden önce claim'leri olaydan ayır "
+                "ya da başka bir entity/olaya taşı — aksi halde hiçbir şey hakkında olmayan claim'ler kalır."
+            ),
+        )
     conn.execute("MATCH (e:Event {id: $id}) DETACH DELETE e", {"id": event_id})
     safe_render_vault(conn)

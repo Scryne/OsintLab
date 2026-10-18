@@ -27,26 +27,32 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 
 from app.confidence import CORROBORATED_THRESHOLD, HIGH_CONFIDENCE_THRESHOLD, SUPPORTED_THRESHOLD
-from app.db import fetch_all, fetch_one
-from app.models import PRIORITY_LEVELS, PRIORITY_ORDER
+from app.db import DATA_ROOT, atomic_write_text, fetch_all, fetch_one
+from app.models import PRIORITY_ORDER
 
-INBOX_SETTINGS_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "config" / "inbox_settings.json"
+INBOX_SETTINGS_PATH = DATA_ROOT / "config" / "inbox_settings.json"
+DEFAULT_INBOX_SETTINGS = {"min_priority": "INFO"}
 
 _ACTIVE_INVESTIGATION_STATUSES = ("OPEN", "ACTIVE", "PAUSED")
 
 
 def load_inbox_settings() -> dict:
     if not INBOX_SETTINGS_PATH.is_file():
-        return {"min_priority": "INFO"}
-    return json.loads(INBOX_SETTINGS_PATH.read_text(encoding="utf-8"))
+        return dict(DEFAULT_INBOX_SETTINGS)
+    try:
+        settings = json.loads(INBOX_SETTINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        # Bozuk ayar dosyası her claim yazımını (bildirim adımı) düşürmemeli.
+        return dict(DEFAULT_INBOX_SETTINGS)
+    if not isinstance(settings, dict) or settings.get("min_priority") not in PRIORITY_ORDER:
+        return dict(DEFAULT_INBOX_SETTINGS)
+    return settings
 
 
 def save_inbox_settings(settings: dict) -> None:
-    INBOX_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    INBOX_SETTINGS_PATH.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_text(INBOX_SETTINGS_PATH, json.dumps(settings, ensure_ascii=False, indent=2))
 
 
 def find_monitor(conn, target_type: str, target_id: str) -> dict | None:

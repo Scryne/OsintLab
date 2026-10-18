@@ -16,13 +16,15 @@ log zaten ekranda akar.
 """
 import argparse
 import logging
+import os
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import uvicorn
 
-LOG_DIR = Path(__file__).resolve().parent.parent / "data" / "logs"
+# Veri kökü `OSINTLAB_DATA_DIR` ile taşınıyorsa log da onunla gider (app/db.py ile aynı kural).
+LOG_DIR = Path(os.environ.get("OSINTLAB_DATA_DIR") or (Path(__file__).resolve().parent.parent / "data")) / "logs"
 LOG_FILE = LOG_DIR / "backend.log"
 
 

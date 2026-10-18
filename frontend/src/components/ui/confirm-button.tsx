@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 /** Geri dönüşü UI'da olmayan aksiyonlar için (entity relation kaldırma, SAME_AS confirm)
@@ -20,7 +21,11 @@ import { cn } from "@/lib/utils";
  *    bildirilmiyordu; `role="alert"` bunu sesli kılıyor.
  *
  * `confirmAction` metni zorunlu değil ama önerilir: onay düğmesi eylemi tekrar etmeli
- * ("Bağlantıyı kaldır"), "Evet" demek neyin onaylandığını söylemiyor. */
+ * ("Bağlantıyı kaldır"), "Evet" demek neyin onaylandığını söylemiyor.
+ *
+ * `onConfirm` async olabilir; başarısız olursa hata burada toast olarak gösterilir.
+ * 2026-10-18'e kadar çağıranların çoğu (olaydan claim/entity çıkarma) hatayı yakalamıyordu:
+ * istek reddedildiğinde hiçbir şey olmuyor gibi görünüyordu. */
 export function ConfirmButton({
   onConfirm,
   children,
@@ -31,7 +36,7 @@ export function ConfirmButton({
   variant = "outline",
   "aria-label": ariaLabel,
 }: {
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   children: React.ReactNode;
   confirmLabel?: string;
   /** Onay düğmesinin metni — eylemi tekrar etmeli. */
@@ -41,6 +46,7 @@ export function ConfirmButton({
   variant?: "outline" | "ghost" | "secondary";
   "aria-label"?: string;
 }) {
+  const toast = useToast();
   const [armed, setArmed] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -92,7 +98,9 @@ export function ConfirmButton({
           onClick={() => {
             restoreFocus.current = false;
             setArmed(false);
-            onConfirm();
+            Promise.resolve()
+              .then(onConfirm)
+              .catch((err) => toast(err instanceof Error ? err.message : "İşlem başarısız", "error"));
           }}
         >
           {confirmAction}

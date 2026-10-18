@@ -61,7 +61,7 @@ STATUS_LABELS = {
     ARSIVLENDI: "Arşivlendi — canlı sayfaya karşı henüz bakılmadı",
     DOGRULANDI: "Doğrulandı — kaynak ayakta ve aynı başlığı taşıyor",
     DEGISMIS: "Değişmiş — canlı sayfa arşivdeki başlığı artık taşımıyor",
-    ERISILEMEDI: "Erişilemedi — kaynak sayfa artık alınamıyor",
+    ERISILEMEDI: "Erişilemedi — kaynak sayfa artık yok (404/410)",
 }
 
 # Doğrulamanın ölçtüğü şey: **başlık canlı sayfada hâlâ duruyor mu.**
@@ -189,7 +189,10 @@ def create_archive(conn, claim_id: str) -> dict:
     # arşivin DURUMU (doğrulandı/değişmiş) claim'e değil, o claim'in dayanağına aittir.
     path = archive_dir() / f"{digest}.txt"
     if not path.exists():
-        path.write_text(text, encoding="utf-8")
+        # Bayt olarak: `write_text` Windows'ta `\n`yi `\r\n`e çeviriyordu ve dosyanın
+        # baytları, adındaki hash'le artık eşleşmiyordu — "adın kendisi bütünlük kontrolü"
+        # vaadi sessizce bozuluyordu.
+        path.write_bytes(text.encode("utf-8"))
 
     evidence_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
@@ -283,12 +286,16 @@ def verify_archive(conn, evidence_id: str, claim_id: str) -> dict:
 
     try:
         _, content, _ = safe_fetch(url, load_allowlist())
-    except (CollectorSecurityError, CollectorFetchError) as exc:
-        note = str(exc)
-        _set_archive_result(conn, evidence_id, ERISILEMEDI, None, note)
-        _drop_supports(conn, evidence_id, claim_id)
-        return {"evidence_id": evidence_id, "claim_id": claim_id, "status": ERISILEMEDI,
-                "match": None, "note": note, "scored": False}
+    except CollectorFetchError as exc:
+        if exc.status_code in GONE_STATUS_CODES:
+            note = str(exc)
+            _set_archive_result(conn, evidence_id, ERISILEMEDI, None, note)
+            _drop_supports(conn, evidence_id, claim_id)
+            return {"evidence_id": evidence_id, "claim_id": claim_id, "status": ERISILEMEDI,
+                    "match": None, "note": note, "scored": False}
+        return _unchecked(conn, evidence_id, claim_id, str(exc))
+    except CollectorSecurityError as exc:
+        return _unchecked(conn, evidence_id, claim_id, str(exc))
 
     live = extract_content_from_html(content)
     match = round(containment(archived, live), 3)
@@ -324,6 +331,37 @@ def verify_archive(conn, evidence_id: str, claim_id: str) -> dict:
     _drop_supports(conn, evidence_id, claim_id)
     return {"evidence_id": evidence_id, "claim_id": claim_id, "status": DEGISMIS,
             "match": match, "note": note, "scored": False}
+
+
+# Yalnızca bunlar "sayfa artık YOK" demek. Geri kalan her şey (429, 5xx, zaman aşımı, DNS,
+# allowlist'ten çıkarılmış host) "şu an bakamadık" demek ve doğrulanmış bir kanıtı silmek için
+# yeterli değil — F25'in ayrımı: "biz reddettik / geçici olarak ulaşamadık" ile "kaynak onu
+# geri çekti" aynı şey değil.
+GONE_STATUS_CODES = (404, 410)
+
+
+def _unchecked(conn, evidence_id: str, claim_id: str, reason: str) -> dict:
+    """Bu tur kontrol EDİLEMEDİ: önceki durum ve skor kenarı korunur, yalnızca not düşülür.
+
+    2026-10-18 denetimine kadar geçici bir kesinti (503, ağ kopması) ya da host'un
+    allowlist'ten çıkarılması ERISILEMEDI yazıyor ve SUPPORTS'u kaldırıyordu — yani bir
+    sunucu arızası, o sitedeki her claim'in confidence'ını sessizce düşürüyordu."""
+    row = fetch_one(
+        conn.execute(
+            "MATCH (ev:Evidence {id: $eid}) RETURN ev.archive_status AS status, "
+            "ev.archive_match AS match",
+            {"eid": evidence_id},
+        )
+    )
+    status = (row or {}).get("status") or ARSIVLENDI
+    note = f"Bu kontrolde kaynağa ulaşılamadı, önceki durum korundu: {reason}"
+    conn.execute(
+        "MATCH (ev:Evidence {id: $eid}) SET ev.archive_checked_at = $now, ev.archive_note = $note",
+        {"eid": evidence_id, "now": datetime.now(timezone.utc), "note": note},
+    )
+    return {"evidence_id": evidence_id, "claim_id": claim_id, "status": status,
+            "match": (row or {}).get("match"), "note": note,
+            "scored": _has_supports(conn, evidence_id, claim_id)}
 
 
 def _drop_supports(conn, evidence_id: str, claim_id: str) -> None:

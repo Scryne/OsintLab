@@ -25,7 +25,7 @@ export default function InvestigationsPage() {
       </div>
 
       {loading && <SkeletonRows />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && investigations?.length === 0 && <EmptyState
           title="Henüz investigation yok"
           description="Bir araştırma açtığında kapsamı, hipotezleri ve bulguları burada takip edersin." />}

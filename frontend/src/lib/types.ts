@@ -196,6 +196,13 @@ export interface Hypothesis {
   created_at: string;
 }
 
+export interface HypothesisEvidenceLink {
+  evidence_id: string;
+  evidence_type: string;
+  file_path: string | null;
+  stance: "SUPPORTS" | "WEAKENS" | "REFUTES";
+}
+
 export interface Observation {
   id: string;
   raw_content: string;
@@ -407,6 +414,9 @@ export interface EntityRecall {
   related_claims: (Pick<Claim, "id" | "text" | "knowledge_state" | "confidence" | "created_at"> & {
     via_entity_name: string | null;
     superseded_by_claim_id: string | null;
+    source_id: string | null;
+    source_name: string | null;
+    source_url: string | null;
   })[];
   // Faz 18: `occurred_at` + durum alanları eklendi — timeline olayları KAYIT tarihine göre
   // diziyordu, oysa bir olayın çizgideki yeri ne zaman OLDUĞUdur.
@@ -737,7 +747,9 @@ export interface MentionBatchResult {
 }
 
 export interface MentionedInClaim {
-  claim_id: string;
+  // Backend (`recall.py`) bu alanı `id` adıyla döndürüyor; tip `claim_id` diyordu ve her
+  // satırın React anahtarı `undefined` oluyordu (2026-10-18 denetimi).
+  id: string;
   text: string;
   knowledge_state: KnowledgeState;
   confidence: number;
@@ -766,6 +778,8 @@ export interface RelationPairCandidate {
 export interface RelationBatchResult {
   created: number;
   rejected: number;
+  /** Aynı türde aktif ilişkisi zaten olan çiftler — ikiz kenar kurulmadı. */
+  skipped: number;
 }
 
 export interface GraphNode {

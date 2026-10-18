@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.db import fetch_all, fetch_one, get_connection
+from app.db import fetch_all, fetch_one, get_connection, graph_lock
 from app.dedup import find_candidates, pair_score
 from app.entityextract import entity_candidates
 from app.entityrelations import entity_graph, relation_candidates, relation_pair_candidates
@@ -36,6 +36,12 @@ _FIELDS = "e.id AS id, e.entity_type AS entity_type, e.name AS name, e.aliases A
 @router.post("", response_model=Entity, status_code=201)
 def create_entity(payload: EntityCreate) -> Entity:
     conn = get_connection()
+    entity = _insert_entity(conn, payload)
+    safe_render_vault(conn)
+    return entity
+
+
+def _insert_entity(conn, payload: EntityCreate) -> Entity:
     entity_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc)
     conn.execute(
@@ -49,7 +55,6 @@ def create_entity(payload: EntityCreate) -> Entity:
             "created_at": created_at,
         },
     )
-    safe_render_vault(conn)
     return Entity(id=entity_id, created_at=created_at, **payload.model_dump())
 
 
@@ -104,11 +109,51 @@ def update_entity(entity_id: str, payload: EntityCreate) -> Entity:
     return get_entity(entity_id)
 
 
+# Bir entity'yi "kullanılıyor" yapan bağlar. `DETACH DELETE` bunların hepsini fiziksel olarak
+# siliyordu: History Is Immutable'a aykırı (ilişki silme ucu kenarı SUPERSEDED'a çekerken entity
+# silme aynı kenarı yok ediyordu) ve claim'leri öznesiz bırakıyordu (2026-10-18 denetimi).
+_ENTITY_USAGE = (
+    ("claim öznesi", "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity {id: $id}) RETURN count(c) AS n"),
+    ("claim değmesi", "MATCH (c:Claim)-[m:MENTIONS]->(e:Entity {id: $id}) WHERE m.status = 'CONFIRMED' RETURN count(c) AS n"),
+    ("ilişki", "MATCH (e:Entity {id: $id})-[r:ENTITY_RELATION]-(:Entity) RETURN count(r) AS n"),
+    ("olay", "MATCH (e:Entity {id: $id})-[r:INVOLVED_IN]->(:Event) RETURN count(r) AS n"),
+    ("investigation kapsamı", "MATCH (:Investigation)-[r:INCLUDES]->(e:Entity {id: $id}) RETURN count(r) AS n"),
+    ("belge parmak izi", "MATCH (:Evidence)-[r:FINGERPRINT_ENTITY]->(e:Entity {id: $id}) RETURN count(r) AS n"),
+    ("onaylı eşleşme", "MATCH (e:Entity {id: $id})-[r:SAME_AS]-(:Entity) WHERE r.status = 'CONFIRMED' RETURN count(r) AS n"),
+)
+
+
 @router.delete("/{entity_id}", status_code=204)
 def delete_entity(entity_id: str) -> None:
+    """Yalnızca KULLANILMAYAN bir entity silinir (yanlışlıkla kurulmuş bir kayıt).
+
+    Kullanılan bir entity silinmez, 409 ile neyin ona bağlı olduğu söylenir: aynı şeyin iki
+    kaydıysa yol SAME_AS (eşleştirme), yanlış bir bağsa o bağın kendi geri alma ucu. Silinen
+    entity'ye işaret eden izleyiciler (Monitor) kapatılır ve entity bir adaydan kurulmuşsa
+    aday kararı kaldırılır — ad, aday listesine yeniden düşebilsin."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
         raise HTTPException(status_code=404, detail="Entity not found")
+    usage = []
+    for label, query in _ENTITY_USAGE:
+        row = fetch_one(conn.execute(query, {"id": entity_id}))
+        if row and row["n"]:
+            usage.append(f"{row['n']} {label}")
+    if usage:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Bu entity kullanılıyor (" + ", ".join(usage) + ") — silinmez. Aynı şeyin ikinci "
+                "kaydıysa SAME_AS ile eşleştir; yanlış bir bağsa o bağı kaldır."
+            ),
+        )
+    conn.execute(
+        "MATCH (m:Monitor) WHERE m.target_type = 'Entity' AND m.target_id = $id SET m.active = false",
+        {"id": entity_id},
+    )
+    conn.execute(
+        "MATCH (c:EntityCandidate) WHERE c.promoted_entity_id = $id DELETE c", {"id": entity_id}
+    )
     conn.execute("MATCH (e:Entity {id: $id}) DETACH DELETE e", {"id": entity_id})
     safe_render_vault(conn)
 
@@ -116,7 +161,7 @@ def delete_entity(entity_id: str) -> None:
 # ---- ENTITY_RELATION (Entity <-> Entity) ---------------------------------------------------
 
 
-def _write_entity_relation(conn, entity_id: str, payload: EntityRelationCreate) -> None:
+def _write_entity_relation(conn, entity_id: str, payload: EntityRelationCreate) -> datetime:
     """İlişkiyi yazar — vault RENDER ETMEZ.
 
     Faz 22'de ayrıldı: toplu karar ucu 76 ilişkiyi tek çağrıda kuruyor ve her biri için
@@ -129,6 +174,21 @@ def _write_entity_relation(conn, entity_id: str, payload: EntityRelationCreate) 
         raise HTTPException(status_code=404, detail=f"Entity not found: {payload.to_entity_id}")
     if entity_id == payload.to_entity_id:
         raise HTTPException(status_code=422, detail="Bir entity kendisiyle ilişkilendirilemez")
+    relation_type = payload.relation_type.strip()
+    if not relation_type:
+        raise HTTPException(status_code=422, detail="İlişki türü boş olamaz — türü sistem tahmin etmez")
+    # Aynı türde AKTİF bir ilişki zaten varsa ikincisi kurulmaz: ikiz kenar entity sayfasında
+    # çift satır, grafta çift çizgi ve kuyruk sinyalinde (RELATED_PAIR) aynı bilginin iki kez
+    # sayılması demekti.
+    if fetch_one(
+        conn.execute(
+            "MATCH (a:Entity {id: $aid})-[r:ENTITY_RELATION]->(b:Entity {id: $bid}) "
+            "WHERE r.status = 'ACTIVE' AND r.relation_type = $rt RETURN r.status AS status",
+            {"aid": entity_id, "bid": payload.to_entity_id, "rt": relation_type},
+        )
+    ):
+        raise HTTPException(status_code=409, detail=f"Bu iki entity arasında zaten aktif bir '{relation_type}' ilişkisi var")
+    now = datetime.now(timezone.utc)
     conn.execute(
         "MATCH (a:Entity {id: $aid}), (b:Entity {id: $bid}) "
         "CREATE (a)-[:ENTITY_RELATION {relation_type: $rt, confidence: $conf, "
@@ -136,24 +196,28 @@ def _write_entity_relation(conn, entity_id: str, payload: EntityRelationCreate) 
         {
             "aid": entity_id,
             "bid": payload.to_entity_id,
-            "rt": payload.relation_type,
+            "rt": relation_type,
             "conf": payload.confidence,
-            "now": datetime.now(timezone.utc),
+            "now": now,
         },
     )
+    return now
 
 
 @router.post("/{entity_id}/relations", status_code=201)
 def create_entity_relation(entity_id: str, payload: EntityRelationCreate) -> dict:
     conn = get_connection()
-    _write_entity_relation(conn, entity_id, payload)
+    # 2026-10-18'e kadar bu uç yanıtta tanımsız bir `now` kullanıyordu: ilişki YAZILIYOR,
+    # vault render ediliyor, sonra 500 dönüyordu — istemci başarısız sanıp tekrar deneyince
+    # ikiz ilişki oluşuyordu.
+    valid_from = _write_entity_relation(conn, entity_id, payload)
     safe_render_vault(conn)
     return {
         "from_entity_id": entity_id,
         "to_entity_id": payload.to_entity_id,
-        "relation_type": payload.relation_type,
+        "relation_type": payload.relation_type.strip(),
         "confidence": payload.confidence,
-        "valid_from": now,
+        "valid_from": valid_from,
         "valid_to": None,
         "status": "ACTIVE",
     }
@@ -333,6 +397,13 @@ def _set_candidate_status(conn, key: str, name: str, status: str, entity_id: str
         )
 
 
+def _candidate_status(conn, key: str) -> str | None:
+    row = fetch_one(
+        conn.execute("MATCH (c:EntityCandidate {key: $key}) RETURN c.status AS status", {"key": key})
+    )
+    return row["status"] if row else None
+
+
 @candidates_router.get("", response_model=list[ExtractedEntityCandidate])
 def list_entity_candidates(
     include_decided: bool = Query(False, description="Karar verilmiş adaylar da dönsün mü"),
@@ -354,7 +425,11 @@ def dismiss_entity_candidates(payload: EntityCandidateDismiss) -> EntityCandidat
     conn = get_connection()
     known = {c["key"]: c["name"] for c in entity_candidates(conn, include_decided=True)}
     count = 0
-    for key in payload.keys:
+    for key in dict.fromkeys(payload.keys):
+        # PROMOTED bir aday elenmez: karşılığında bir Entity var ve kararın üzerine yazmak
+        # `promoted_entity_id` bağını (hangi entity'ye dönüştüğü) kaybettiriyordu.
+        if _candidate_status(conn, key) == "PROMOTED":
+            continue
         _set_candidate_status(conn, key, known.get(key, key), "DISMISSED")
         count += 1
     return EntityCandidateDecisionResult(dismissed=count)
@@ -390,11 +465,20 @@ def promote_entity_candidates(payload: EntityCandidatePromote) -> EntityCandidat
         name = (item.name or known.get(item.key) or item.key).strip()
         if not name:
             continue
-        entity = create_entity(
-            EntityCreate(name=name, entity_type=item.entity_type.strip() or "Organization", aliases=item.aliases)
-        )
-        _set_candidate_status(conn, item.key, name, "PROMOTED", entity.id)
+        # Durum kontrolü ile yaratma arasına ikinci bir istek (çift tıklama, yeniden deneme)
+        # girmesin: önceden aynı aday iki kez gönderilince iki ayrı Entity oluşuyordu.
+        with graph_lock:
+            if _candidate_status(conn, item.key) == "PROMOTED":
+                continue
+            entity = _insert_entity(
+                conn,
+                EntityCreate(name=name, entity_type=item.entity_type.strip() or "Organization", aliases=item.aliases),
+            )
+            _set_candidate_status(conn, item.key, name, "PROMOTED", entity.id)
         created.append(entity)
+    # Vault BİR kez: önceden aday başına tam render yapılıyordu (`create_entity` route'u).
+    if created:
+        safe_render_vault(conn)
     return EntityCandidateDecisionResult(promoted=len(created), entities=created)
 
 
@@ -422,26 +506,41 @@ def decide_relations(payload: RelationBatch) -> RelationBatchResult:
     kararı: reddedilen kaybolmaz, işaretlenir)."""
     conn = get_connection()
     now = datetime.now(timezone.utc)
-    created = rejected = 0
+    # Önce HEPSİ doğrulanır, sonra yazılır: k'ıncı kararda 404/422 dönüp ilk k-1'i yazmış
+    # bırakmak, istemciye "hiçbir şey olmadı" deyip grafı değiştirmiş olmak demekti.
     for decision in payload.decisions:
         action = decision.action.upper()
+        if action not in ("CREATE", "REJECT"):
+            raise HTTPException(status_code=422, detail=f"Geçersiz aksiyon: {decision.action}")
         for entity_id in (decision.from_entity_id, decision.to_entity_id):
             if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
                 raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+        if decision.from_entity_id == decision.to_entity_id:
+            raise HTTPException(status_code=422, detail="Bir entity kendisiyle ilişkilendirilemez")
+        if action == "CREATE" and not decision.relation_type.strip():
+            raise HTTPException(status_code=422, detail="İlişki türü boş olamaz — türü sistem tahmin etmez")
+
+    created = rejected = skipped = 0
+    for decision in payload.decisions:
+        action = decision.action.upper()
         if action == "CREATE":
-            if not decision.relation_type.strip():
-                raise HTTPException(status_code=422, detail="İlişki türü boş olamaz — türü sistem tahmin etmez")
-            _write_entity_relation(
-                conn,
-                decision.from_entity_id,
-                EntityRelationCreate(
-                    to_entity_id=decision.to_entity_id,
-                    relation_type=decision.relation_type.strip(),
-                    confidence=decision.confidence,
-                ),
-            )
+            try:
+                _write_entity_relation(
+                    conn,
+                    decision.from_entity_id,
+                    EntityRelationCreate(
+                        to_entity_id=decision.to_entity_id,
+                        relation_type=decision.relation_type.strip(),
+                        confidence=decision.confidence,
+                    ),
+                )
+            except HTTPException as exc:
+                if exc.status_code != 409:
+                    raise
+                skipped += 1  # aynı türde aktif ilişki zaten var — ikizi kurulmaz
+                continue
             created += 1
-        elif action == "REJECT":
+        else:
             already = fetch_one(
                 conn.execute(
                     "MATCH (a:Entity {id: $aid})-[:RELATION_REJECTED]->(b:Entity {id: $bid}) RETURN a.id AS id",
@@ -455,10 +554,8 @@ def decide_relations(payload: RelationBatch) -> RelationBatchResult:
                     {"aid": decision.from_entity_id, "bid": decision.to_entity_id, "now": now},
                 )
             rejected += 1
-        else:
-            raise HTTPException(status_code=422, detail=f"Geçersiz aksiyon: {decision.action}")
     safe_render_vault(conn)
-    return RelationBatchResult(created=created, rejected=rejected)
+    return RelationBatchResult(created=created, rejected=rejected, skipped=skipped)
 
 
 @relations_router.get("/graph", response_model=EntityGraph)

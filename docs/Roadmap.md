@@ -490,6 +490,87 @@ Fazın ADI "Tek Kaynak Baskınlığı" ve o ölçü kesin biçimde düzeldi:
 büyüyen bir paydaya sahip mutlak sayıya bağlanmamalı. Bundan sonraki kriterler **oran** ya da
 **paydası sabit** bir büyüklük kullanmalı.
 
+## Ara iş: Denetim ve Sertleştirme Turu (2026-10-18) ✅ Tamamlandı
+
+Numaralı bir faz değil — v5 kapanışından ~6 hafta sonra, kod değişmeden kullanılan sistemin
+baştan sona denetimi (backend çekirdeği, toplama/güvenlik katmanı, router'lar, frontend; dört
+paralel inceleme + gerçek verinin kopyası üzerinde profil). "Bölüm 5, üçüncü koşul"un (en az bir
+ay kod değişmeden kullanım) doğurduğu tur: sistem bu sürede **3.918 gözlem / 261 claim**e büyüdü
+ve büyüklüğün kendisi, küçük veride görünmeyen hataları açığa çıkardı.
+
+**1. Ölçekte çöken performans — asıl bulgu.**
+
+| Uç / iş | Önce | Sonra | Kök neden |
+| --- | --- | --- | --- |
+| `GET /observations/queue` | **292 sn** | 3,7 sn (önbellekte 5 ms) | 3.363 gözlem × 582 aday adı için her aramada regex YENİDEN DERLENİYORDU (`re` önbelleği 512) |
+| Nav rozeti (60 sn'de bir kuyruk) | backend'i sürekli doyuruyordu | önbellekten | yukarıdaki + yoklama önceki istek bitmeden yenisini atıyordu |
+| `GET /claims` | 2,7 sn (yük altında 19 sn) | 0,03 sn | claim başına 5 sorgu (N+1) |
+| Her yazma isteği | +4 sn (yük altında 25 sn) | anında | tüm vault her istekte senkron baştan yazılıyordu |
+| `GET /health` | 3,4 sn | 3 ms | her çağrıda iki Tesseract süreci |
+| `/observations` sayfası | tarayıcı sekmesi çöküyordu | 50'şer satır | 3.918 satır + satır başına diyalog tek seferde |
+| Test koşusu | — | 67 test, ~6 sn | (proje hiç otomatik test içermiyordu) |
+
+Kuyruk düzeltmesi sonuçları değiştirmiyor — gerçek verinin kopyasında eski ve yeni backend'in
+`/claims` ve kuyruk çıktısı birebir karşılaştırıldı (261/261 aynı, ilk 20 sıra aynı).
+
+**2. Doğruluk hataları (hepsi regresyon testiyle kapatıldı).**
+- `POST /entities/{id}/relations` ilişkiyi yazıp tanımsız `now` yüzünden 500 dönüyordu (istemci
+  yeniden deneyince ikiz ilişki).
+- Toplayıcı ağ hataları (`requests` istisnaları) yakalanmıyordu: zamanlanmış tarama hatayı
+  kaydetmeden çöküyor, her dakika yeniden deneniyor, backoff ve SCAN_FAILED hiç çalışmıyordu
+  (gerçek logda görüldü). Toplam süre sınırı da damla damla gönderen sunucuda aşılabiliyordu.
+- Lineage döngüsü (A→B, B→A) iki kaynağı BAĞIMSIZ sayıyordu — Q6'nın tersi.
+- Claim'i olaya bağlayan iki uç entity bağını sessizce düşürüyor ve eski olayın skorunu bayat
+  bırakıyordu. Tek yol: `eventcluster.set_claim_about`.
+- `POST /claims` / promote: entity+event birlikte kabul ediliyordu; aynı köke inen doğrulama
+  ve iki kez supersede / ters zaman çizgisi / döngü denetimsizdi.
+- Promote vault'u iki kez render ediyordu; çift tıklama aynı gözlemden iki claim üretebiliyordu.
+- Arşiv doğrulaması geçici bir kesintiyi (503, ağ) "kaynak öldü" sayıp SUPPORTS'u siliyordu.
+- ARCHIVED investigation'ın bulguları "doğrulanmış" olarak yükseliyordu (Faz 3 ile Faz 13'ün
+  çelişen kararları); kapanmış araştırma düzenlenebiliyordu; hipoteze aynı kanıt iki kez
+  sayılabiliyordu ve kaldırma yolu yoktu.
+- Olay/entity silme claim'leri öznesiz bırakıyor, geçmişi fiziksel siliyordu (artık 409).
+- Reddedilen SAME_AS yeniden öneriliyordu; onaylı eşleşme grafta iki kenar sayılıyordu.
+- Ofsetli zaman damgaları 3 saat kayık saklanıyordu (KùzuDB dilimi çevirmeden atıyor).
+- OCR: `/health` ile işçi arasında `TESSDATA_PREFIX` yarışı, başarısız OCR'ın var olan metni
+  silmesi, sayfa boyutu/süre sınırı yokluğu.
+
+**3. Güvenlik.** Tarayıcıdaki herhangi bir site `no-cors` POST ile allowlist'e host ekleyebilir,
+kanıt yükleyebilirdi (CORS isteği engellemez) → izinsiz `Origin`'li yazma 403. DNS rebinding →
+`Host` yalnız yerel adlar. `POST /evidence` verilen her yolu (UNC dahil — Windows'ta NTLM
+özeti sızar) okuyup hash'liyordu → yalnız vault içi. Toplayıcı ortam proxy'sini/`.netrc`'yi
+izlemiyor; RSS bağlantıları mutlaklaştırılıp http(s) dışı atılıyor.
+
+**4. Frontend.** `reload()` sayfayı iskelete çevirip yazılmakta olan Analiz metnini, seçili
+sekmeyi ve kuyruk kaydırmasını siliyordu; promote sonuç paneli hiç görünmüyordu; ana sayfanın
+"acil" listesi işlenmiş öğeleri gösteriyordu; kaynak sayfası lineage yüklenirken "Bağımsız
+kaynak" diyordu; birçok hata sessizce yutuluyordu; entity sayfası claim başına iki istek
+atıyordu; graf düğümleri ekran okuyucuya kapalıydı ve 1 px'lik kaymayla tıklanamaz hale
+geliyordu. Hepsi düzeltildi; 21 rota × 4 genişlik görsel doğrulamadan taşmasız geçti.
+
+**5. Eklenenler.** `backend/tests/` (67 test, izole veri kökü), `scripts/kontrol.ps1` (taban
+çizgisi tek komut), `scripts/yedek.ps1` (projenin ilk yedeği; geri yükleme doğrulandı),
+hipotez kanıtlarının listesi/kaldırılması, `/health`'te vault render durumu.
+
+**Ölçüm (`scripts/olcum.py`, tur sonu) — faz doğurabilecek iki sayı, karar değil:**
+
+```
+entity=72 event=6 claim=261 kaynak=10 evidence=3 investigation=2
+durum={REPORTED: 227, SUPPORTED: 22, CORROBORATED: 10, CONTRADICTED: 2}
+dogrulayani olmayan claim=228 / 261     claim metni max=20036
+en baskin kaynagin payi=53/261 (%20)
+kuyruk: bekleyen=3363 elenmis=294 yuksek_sinyal=967
+arsiv=261/261 {DOGRULANDI: 81, DEGISMIS: 1, ERISILEMEDI: 1, ARSIVLENDI: 178}
+aday kuyruklari: entity=582 event=5 iliski=0 bag=100 dogrulama=358
+```
+
+- **Kuyruk 0 → 3.363** (bölüm 2, ölçüt 2: kuyruk yeniden dolmuş). Bir kısmının sebebi buydu:
+  kuyruk ekranı 5 dakikada açılıyordu. Artık açılıyor; erime ya da kuralın yeniden düşünülmesi
+  bir kullanım kararı.
+- **178 claim'in arşivi hiç canlıya karşı doğrulanmadı** (kanıt alt-skoru sıfır olanların
+  çoğu). `POST /archive/verify` turu ağ gerektirdiği için bu turda çalıştırılmadı.
+- Doğrulayanı olmayan claim oranı %60 → **%87**; domain kapısı daha da uzaklaştı.
+
 ## v5 bittikten sonra nasıl ilerlenecek
 
 v3, v4 ve v5'in kapsamı aynı yöntemle çıkarıldı ve üçü de doğru çıktı: **bir versiyonun son

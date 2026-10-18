@@ -21,8 +21,10 @@ bildiğimiz bir şeye değip değmediğinden türetilir — bkz. `_matching_enti
 """
 import logging
 import re
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 from app.collector import (
     CollectorFetchError,
@@ -32,7 +34,7 @@ from app.collector import (
     parse_rss,
     safe_fetch,
 )
-from app.db import fetch_all, fetch_one, get_connection
+from app.db import fetch_all, fetch_one, get_connection, graph_lock
 from app.models import Observation
 from app.monitoring import claim_headline, has_active_investigation, notify_if_monitored
 from app.vault import safe_render_vault
@@ -121,7 +123,7 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
     final_url, content, content_type = safe_fetch(url, allowlist)
 
     if mode == "rss":
-        parsed_items = parse_rss(content)
+        parsed_items = parse_rss(content, final_url)
         available = len(parsed_items)
         # Faz 11 (F25, ikinci savunma): 200 döndüren ama feed olmayan bir yanıt da sessiz
         # sıfıra yol açar (ör. giriş/onay sayfası, "moved" HTML'i). Gerçekten boş bir feed
@@ -142,27 +144,31 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
         available = 1
         candidates = [{"text": extract_content_from_html(content), "url": final_url, "published": None}]
 
-    seen = _existing_pairs([c["url"] for c in candidates])
     created: list[Observation] = []
     skipped = 0
-    for c in candidates:
-        key = (c["url"], c["text"])
-        if key in seen:
-            skipped += 1
-            continue
-        created.append(
-            create_observation_record(
-                raw_content=c["text"], observed_at=c["published"], source_url=c["url"],
-                # Faz 25: gözlemin metninin HANGİ yoldan çıktığı kayda geçiyor. Bu alan
-                # DOCINT'te ("ocr"/"extracted") zaten aynı işi görüyordu; collector tarafı
-                # boş bırakıyordu ve sonuç şuydu: elimizde bozuk bir metin varken onun
-                # RSS özeti mi yoksa web sayfası dökümü mü olduğunu ancak tahmin
-                # edebiliyorduk. Yeniden ayrıştırma (`POST /collectors/reparse`) yalnızca
-                # "web" olanları hedefleyebilsin diye yazılıyor.
-                text_source=mode,
+    # Dedup kontrolü ile yazma arasına başka bir yazma girmemeli: aynı feed elle "şimdi tara"
+    # ile zamanlayıcının turuna denk gelirse ikisi de "yok" görüp her öğeyi iki kez yazıyordu.
+    # Ağ beklemesi (safe_fetch) kilidin DIŞINDA kaldı — yalnızca bu kısa bölüm kilitli.
+    with graph_lock:
+        seen = _existing_pairs([c["url"] for c in candidates])
+        for c in candidates:
+            key = (c["url"], c["text"])
+            if key in seen:
+                skipped += 1
+                continue
+            created.append(
+                create_observation_record(
+                    raw_content=c["text"], observed_at=c["published"], source_url=c["url"],
+                    # Faz 25: gözlemin metninin HANGİ yoldan çıktığı kayda geçiyor. Bu alan
+                    # DOCINT'te ("ocr"/"extracted") zaten aynı işi görüyordu; collector tarafı
+                    # boş bırakıyordu ve sonuç şuydu: elimizde bozuk bir metin varken onun
+                    # RSS özeti mi yoksa web sayfası dökümü mü olduğunu ancak tahmin
+                    # edebiliyorduk. Yeniden ayrıştırma (`POST /collectors/reparse`) yalnızca
+                    # "web" olanları hedefleyebilsin diye yazılıyor.
+                    text_source=mode,
+                )
             )
-        )
-        seen.add(key)
+            seen.add(key)
 
     return {
         "final_url": final_url,
@@ -182,6 +188,25 @@ def load_entity_rows(conn) -> list[dict]:
     return fetch_all(
         conn.execute("MATCH (e:Entity) RETURN e.id AS id, e.name AS name, e.aliases AS aliases")
     )
+
+
+@lru_cache(maxsize=16384)
+def _word_pattern(needle: str) -> re.Pattern:
+    return re.compile(rf"(?<!\w){re.escape(needle)}(?!\w)")
+
+
+def contains_word(blob_low: str, needle_low: str) -> bool:
+    """`needle_low`, `blob_low` içinde kelime sınırlarıyla geçiyor mu (ikisi de küçük harf).
+
+    2026-10-18 denetiminde ölçüldü: kuyruk (3.363 gözlem × 582 aday adı) her çağrıda deseni
+    yeniden derliyordu — `re` modülünün 512'lik önbelleği bu kadar adı tutamadığı için her
+    arama bir derleme demekti ve `/observations/queue` 292 sn sürüyordu. Düz alt-dize kontrolü
+    kelime-sınırlı eşleşmenin gerekli koşulu: önce o (C hızında) eleniyor, regex yalnızca
+    adayın metinde gerçekten geçtiği nadir durumda ve önbellekten derlenmiş desenle çalışıyor.
+    Sonuç kümesi birebir aynı."""
+    if needle_low not in blob_low:
+        return False
+    return _word_pattern(needle_low).search(blob_low) is not None
 
 
 def match_entities_in_text(entity_rows: list[dict], text: str) -> list[dict]:
@@ -204,7 +229,7 @@ def match_entities_in_text(entity_rows: list[dict], text: str) -> list[dict]:
             # teknoloji haberini o entity'yle ilgili sanardı. Sınır olarak \w kullanılıyor
             # (harf/rakam/alt çizgi) — "Meta's", "(Meta)", "Meta." eşleşmeye devam eder,
             # "metadata" etmez.
-            if re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", blob):
+            if contains_word(blob, needle):
                 matched.append({"id": row["id"], "name": row["name"], "matched_on": name})
                 break
     return matched
@@ -340,11 +365,33 @@ def _record_failure(conn, schedule_id: str, now: datetime, error: str, failures:
 
 # ---- Koşu ----------------------------------------------------------------
 
+# Aynı taramanın iki koşusu üst üste binmesin (elle "şimdi tara" + zamanlayıcı turu).
+_running: set[str] = set()
+_running_lock = threading.Lock()
+
+
+class ScheduleBusyError(RuntimeError):
+    """Bu tarama şu anda zaten çalışıyor."""
+
+
 def run_schedule(conn, schedule_id: str) -> dict:
     """Tek bir zamanlanmış taramayı ŞİMDİ çalıştırır (aralığa bakmadan).
 
     Hata yükseltmez — koşu sonucu (OK/ERROR) hem dönüş değerine hem de ScanSchedule'ın
-    durumuna yazılır. Zamanlayıcının bir feed'in 502'si yüzünden durmaması gerekiyor."""
+    durumuna yazılır. Zamanlayıcının bir feed'in 502'si yüzünden durmaması gerekiyor.
+    Tek istisna: tarama zaten çalışıyorsa `ScheduleBusyError` (ikinci koşu beklemez, düşer)."""
+    with _running_lock:
+        if schedule_id in _running:
+            raise ScheduleBusyError(schedule_id)
+        _running.add(schedule_id)
+    try:
+        return _run_schedule(conn, schedule_id)
+    finally:
+        with _running_lock:
+            _running.discard(schedule_id)
+
+
+def _run_schedule(conn, schedule_id: str) -> dict:
     schedule = get_schedule_row(conn, schedule_id)
     if schedule is None:
         raise KeyError(schedule_id)
@@ -357,7 +404,14 @@ def run_schedule(conn, schedule_id: str) -> dict:
             limit=schedule["item_limit"],
             since_days=schedule["since_days"],
         )
-    except (CollectorSecurityError, CollectorFetchError) as exc:
+    except Exception as exc:  # noqa: BLE001 — her hata KAYDA geçmeli (aşağıdaki not)
+        # Beklenmeyen bir istisna da (bozuk feed'de ayrıştırıcı hatası, DB hatası) başarısız
+        # koşu olarak yazılıyor. Yalnızca iki collector hatası yakalandığında geri kalanı
+        # `last_run_at`ı ilerletmeden kaçıyor ve tarama her dakika yeniden deneniyordu —
+        # backoff da bildirim de devreye girmiyordu (2026-10-18 denetimi, gerçek logda görüldü).
+        if not isinstance(exc, (CollectorSecurityError, CollectorFetchError)):
+            logger.exception("Zamanlanmış tarama beklenmedik hata verdi: %s", schedule["url"])
+            exc = RuntimeError(f"Beklenmeyen hata ({type(exc).__name__}): {exc}")
         failures = (schedule["consecutive_failures"] or 0) + 1
         _record_failure(conn, schedule_id, now, str(exc), failures)
         notified = None
@@ -402,11 +456,21 @@ def run_due_schedules() -> list[dict]:
     yok; bir feed'in yavaşlığı en fazla diğerini bir tur geciktirir."""
     conn = get_connection()
     now = datetime.now(timezone.utc)
-    due = [row for row in list_schedule_rows(conn, active=True) if is_due(row, now)]
+    due = []
+    for row in list_schedule_rows(conn, active=True):
+        # Satır başına ayrı try: tek bir bozuk satır (ör. aralığı NULL kalmış eski bir kayıt)
+        # bütün taramaların zamanlamasını düşürmemeli.
+        try:
+            if is_due(row, now):
+                due.append(row)
+        except Exception:  # noqa: BLE001
+            logger.exception("Tarama zamanlaması hesaplanamadı: %s", row.get("id"))
     results = []
     for row in due:
         try:
             results.append(run_schedule(conn, row["id"]))
+        except ScheduleBusyError:
+            logger.info("Tarama zaten çalışıyor, bu tur atlandı: %s", row["id"][:8])
         except Exception:  # noqa: BLE001 — bir taramanın çökmesi diğerlerini durdurmamalı
             logger.exception("Zamanlanmış tarama beklenmedik şekilde çöktü: %s", row["id"])
     return results

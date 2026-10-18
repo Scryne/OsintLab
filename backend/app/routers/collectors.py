@@ -30,6 +30,7 @@ from app.models import (
 from app.monitoring import find_monitor
 from app.routers.monitors import create_monitor
 from app.scanning import (
+    ScheduleBusyError,
     collect_from_url,
     create_schedule,
     get_schedule_row,
@@ -60,8 +61,15 @@ def add_to_allowlist(payload: AllowlistAdd) -> dict:
 
 @router.delete("/allowlist/{hostname}", status_code=204)
 def remove_from_allowlist(hostname: str) -> None:
+    """Ekleme ile AYNI normalizasyon: `WWW.X.com` ya da `x.com.` eklenirken `x.com`a
+    indirgeniyordu ama silinirken olduğu gibi aranıyordu — hiçbir şey silinmiyor, yine de
+    204 dönüyordu. Listede olmayan bir host artık 404."""
     hosts = load_allowlist()
-    hosts.discard(hostname)
+    normalized = normalize_hostname(hostname)
+    target = normalized if normalized in hosts else hostname
+    if target not in hosts:
+        raise HTTPException(status_code=404, detail=f"{normalized or hostname} allowlist'te yok")
+    hosts.discard(target)
     save_allowlist(hosts)
 
 
@@ -353,6 +361,26 @@ def update_scan_schedule(schedule_id: str, payload: ScanScheduleUpdate) -> ScanS
     updates = payload.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(status_code=422, detail="Değiştirilecek bir alan verilmedi")
+    # `exclude_unset` açıkça gönderilmiş `null`ları tutuyor. `since_days` ve `label` için null
+    # anlamlı ("pencere yok", "etiket yok"), ama aralık/limit/durum için değil: NULL bir
+    # `interval_minutes` zamanlayıcının her turunu TypeError'la düşürüyordu (2026-10-18 denetimi).
+    nulled = [f for f in ("interval_minutes", "item_limit", "active") if f in updates and updates[f] is None]
+    if nulled:
+        raise HTTPException(status_code=422, detail=f"Bu alanlar boş bırakılamaz: {', '.join(nulled)}")
+
+    if updates.get("active") is True:
+        # Oluşturmadaki "adres başına tek aktif tarama" kuralı yeniden açmada da geçerli —
+        # yoksa kapatılıp aynı adresle yenisi kurulmuş bir tarama geri açılınca ikisi birden
+        # aynı feed'i tarardı.
+        row = get_schedule_row(conn, schedule_id)
+        other = fetch_one(
+            conn.execute(
+                "MATCH (s:ScanSchedule {url: $url, active: true}) WHERE s.id <> $id RETURN s.id AS id",
+                {"url": row["url"], "id": schedule_id},
+            )
+        )
+        if other is not None:
+            raise HTTPException(status_code=409, detail="Bu adres için zaten aktif başka bir tarama var")
 
     sets = ", ".join(f"s.{field} = ${field}" for field in updates)
     if updates.get("active") is True:
@@ -385,3 +413,5 @@ def run_scan_schedule_now(schedule_id: str) -> dict:
         return run_schedule(conn, schedule_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Scan schedule not found") from exc
+    except ScheduleBusyError as exc:
+        raise HTTPException(status_code=409, detail="Bu tarama şu anda zaten çalışıyor") from exc

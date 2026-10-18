@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # Kuyruk ögesi: (evidence_id, mod). Mod "extract" (metin katmanı) ya da "ocr".
 _queue: asyncio.Queue[tuple[str, str]] | None = None
 _task: asyncio.Task | None = None
+_loop: asyncio.AbstractEventLoop | None = None
 
 
 # --- Veritabanı yazmaları (işçi iş parçacığından çağrılır) -----------------------------
@@ -67,7 +68,8 @@ def process_evidence(evidence_id: str, mode: str = "extract") -> str:
     conn = get_connection()
     row = fetch_one(
         conn.execute(
-            "MATCH (ev:Evidence {id: $id}) RETURN ev.file_path AS file_path",
+            "MATCH (ev:Evidence {id: $id}) RETURN ev.file_path AS file_path, "
+            "ev.extraction_status AS status, ev.extracted_text AS text",
             {"id": evidence_id},
         )
     )
@@ -111,6 +113,20 @@ def process_evidence(evidence_id: str, mode: str = "extract") -> str:
             extracted_at=datetime.now(timezone.utc),
         )
         return docint.FAILED
+
+    # Başarısız bir OCR denemesi, belgenin ELDE OLAN metnini silmemeli. "Yeniden OCR" metin
+    # katmanı zaten çıkarılmış bir belgede de tetiklenebiliyor; sonuç boş dönerse (dil verisi
+    # eksik, sayfa okunamadı) eskiden çıkarılmış metin "" ile eziliyordu — sessiz veri kaybı.
+    # Önceki durum korunur, hata yalnızca not olarak yazılır.
+    if mode == "ocr" and result["status"] != docint.DONE and row.get("status") == docint.DONE and row.get("text"):
+        _set_status(
+            evidence_id,
+            docint.DONE,
+            extraction_error=f"OCR denemesi sonuç vermedi, önceki metin korundu: {result['error'] or result['status']}",
+            pages_done=result["page_count"] or result["pages_done"],
+        )
+        logger.warning("DOCINT (%s): OCR başarısız, önceki metin korundu", evidence_id[:8])
+        return docint.DONE
 
     # Q22 (Faz 15.2): belge metni ve metadata'sı talimat-görünümlü ifade taşıyabiliyor —
     # Faz 15 spike'ı ikisinde de gerçek örnek doğruladı. Tarama çıkarmanın parçası, çünkü
@@ -163,11 +179,23 @@ def mark_pending(evidence_id: str) -> None:
 # --- Kuyruk (olay döngüsünden çağrılır) -------------------------------------------------
 
 def enqueue(evidence_id: str, mode: str = "extract") -> bool:
-    """Bir kanıtı işleme kuyruğuna ekler. Olay döngüsü iş parçacığından çağrılmalı."""
-    if _queue is None:
+    """Bir kanıtı işleme kuyruğuna ekler — hangi iş parçacığından çağrıldığı fark etmez.
+
+    `asyncio.Queue` iş parçacığı güvenli DEĞİL. `/ocr` ve `/extract` uçları senkron (iş
+    parçacığı havuzunda çalışıyor) ve kuyruğa doğrudan yazıyordu: öğe kuyruğa giriyor ama
+    bekleyen işçi uyandırılmıyordu — iş, olay döngüsünü başka bir şey uyandırana kadar
+    bekliyordu. Döngü dışından gelen çağrı artık döngünün kendisine devrediliyor."""
+    if _queue is None or _loop is None:
         logger.warning("DOCINT: işçi çalışmıyor, %s kuyruğa alınamadı", evidence_id[:8])
         return False
-    _queue.put_nowait((evidence_id, mode))
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is _loop:
+        _queue.put_nowait((evidence_id, mode))
+    else:
+        _loop.call_soon_threadsafe(_queue.put_nowait, (evidence_id, mode))
     return True
 
 
@@ -199,9 +227,10 @@ def _sweep_unfinished() -> list[str]:
 
 
 def start() -> bool:
-    global _queue, _task
+    global _queue, _task, _loop
     if _task is not None and not _task.done():
         return True
+    _loop = asyncio.get_running_loop()
     _queue = asyncio.Queue()
     _task = asyncio.create_task(_worker(), name="osintlab-docint-worker")
 
@@ -221,7 +250,7 @@ def start() -> bool:
 
 
 async def stop() -> None:
-    global _task, _queue
+    global _task, _queue, _loop
     if _task is None:
         return
     _task.cancel()
@@ -232,6 +261,7 @@ async def stop() -> None:
     finally:
         _task = None
         _queue = None
+        _loop = None
 
 
 def is_running() -> bool:

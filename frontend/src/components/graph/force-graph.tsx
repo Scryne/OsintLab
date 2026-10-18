@@ -178,6 +178,8 @@ const EDGE_STYLE: Record<GraphEdge["kind"], { stroke: string; dash?: string }> =
   same_as: { stroke: "rgba(255,255,255,0.3)", dash: "4 4" },
 };
 
+// Bir işaretçi hareketinin "sürükleme" sayılması için gereken en az mesafe (ekran pikseli).
+const DRAG_THRESHOLD_PX = 4;
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 1.25;
@@ -220,8 +222,9 @@ export function ForceGraph({
 
   // Sürükleme durumu ref'te: her pointermove'da state güncellemek 78 düğümlük bir SVG'de
   // gereksiz render zinciri kurardı. Yalnızca taşınan düğümün konumu state'e yazılıyor.
+  const suppressClick = useRef(false);
   const drag = useRef<
-    | { kind: "node"; id: string; dx: number; dy: number }
+    | { kind: "node"; id: string; dx: number; dy: number; startX: number; startY: number; moved: boolean }
     | { kind: "pan"; startX: number; startY: number; panX: number; panY: number }
     | null
   >(null);
@@ -248,7 +251,10 @@ export function ForceGraph({
     e.stopPropagation();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     const w = worldFromEvent(e.clientX, e.clientY);
-    drag.current = { kind: "node", id: node.id, dx: node.x - w.x, dy: node.y - w.y };
+    drag.current = {
+      kind: "node", id: node.id, dx: node.x - w.x, dy: node.y - w.y,
+      startX: e.clientX, startY: e.clientY, moved: false,
+    };
   }
 
   function startPan(e: React.PointerEvent) {
@@ -260,6 +266,10 @@ export function ForceGraph({
     const d = drag.current;
     if (!d) return;
     if (d.kind === "node") {
+      // Sürükleme eşiği: tıklama sırasında farenin 1 px kayması düğümü SABİTLİYORDU ve
+      // sabitlenmiş düğüme bir daha tıklanamıyordu (onClick sabitlemeye bakıyordu).
+      if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < DRAG_THRESHOLD_PX) return;
+      d.moved = true;
       const w = worldFromEvent(e.clientX, e.clientY);
       setPinned((prev) => ({ ...prev, [d.id]: { x: w.x + d.dx, y: w.y + d.dy } }));
     } else {
@@ -269,6 +279,9 @@ export function ForceGraph({
   }
 
   function endDrag() {
+    const d = drag.current;
+    // Gerçekten sürüklendiyse ardından gelen click "seç" sayılmamalı.
+    suppressClick.current = d?.kind === "node" && d.moved;
     drag.current = null;
   }
 
@@ -306,7 +319,9 @@ export function ForceGraph({
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="w-full touch-none rounded-xl border border-border bg-surface"
-        role="img"
+        // `img` değil `group`: img rolü alt öğeleri sunumsal yapar ve odaklanabilir düğüm
+        // düğmeleri ekran okuyucuya hiç ulaşmıyordu.
+        role="group"
         aria-label={`Bilgi graf'ı: ${data.nodes.length} düğüm, ${data.edges.length} kenar`}
         onPointerDown={startPan}
         onPointerMove={onPointerMove}
@@ -369,10 +384,14 @@ export function ForceGraph({
                   onFocus={() => setHovered(node.id)}
                   onBlur={() => setHovered(null)}
                   onPointerDown={(e) => startNodeDrag(e, node)}
-                  // Sürükleme bittiğinde tıklama sayılmamalı: 2px'den fazla taşındıysa
+                  // Sürükleme bittiğinde tıklama sayılmamalı: eşikten fazla taşındıysa
                   // kullanıcı taşımak istemiştir, gezinmek değil.
                   onClick={() => {
-                    if (!pinned[node.id]) onSelect?.(node);
+                    if (suppressClick.current) {
+                      suppressClick.current = false;
+                      return;
+                    }
+                    onSelect?.(node);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -380,7 +399,7 @@ export function ForceGraph({
                       onSelect?.(node);
                     }
                   }}
-                  className="cursor-grab outline-none active:cursor-grabbing focus-visible:[&>circle]:stroke-ring focus-visible:[&>circle]:stroke-2"
+                  className="cursor-grab outline-none active:cursor-grabbing focus-visible:[&>circle]:stroke-ring focus-visible:[&>circle]:stroke-2 focus-visible:[&>rect]:stroke-ring focus-visible:[&>rect]:stroke-2"
                 >
                   <title>{node.label}</title>
                   {node.kind === "event" ? (

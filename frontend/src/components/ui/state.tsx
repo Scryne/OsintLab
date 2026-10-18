@@ -1,5 +1,6 @@
 import { AlertTriangle, Loader2, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/lib/api";
 
 export function LoadingState({ label = "Yükleniyor…" }: { label?: string }) {
   return (
@@ -20,7 +21,7 @@ export function LoadingState({ label = "Yükleniyor…" }: { label?: string }) {
  * gereken şey "sunucuya ulaşılamadı, `start.ps1` çalışıyor mu" — ham mesaj bunu söylemez.
  *
  * `title` verilmezse mesajın şeklinden çıkarılır. Suçu kullanıcıya yüklemez. */
-function explain(message: string): { title: string; hint?: string } {
+function explain(message: string, status?: number): { title: string; hint?: string } {
   const m = message.toLowerCase();
   if (m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed")) {
     return {
@@ -28,22 +29,30 @@ function explain(message: string): { title: string; hint?: string } {
       hint: "Backend çalışmıyor olabilir. start.ps1 ile başlatıp tekrar dene.",
     };
   }
-  if (m.includes("404")) return { title: "Kayıt bulunamadı", hint: "Silinmiş ya da bağlantı eski olabilir." };
-  if (m.includes("409")) return { title: "Bu işlem zaten yapılmış", hint: "Sayfayı tazeleyince güncel hâlini görürsün." };
-  if (m.includes("500")) return { title: "Sunucu isteği tamamlayamadı", hint: "Birkaç saniye sonra tekrar dene." };
+  // Durum kodu `ApiError`dan okunuyor. Önceden mesajda "404" aranıyordu, ama mesaj FastAPI'nin
+  // `detail`i ("Entity not found") — kod hiç geçmediği için bu dallar hiç çalışmıyordu.
+  if (status === 404) return { title: "Kayıt bulunamadı", hint: "Silinmiş ya da bağlantı eski olabilir." };
+  if (status === 409) return { title: "Bu işlem yapılamadı", hint: "Kayıt şu anki durumunda buna izin vermiyor; ayrıntı aşağıda." };
+  if (status === 422) return { title: "Gönderilen bilgi geçersiz", hint: "Alanları kontrol edip tekrar dene." };
+  if (status !== undefined && status >= 500) {
+    return { title: "Sunucu isteği tamamlayamadı", hint: "Birkaç saniye sonra tekrar dene." };
+  }
   return { title: "İstek tamamlanamadı" };
 }
 
 export function ErrorState({
-  message,
+  error,
+  message: messageProp,
   onRetry,
   title,
 }: {
-  message: string;
+  error?: Error | null;
+  message?: string;
   onRetry?: () => void;
   title?: string;
 }) {
-  const guess = explain(message);
+  const message = error?.message ?? messageProp ?? "";
+  const guess = explain(message, error instanceof ApiError ? error.status : undefined);
   return (
     <div
       role="alert"

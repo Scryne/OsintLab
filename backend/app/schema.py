@@ -332,7 +332,7 @@ COLUMN_ADDITIONS = [
     #
     # `archive_status`: ARSIVLENDI (henüz canlıya karşı bakılmadı) | DOGRULANDI (canlı sayfa
     # hâlâ aynı metni içeriyor) | DEGISMIS (sayfa değişti, arşiv artık tek kayıt) |
-    # ERISILEMEDI (404/engel/DNS — `source_url` ölü bağlantıya döndü).
+    # ERISILEMEDI (404/410 — `source_url` ölü bağlantıya döndü; geçici kesinti durumu DEĞİŞTİRMEZ).
     "ALTER TABLE Evidence ADD IF NOT EXISTS archive_url STRING",
     "ALTER TABLE Evidence ADD IF NOT EXISTS archive_status STRING",
     "ALTER TABLE Evidence ADD IF NOT EXISTS archive_checked_at TIMESTAMP",

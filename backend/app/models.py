@@ -1,11 +1,42 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
+
+
+def _to_utc(value: datetime | None) -> datetime | None:
+    """Girdi zaman damgasını UTC'ye çevirir; saat dilimi yoksa UTC sayar.
+
+    KùzuDB TIMESTAMP yazarken saat dilimini ÇEVİRMEDEN atıyor: `12:00+03:00` olarak gönderilen
+    bir değer `12:00` diye saklanıyor ve okunurken (db.py `_as_utc`) 12:00Z etiketi alıyordu —
+    üç saat kayma (2026-10-18 denetiminde gerçek veritabanına karşı ölçüldü). Arayüz zaten UTC
+    gönderiyor; bu, API'yi doğrudan çağıran her şey (ajan, script) için aynı garantiyi verir."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _not_blank(value: str) -> str:
+    """Boş ya da yalnız boşluktan oluşan metni reddeder (değeri DEĞİŞTİRMEZ — claim metni gibi
+    alanların kaynağıyla birebir kalması gerekiyor)."""
+    if not value.strip():
+        raise ValueError("boş olamaz")
+    return value
+
+
+UtcDatetime = Annotated[datetime, AfterValidator(_to_utc)]
+NonBlank = Annotated[str, AfterValidator(_not_blank)]
+
+# Zaman penceresi üst sınırı (gün). Sınırsız değer `now - timedelta(days=…)` hesabını
+# OverflowError'la düşürüyordu; zamanlanmış taramada değer saklandığı için HER koşu patlıyordu.
+MAX_SINCE_DAYS = 3650
 
 
 class EntityCreate(BaseModel):
-    entity_type: str = Field(..., examples=["Person", "Organization", "Company", "Location"])
-    name: str
+    entity_type: NonBlank = Field(..., examples=["Person", "Organization", "Company", "Location"])
+    name: NonBlank
     aliases: list[str] = Field(default_factory=list)
 
 
@@ -147,6 +178,8 @@ class RelationBatch(BaseModel):
 class RelationBatchResult(BaseModel):
     created: int = 0
     rejected: int = 0
+    # Aynı türde aktif ilişkisi zaten olan çiftler — ikiz kenar kurulmadı.
+    skipped: int = 0
 
 
 class GraphNode(BaseModel):
@@ -181,9 +214,9 @@ class SameAsSuggestRequest(BaseModel):
 
 
 class EventCreate(BaseModel):
-    title: str
+    title: NonBlank
     event_type: str = Field(..., examples=["saldırı", "seçim", "açıklama", "satın alma"])
-    occurred_at: datetime | None = None
+    occurred_at: UtcDatetime | None = None
     location: str | None = None
 
 
@@ -195,7 +228,7 @@ class Event(EventCreate):
 
 
 class SourceCreate(BaseModel):
-    name: str
+    name: NonBlank
     source_type: str = Field(..., examples=["haber sitesi", "resmi açıklama", "sosyal medya"])
     url: str | None = None
     reliability: float = Field(0.5, ge=0.0, le=1.0)
@@ -207,10 +240,10 @@ class Source(SourceCreate):
 
 
 class EvidenceCreate(BaseModel):
-    evidence_type: str = Field(..., examples=["fotoğraf", "video", "belge", "uydu görüntüsü"])
+    evidence_type: NonBlank = Field(..., examples=["fotoğraf", "video", "belge", "uydu görüntüsü"])
     file_path: str | None = None
     content_hash: str | None = None
-    collected_at: datetime | None = None
+    collected_at: UtcDatetime | None = None
 
 
 class Evidence(EvidenceCreate):
@@ -356,12 +389,12 @@ class EvidenceClaimLink(BaseModel):
 
 
 class ClaimCreate(BaseModel):
-    text: str
-    source_id: str
+    text: NonBlank
+    source_id: NonBlank
     # Faz 11 (dogfooding F12): iddianın GEÇERLİLİK başlangıcı — kayıt anı değil. Verilmezse
     # "şimdi"ye düşer. Arşivden toplanan eski bir haber bugün kaydedilse bile temporal
     # sıralama (supersede) yayın tarihine göre yapılmalı, toplama anına göre değil.
-    valid_from: datetime | None = None
+    valid_from: UtcDatetime | None = None
     about_entity_id: str | None = None
     about_event_id: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
@@ -405,8 +438,8 @@ class Claim(BaseModel):
 
 
 class ObservationCreate(BaseModel):
-    raw_content: str
-    observed_at: datetime | None = None
+    raw_content: NonBlank
+    observed_at: UtcDatetime | None = None
     source_url: str | None = Field(
         None, description="Bu observation bir collector tarafından toplandıysa kaynak URL — provenance (Q22/Data Provenance)"
     )
@@ -456,7 +489,7 @@ INVESTIGATION_TRANSITIONS: dict[str, tuple[str, ...]] = {
 
 
 class InvestigationCreate(BaseModel):
-    title: str
+    title: NonBlank
     research_question: str
 
 
@@ -486,7 +519,7 @@ class InvestigationTransition(BaseModel):
 
 
 class HypothesisCreate(BaseModel):
-    text: str = Field(..., examples=["H1: Company X is directly controlled by Organization Y."])
+    text: NonBlank = Field(..., examples=["H1: Company X is directly controlled by Organization Y."])
 
 
 class Hypothesis(HypothesisCreate):
@@ -883,7 +916,7 @@ class CollectorFetchRequest(BaseModel):
     # 1164 item). Limitsiz tarama sistemi tek hamlede kullanılamaz hale getiriyordu.
     limit: int = Field(default=50, ge=1, le=500)
     # Opsiyonel zaman penceresi: sadece son N günde yayınlanmış item'ları al.
-    since_days: int | None = Field(default=None, ge=1)
+    since_days: int | None = Field(default=None, ge=1, le=MAX_SINCE_DAYS)
 
 
 # --- Faz 26: kanıt katmanı (arşiv) ---------------------------------------
@@ -1016,7 +1049,7 @@ class ScanScheduleCreate(BaseModel):
     # Faz 11 (F2)'nin dersi zamanlanmış taramada daha da kritik: elle tarama bir kez patlar,
     # zamanlanmış tarama her koşuda patlar. Varsayılanlar bilerek dar.
     item_limit: int = Field(20, ge=1, le=500)
-    since_days: int | None = Field(7, ge=1)
+    since_days: int | None = Field(7, ge=1, le=MAX_SINCE_DAYS)
     label: str | None = None
     watch: bool = Field(
         True,
@@ -1027,7 +1060,7 @@ class ScanScheduleCreate(BaseModel):
 class ScanScheduleUpdate(BaseModel):
     interval_minutes: int | None = Field(None, ge=MIN_SCAN_INTERVAL_MINUTES, le=10080)
     item_limit: int | None = Field(None, ge=1, le=500)
-    since_days: int | None = Field(None, ge=1)
+    since_days: int | None = Field(None, ge=1, le=MAX_SINCE_DAYS)
     label: str | None = None
     active: bool | None = None
 
@@ -1069,7 +1102,7 @@ class EventUpdate(BaseModel):
 
     title: str | None = None
     event_type: str | None = None
-    occurred_at: datetime | None = None
+    occurred_at: UtcDatetime | None = None
     location: str | None = None
 
 

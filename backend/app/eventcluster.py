@@ -27,7 +27,7 @@ from app.confidence import (
     HIGH_CONFIDENCE_THRESHOLD,
     SUPPORTED_THRESHOLD,
 )
-from app.db import fetch_all
+from app.db import fetch_all, fetch_one
 from app.lineage import resolve_independent_root
 
 # Bir claim'in olay adayına girmesi için ABOUT_EVENT'i olmamalı: zaten bir olaya bağlıysa
@@ -175,3 +175,92 @@ def recompute_event_confidence(conn, event_id: str) -> tuple[float, str]:
         {"id": event_id, "confidence": confidence, "state": state},
     )
     return confidence, state
+
+
+# Bir claim'in öznesi değişirken taşınan entity'nin olaydaki rolü — `PATCH /claims/{id}/about`
+# ve `PUT /events/{id}/claims/{claim_id}` rol sormuyor; olay adayından kurulan olayın
+# varsayılanıyla (`EventFromCluster.entity_role`) aynı.
+DEFAULT_CARRY_ROLE = "ilgili"
+
+
+def set_claim_about(
+    conn,
+    claim_id: str,
+    *,
+    entity_id: str | None = None,
+    event_id: str | None = None,
+    carry_entity: bool = True,
+    carry_role: str = DEFAULT_CARRY_ROLE,
+    recompute_new_event: bool = True,
+) -> dict:
+    """Claim'in öznesini (ABOUT_ENTITY / ABOUT_EVENT) değiştirmenin TEK yolu.
+
+    Değişmezler, hepsi burada ve bir kez:
+
+    1. **Bir claim ya entity ya event hakkındadır, ikisi birden değil.** İkisi birden
+       verilirse ValueError.
+    2. **Claim olaya taşınırken entity fakirleşmez.** Claim'i olaya bağlamak ABOUT_ENTITY'yi
+       siler; önceki entity olaya INVOLVED_IN ile taşınır (`carry_entity`). 2026-10-18
+       denetimine kadar bu telafiyi yalnızca `POST /events/from-cluster` yapıyordu —
+       `PUT /events/{id}/claims/{claim_id}` ve `PATCH /claims/{id}/about` entity bağını
+       sessizce düşürüyordu (CLAUDE.md'nin "bu telafiyi atlama" uyarısının tam karşılığı).
+    3. **Olay confidence'ı türetilmiş kalır.** Claim'in ESKİ olayı da yeniden hesaplanır;
+       yoksa boşalan bir olay, giden claim'in (belki en yüksek) skorunu göstermeye devam
+       ederdi.
+
+    Dönen: {"previous_entity_id", "previous_event_id", "carried_entity_id"}."""
+    if entity_id and event_id:
+        raise ValueError("Bir claim ya bir entity ya da bir event hakkında olabilir, ikisi birden değil")
+
+    previous = fetch_one(
+        conn.execute(
+            "MATCH (c:Claim {id: $id}) "
+            "OPTIONAL MATCH (c)-[:ABOUT_ENTITY]->(en:Entity) "
+            "OPTIONAL MATCH (c)-[:ABOUT_EVENT]->(ev:Event) "
+            "RETURN en.id AS entity_id, ev.id AS event_id",
+            {"id": claim_id},
+        )
+    ) or {}
+    previous_entity_id = previous.get("entity_id")
+    previous_event_id = previous.get("event_id")
+
+    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_ENTITY]->(:Entity) DELETE r", {"id": claim_id})
+    conn.execute("MATCH (c:Claim {id: $id})-[r:ABOUT_EVENT]->(:Event) DELETE r", {"id": claim_id})
+    if entity_id:
+        conn.execute(
+            "MATCH (c:Claim {id: $cid}), (e:Entity {id: $eid}) CREATE (c)-[:ABOUT_ENTITY]->(e)",
+            {"cid": claim_id, "eid": entity_id},
+        )
+    carried = None
+    if event_id:
+        conn.execute(
+            "MATCH (c:Claim {id: $cid}), (ev:Event {id: $evid}) CREATE (c)-[:ABOUT_EVENT]->(ev)",
+            {"cid": claim_id, "evid": event_id},
+        )
+        if carry_entity and previous_entity_id:
+            already = fetch_one(
+                conn.execute(
+                    "MATCH (e:Entity {id: $eid})-[:INVOLVED_IN]->(ev:Event {id: $evid}) RETURN e.id AS id",
+                    {"eid": previous_entity_id, "evid": event_id},
+                )
+            )
+            if already is None:
+                conn.execute(
+                    "MATCH (e:Entity {id: $eid}), (ev:Event {id: $evid}) "
+                    "CREATE (e)-[:INVOLVED_IN {role: $role}]->(ev)",
+                    {"eid": previous_entity_id, "evid": event_id, "role": carry_role},
+                )
+                carried = previous_entity_id
+    conn.execute(
+        "MATCH (c:Claim {id: $id}) SET c.updated_at = $now",
+        {"id": claim_id, "now": datetime.now(timezone.utc)},
+    )
+    if previous_event_id and previous_event_id != event_id:
+        recompute_event_confidence(conn, previous_event_id)
+    if event_id and recompute_new_event:
+        recompute_event_confidence(conn, event_id)
+    return {
+        "previous_entity_id": previous_entity_id,
+        "previous_event_id": previous_event_id,
+        "carried_entity_id": carried,
+    }

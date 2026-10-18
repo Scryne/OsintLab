@@ -113,7 +113,7 @@ export default function InboxPage() {
           </p>
         </div>
         <Select value={minPriority} onValueChange={(value) => value && setMinPriority(value)}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="En düşük öncelik">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -127,7 +127,7 @@ export default function InboxPage() {
       </div>
 
       {loading && <SkeletonRows count={4} />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && items?.length === 0 && (
         <EmptyState
             title="Inbox boş"
@@ -182,6 +182,8 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
     try {
       await api.inbox.updateStatus(item.id, status);
       onChanged();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Durum güncellenemedi", "error");
     } finally {
       setBusy(false);
     }
@@ -196,11 +198,15 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
    * araştırma boş bir kabuk olarak değil, sorusuyla ve konusuyla başlıyor. */
   async function investigate() {
     setBusy(true);
+    // Araştırma yaratıldıktan SONRA bir adım patlarsa kullanıcı yine de ona götürülür:
+    // eskiden kayıt sahipsiz kalıyor ve her yeniden deneme ikinci bir araştırma açıyordu.
+    let createdId: string | null = null;
     try {
       const investigation = await api.investigations.create({
         title: item.title.split("\n")[0].slice(0, 120),
         research_question: `Bu bildirim ne anlama geliyor? (${item.item_type})`,
       });
+      createdId = investigation.id;
       if (item.target_type === "Entity") {
         await api.investigations.addEntity(investigation.id, item.target_id);
       } else if (item.target_type === "Event") {
@@ -211,7 +217,13 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
       onChanged();
       router.push(`/investigations/${investigation.id}`);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Araştırma açılamadı", "error");
+      const reason = err instanceof Error ? err.message : "bilinmeyen hata";
+      if (createdId) {
+        toast(`Araştırma açıldı ama kurulumu tamamlanamadı (${reason}) — kapsamı oradan ekleyebilirsin.`, "error");
+        router.push(`/investigations/${createdId}`);
+      } else {
+        toast(`Araştırma açılamadı: ${reason}`, "error");
+      }
     } finally {
       setBusy(false);
     }

@@ -62,12 +62,13 @@ export default function SourcesPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="İsim veya tür ara…"
+          aria-label="Kaynak ara"
           className="pl-9"
         />
       </div>
 
       {loading && <SkeletonList />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && filtered.length === 0 && (
         <EmptyState
           title={query ? "Eşleşen kaynak bulunamadı" : "Henüz kaynak yok"}

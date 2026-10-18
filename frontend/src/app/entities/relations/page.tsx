@@ -73,7 +73,9 @@ export default function RelationCandidatesPage() {
     try {
       const res = await api.entities.decideRelations(decisions);
       toast(
-        action === "CREATE" ? `${res.created} ilişki kuruldu` : `${res.rejected} çift ilgisiz işaretlendi`,
+        action === "CREATE"
+          ? `${res.created} ilişki kuruldu${res.skipped ? ` · ${res.skipped} çift zaten bu türde bağlıydı` : ""}`
+          : `${res.rejected} çift ilgisiz işaretlendi`,
         "success"
       );
       setSelected([]);
@@ -165,7 +167,7 @@ export default function RelationCandidatesPage() {
       )}
 
       {loading && <SkeletonRows />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && candidates.length === 0 && (
         <EmptyState
           title="Bekleyen ilişki adayı yok"

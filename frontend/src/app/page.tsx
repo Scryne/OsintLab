@@ -20,7 +20,9 @@ export default function MainWorkspace() {
   const { data: sources } = useApi(() => api.sources.list(), []);
   const { data: claims, loading: claimsLoading, error: claimsError } = useApi(() => api.claims.list(), []);
   const { data: inbox, loading: inboxLoading, error: inboxError } = useApi(
-    () => api.inbox.list({ min_priority: "MEDIUM" }),
+    // Yalnızca BEKLEYEN öğeler: durum süzgeci yokken zaten işlenmiş (IGNORED/CONFIRMED)
+    // öğeler "acil" diye listeleniyor ve "bekleyen acil bir şey yok" hiç görünmüyordu.
+    () => api.inbox.list({ min_priority: "MEDIUM", status: "NEW" }),
     []
   );
 
@@ -102,10 +104,8 @@ export default function MainWorkspace() {
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={Users} label="Entity" value={entities?.length} href="/entities" />
-        <StatCard icon={Calendar} label="Event" value={events?.length} />
+        <StatCard icon={Calendar} label="Event" value={events?.length} href="/events" />
         <StatCard icon={FolderSearch} label="Investigation" value={investigations?.length} href="/investigations" />
-        {/* Event kartı bilerek href'siz: /events liste sayfası Faz 18'in kapsamında,
-            henüz yok. Source ise vardı ama bağlanmamıştı — ölü karttı. */}
         <StatCard icon={Radio} label="Source" value={sources?.length} href="/sources" />
       </section>
 
@@ -119,7 +119,7 @@ export default function MainWorkspace() {
           </div>
           <div className="glass-panel rounded-lg p-3">
             {inboxLoading && <SkeletonRows count={3} />}
-            {inboxError && <ErrorState message={inboxError.message} />}
+            {inboxError && <ErrorState error={inboxError} />}
             {!inboxLoading && !inboxError && topInbox.length === 0 && (
               // "Temizlenmiş boşluk" — kullanıcıyı yönlendirmek değil rahatlatmak
               // gerekiyor: burası boşsa acil bir şey yok demektir.
@@ -148,7 +148,7 @@ export default function MainWorkspace() {
           </div>
           <div className="glass-panel rounded-lg p-3">
             {claimsLoading && <SkeletonRows count={3} />}
-            {claimsError && <ErrorState message={claimsError.message} />}
+            {claimsError && <ErrorState error={claimsError} />}
             {!claimsLoading && !claimsError && recentClaims.length === 0 && <EmptyState
                 title="Henüz claim yok"
                 description="Bir gözlemi claim'e yükselttiğinde ya da elle claim eklediğinde burada görünür."

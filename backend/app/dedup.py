@@ -46,8 +46,22 @@ def find_candidates(conn, entity_id: str, *, threshold: float = SAME_AS_CANDIDAT
             {"id": entity_id, "et": target["entity_type"]},
         )
     )
+    # Bu çift için zaten bir karar (ya da bekleyen bir öneri) varsa yeniden önerilmez:
+    # reddedilen eşleşme listede kalıyor, tıklanınca 409 dönüyordu (Faz 20/22'nin kararı —
+    # reddedilen kaybolmaz, işaretlenir ve bir daha önerilmez).
+    decided = {
+        row["id"]
+        for row in fetch_all(
+            conn.execute(
+                "MATCH (e:Entity {id: $id})-[:SAME_AS]-(o:Entity) RETURN DISTINCT o.id AS id",
+                {"id": entity_id},
+            )
+        )
+    }
     candidates = []
     for row in others:
+        if row["id"] in decided:
+            continue
         score = containment_similarity(target_tokens, _token_set(row["name"], row["aliases"] or []))
         if score >= threshold:
             candidates.append(

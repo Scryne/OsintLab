@@ -18,10 +18,15 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
+import threading
+import time
 from pathlib import Path
 from typing import Callable
+
+from app.db import DATA_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -416,11 +421,24 @@ def hits_from_json(raw: str | None) -> list[dict]:
 # yazmak yönetici istiyor; ayrıca varsayılan kurulumda **Türkçe yok** (ölçüldü: `eng` ile
 # Türkçe bir belgede 29 kelimenin 15'i doğru çıktı, "Büyükşehir" → "Buyuksehir"; `tur` ile
 # 29/29). Diller projeye konunca hem Türkçe eklenebiliyor hem kurulum belgelenebilir oluyor.
-TESSDATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "tessdata"
+#
+# Önce veri kökünün (`OSINTLAB_DATA_DIR`) kendi `tessdata`sı, yoksa projenin: izole bir test
+# kökünde dil verisini kopyalamak gerekmesin.
+_PROJECT_TESSDATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "tessdata"
+TESSDATA_DIR = DATA_ROOT / "tessdata" if (DATA_ROOT / "tessdata").is_dir() else _PROJECT_TESSDATA_DIR
 
 # OCR görüntü çözünürlüğü. 200 DPI ölçülen kalite/hız dengesi; daha yükseği kayda değer
 # doğruluk kazandırmadan süreyi artırıyor.
 OCR_DPI = 200
+
+# Sayfa başına piksel tavanı (≈ A3'ün 200 DPI'daki hali). PDF bir sayfanın boyutunu serbestçe
+# beyan edebiliyor: 14.400 pt'lik bir sayfa 200 DPI'da ~40.000 × 40.000 px, yani ~4,8 GB'lık
+# bir bitmap olurdu. Tavan aşılırsa ölçek düşürülüyor, sayfa yine okunuyor.
+OCR_MAX_PIXELS = 25_000_000
+
+# Tek bir sayfanın Tesseract'ta en fazla ne kadar sürebileceği. Tek işçili kuyrukta takılan
+# bir sayfa arkasındaki bütün belgeleri bekletirdi.
+OCR_PAGE_TIMEOUT_SECONDS = 120
 
 # Tercih sırası: iki dil birden varsa ikisi de verilir (Tesseract karışık belgede seçer).
 _PREFERRED_LANGS = ("tur", "eng")
@@ -459,11 +477,43 @@ def _tessdata_prefix() -> str | None:
     return str(TESSDATA_DIR) if TESSDATA_DIR.is_dir() else None
 
 
-def ocr_status() -> dict:
-    """OCR'ın bu makinede gerçekten kullanılabilir olup olmadığı.
+def _apply_tessdata_prefix() -> str | None:
+    """`TESSDATA_PREFIX`'i süreç boyunca KALICI olarak ayarlar.
+
+    Eskiden `ocr_status` değişkeni ayarlayıp iş bitince geri alıyordu. `/health` bunu istek
+    iş parçacığında çağırırken belge işçisi aynı anda OCR yapıyorsa, işçinin altından değişken
+    siliniyor, Tesseract projenin `tur` verisini bulamıyor ve belge "metin yok" diye
+    kaydediliyordu (2026-10-18 denetimi). Değer her çağrıda aynı olduğu için geri almanın bir
+    faydası yoktu; kalıcı ayar yarışı kökten kaldırıyor."""
+    prefix = _tessdata_prefix()
+    if prefix:
+        os.environ["TESSDATA_PREFIX"] = prefix
+    return prefix
+
+
+# `ocr_status` her çağrıda iki Tesseract süreci başlatıyor (sürüm + dil listesi). `/health`
+# sık çağrılıyor ve 3+ sn sürüyordu; kurulum dakikalar içinde değişmez.
+OCR_STATUS_TTL_SECONDS = 60
+_ocr_status_cache: tuple[float, dict] | None = None
+_ocr_status_lock = threading.Lock()
+
+
+def ocr_status(*, fresh: bool = False) -> dict:
+    """OCR'ın bu makinede gerçekten kullanılabilir olup olmadığı (60 sn önbellekli).
 
     "Kurulu mu" sorusunun cevabı arayüzde görünmeli: OCR sessizce çalışmıyorsa kullanıcı
     taranmış bir belgeyi neden okuyamadığını bilemez — bu projenin tekrar eden hata sınıfı."""
+    global _ocr_status_cache
+    with _ocr_status_lock:
+        cached = _ocr_status_cache
+        if not fresh and cached is not None and time.monotonic() - cached[0] < OCR_STATUS_TTL_SECONDS:
+            return dict(cached[1])
+        result = _probe_ocr()
+        _ocr_status_cache = (time.monotonic(), result)
+        return dict(result)
+
+
+def _probe_ocr() -> dict:
     try:
         import pytesseract
     except ImportError:
@@ -478,10 +528,7 @@ def ocr_status() -> dict:
                           "Farklı bir yerdeyse %s ortam değişkeniyle belirt." % ENV_TESSERACT)}
     pytesseract.pytesseract.tesseract_cmd = komut
 
-    prefix = _tessdata_prefix()
-    env_onceki = os.environ.get("TESSDATA_PREFIX")
-    if prefix:
-        os.environ["TESSDATA_PREFIX"] = prefix
+    prefix = _apply_tessdata_prefix()
     try:
         version = str(pytesseract.get_tesseract_version())
         langs = sorted(pytesseract.get_languages(config=""))
@@ -493,11 +540,6 @@ def ocr_status() -> dict:
                 "`winget install UB-Mannheim.TesseractOCR`." % type(exc).__name__
             ),
         }
-    finally:
-        if prefix and env_onceki is None:
-            os.environ.pop("TESSDATA_PREFIX", None)
-        elif env_onceki is not None:
-            os.environ["TESSDATA_PREFIX"] = env_onceki
 
     secili = [l for l in _PREFERRED_LANGS if l in langs]
     return {
@@ -553,9 +595,7 @@ def ocr_page_range(
     import pypdfium2 as pdfium
     import pytesseract
 
-    prefix = _tessdata_prefix()
-    if prefix:
-        os.environ["TESSDATA_PREFIX"] = prefix
+    _apply_tessdata_prefix()
     pytesseract.pytesseract.tesseract_cmd = tesseract_cmd()
     kullanilan = lang or durum["lang"]
 
@@ -566,7 +606,27 @@ def ocr_page_range(
         return {"status": CORRUPT, "text": "", "page_count": 0, "pages_done": 0,
                 "confidence": None, "lang": kullanilan,
                 "error": "PDF açılamadı: %s" % type(exc).__name__}
+    # Belge her çıkışta kapanmalı: Windows'ta açık kalan PdfDocument dosyayı kilitliyordu.
+    try:
+        return _ocr_pages(doc, page_count, first, last, kullanilan, on_progress, pytesseract)
+    finally:
+        doc.close()
 
+
+def _render_scale(page) -> float:
+    """OCR_DPI ölçeği, sayfa piksel tavanını aşmayacak şekilde kırpılmış hali."""
+    scale = OCR_DPI / 72
+    try:
+        width, height = page.get_size()
+    except Exception:  # noqa: BLE001 — boyut okunamazsa varsayılan ölçek
+        return scale
+    pixels = width * scale * height * scale
+    if pixels > OCR_MAX_PIXELS > 0:
+        scale *= math.sqrt(OCR_MAX_PIXELS / pixels)
+    return scale
+
+
+def _ocr_pages(doc, page_count, first, last, kullanilan, on_progress, pytesseract) -> dict:
     if first < 1 or last < first or last > page_count:
         return {"status": FAILED, "text": "", "page_count": page_count, "pages_done": 0,
                 "confidence": None, "lang": kullanilan,
@@ -579,15 +639,17 @@ def ocr_page_range(
     guvenler: list[float] = []
     for sira, index in enumerate(range(first - 1, last), start=1):
         try:
-            img = doc[index].render(scale=OCR_DPI / 72).to_pil()
+            page = doc[index]
+            img = page.render(scale=_render_scale(page)).to_pil()
             veri = pytesseract.image_to_data(
-                img, lang=kullanilan, output_type=pytesseract.Output.DICT
+                img, lang=kullanilan, output_type=pytesseract.Output.DICT,
+                timeout=OCR_PAGE_TIMEOUT_SECONDS,
             )
         except Exception:  # noqa: BLE001 — tek bozuk sayfa aralığın tamamını düşürmemeli
             logger.exception("OCR: sayfa %s okunamadı", index + 1)
             continue
         kelimeler = []
-        for metin, guven in zip(veri.get("text", []), veri.get("conf", [])):
+        for metin, guven in zip(veri.get("text", []), veri.get("conf", []), strict=False):
             if not str(metin).strip():
                 continue
             kelimeler.append(str(metin))

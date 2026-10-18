@@ -145,17 +145,35 @@ def detect_derivation(text_a: str, text_b: str) -> LineageDetection:
 
 
 def resolve_independent_root(conn, source_id: str, *, max_hops: int = 10) -> str:
-    """DERIVED_FROM zincirinde en yukarı (kök/en bağımsız) Source id'sini bulur. Döngüye
-    karşı max_hops sınırı var (v1'de döngü oluşturulmaması bekleniyor ama savunma amaçlı)."""
+    """DERIVED_FROM zincirinde en yukarı (kök/en bağımsız) Source id'sini bulur.
+
+    İki savunma, ikisi de 2026-10-18 denetiminde gerçek bir açığı kapatıyor:
+
+    - **Döngü.** Otomatik tespit yönü claim'lerin oluşturulma sırasına göre seçiyor; A ve B
+      sitelerinden ters sırada gelen iki claim çifti A→B ve B→A kurabilir. Eski döngü
+      `max_hops`ta duruyor ve cevap adım sayısının tek/çift olmasına göre değişiyordu: A'dan
+      bakınca kök A, B'den bakınca B — yani birbirinden türeyen iki kaynak BAĞIMSIZ sayılıyor
+      ve confidence sahte yükseliyordu (Q6'nın tam tersi). Döngü artık tespit ediliyor ve
+      döngüdeki her üye aynı kanonik köke (en küçük id) iniyor.
+    - **Birden çok üst kaynak.** `LIMIT 1` sırasız seçiyordu; aynı kaynağın kökü çağrıdan
+      çağrıya değişebiliyordu. Sıra artık sabit."""
+    path = [source_id]
+    seen = {source_id}
     current = source_id
     for _ in range(max_hops):
         row = fetch_one(
             conn.execute(
-                "MATCH (s:Source {id: $id})-[:DERIVED_FROM]->(parent:Source) RETURN parent.id AS id LIMIT 1",
+                "MATCH (s:Source {id: $id})-[:DERIVED_FROM]->(parent:Source) "
+                "RETURN parent.id AS id ORDER BY parent.id LIMIT 1",
                 {"id": current},
             )
         )
         if row is None:
             return current
-        current = row["id"]
+        parent = row["id"]
+        if parent in seen:
+            return min(path[path.index(parent):])
+        path.append(parent)
+        seen.add(parent)
+        current = parent
     return current

@@ -26,6 +26,10 @@ def get(path: str):
 
 
 def main() -> int:
+    # Çıktı roadmap'e yapıştırılıyor: Windows konsolu/borusu cp1254'e düşünce Türkçe başlıklar
+    # bozuluyordu ("## �l��m"). Çıktı her zaman UTF-8.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     try:
         get("/health")
     except (urllib.error.URLError, OSError) as exc:

@@ -34,19 +34,22 @@ export function ConfidenceExplainDisclosure({ claimId }: { claimId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Panel ÖNCE açılır, veri sonra gelir: eskiden `open` istek bitince değişiyordu, yani
+  // "Hesaplanıyor…" hiç görünmüyor, yavaş bir istekte ikinci tıklama ikinci isteği başlatıp
+  // paneli kapalı bırakıyordu.
   async function toggle() {
-    if (!open && data === null) {
-      setLoading(true);
-      setError(null);
-      try {
-        setData(await api.claims.explain(claimId));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Kırılım alınamadı");
-      } finally {
-        setLoading(false);
-      }
+    const next = !open;
+    setOpen(next);
+    if (!next || data !== null || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await api.claims.explain(claimId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kırılım alınamadı");
+    } finally {
+      setLoading(false);
     }
-    setOpen((o) => !o);
   }
 
   return (

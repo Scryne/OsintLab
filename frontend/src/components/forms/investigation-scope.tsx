@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import type { InvestigationWorkspace } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,10 +30,23 @@ import { useToast } from "@/components/ui/toast";
  *
  * Kapsamdan çıkarma da eklendi: kapsam bir çalışma alanı tanımı, geçmiş kaydı değil —
  * yanlış eklenen düzeltilebilmeli (bkz. F16/F23b/F29, aynı ders üç kez tekrarlandı).
+ *
+ * Kapsam artık çalışma alanının kendisinden geliyor ve değişince ÜST bileşen tazeleniyor
+ * (2026-10-18): eskiden bu bölüm `/scope`u ayrıca çekip yalnızca kendini tazeliyordu —
+ * kapsamdan türeyen kaynak/claim/adım listeleri elle yenilenene kadar eski kalıyordu.
  */
-export function InvestigationScope({ investigationId }: { investigationId: string }) {
+export function InvestigationScope({
+  investigationId,
+  scope,
+  readOnly,
+  onChanged,
+}: {
+  investigationId: string;
+  scope: InvestigationWorkspace["scope"];
+  readOnly: boolean;
+  onChanged: () => void;
+}) {
   const toast = useToast();
-  const { data: scope, reload } = useApi(() => api.investigations.scope(investigationId), [investigationId]);
   const [busy, setBusy] = useState<string | null>(null);
 
   async function remove(kind: "entity" | "event", id: string) {
@@ -41,7 +55,7 @@ export function InvestigationScope({ investigationId }: { investigationId: strin
       if (kind === "entity") await api.investigations.removeEntity(investigationId, id);
       else await api.investigations.removeEvent(investigationId, id);
       toast("Kapsamdan çıkarıldı", "default");
-      reload();
+      onChanged();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Çıkarılamadı", "error");
     } finally {
@@ -49,17 +63,19 @@ export function InvestigationScope({ investigationId }: { investigationId: strin
     }
   }
 
-  const entities = scope?.entities ?? [];
-  const events = scope?.events ?? [];
+  const entities = scope.entities;
+  const events = scope.events;
 
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Kapsam</h2>
-        <div className="flex items-center gap-1.5">
-          <ScopeAddDialog investigationId={investigationId} kind="entity" onAdded={reload} />
-          <ScopeAddDialog investigationId={investigationId} kind="event" onAdded={reload} />
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-1.5">
+            <ScopeAddDialog investigationId={investigationId} kind="entity" onAdded={onChanged} />
+            <ScopeAddDialog investigationId={investigationId} kind="event" onAdded={onChanged} />
+          </div>
+        )}
       </div>
       {entities.length === 0 && events.length === 0 ? (
         <EmptyState
@@ -73,15 +89,17 @@ export function InvestigationScope({ investigationId }: { investigationId: strin
               <p className="min-w-0 text-sm text-foreground">
                 {e.name} <span className="text-xs text-text-tertiary">· {e.entity_type}</span>
               </p>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`${e.name} kaydını kapsamdan çıkar`}
-                disabled={busy === e.id}
-                onClick={() => remove("entity", e.id)}
-              >
-                <X aria-hidden className="h-4 w-4" />
-              </Button>
+              {!readOnly && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`${e.name} kaydını kapsamdan çıkar`}
+                  disabled={busy === e.id}
+                  onClick={() => remove("entity", e.id)}
+                >
+                  <X aria-hidden className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ))}
           {events.map((ev) => (
@@ -89,15 +107,17 @@ export function InvestigationScope({ investigationId }: { investigationId: strin
               <p className="min-w-0 text-sm text-foreground">
                 {ev.title} <span className="text-xs text-text-tertiary">· {ev.event_type}</span>
               </p>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`${ev.title} event'ini kapsamdan çıkar`}
-                disabled={busy === ev.id}
-                onClick={() => remove("event", ev.id)}
-              >
-                <X aria-hidden className="h-4 w-4" />
-              </Button>
+              {!readOnly && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`${ev.title} event'ini kapsamdan çıkar`}
+                  disabled={busy === ev.id}
+                  onClick={() => remove("event", ev.id)}
+                >
+                  <X aria-hidden className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ))}
         </div>

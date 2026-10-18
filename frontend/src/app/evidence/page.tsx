@@ -103,12 +103,13 @@ export default function EvidencePage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Tür, dosya adı, hash veya bağlı claim ara…"
+          aria-label="Kanıt ara"
           className="pl-9"
         />
       </div>
 
       {loading && <SkeletonRows count={3} />}
-      {error && <ErrorState message={error.message} onRetry={reload} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && filtered.length === 0 && (
         <EmptyState
           title={query ? "Eşleşen kanıt yok" : "Kasa boş"}
