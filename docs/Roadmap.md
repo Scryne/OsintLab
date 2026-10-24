@@ -3668,3 +3668,13 @@ fidye yazılımında), 117 backend testi yeşil, `scripts/olcum.py` artık seçi
 bölümünü de basıyor. Bilinen ve v6'nın dokunmadığı darboğaz: **Promote Kuyruğu'nda 3.870 bekleyen
 gözlem** (1.144'ü yüksek sinyalli) — zamanlanmış tarama girdiyi değerlendirme kapasitesinden hızlı
 üretiyor (Faz 12'nin dersi yeniden geçerli).
+
+**2026-10-24 sabah — Scryne'ın devriyle verilen kararlar** ("her şeyi sana bırakıyorum"):
+- Kuyruktan **1.928 gözlem elendi**: sinyal < 0.40 VE 14 günden eski (wired 481, techcrunch 465,
+  theregister 335, theverge 326, arstechnica 238...). Silinmedi; gerekçe her kayıtta, id listesi
+  `data/config/toplu-eleme-2026-10-24.json`'da, `POST /observations/undismiss` ile geri alınır.
+  Son 14 gün düşük sinyal gözlemleri BİLEREK kaldı (doğrulama aramasının adayları) ve 1.145 yüksek
+  sinyalli gözlem insan kararına bırakıldı. Kuyruk 3.871 → 1.943.
+- **9 CVE izlemeye alındı:** KEV'de olmayan ama EPSS yüzdelik dilimi ≥ %90 olanlar
+  (ör. CVE-2018-19518, EPSS %96). KEV'e girdiklerinde Inbox'a HIGH düşer; KEV yerel, EPSS FIRST'e günde bir.
+- Kişi araması / kullanıcı adı taraması kapsam dışı kaldı (Q25 kalıcı sınırı; açık bir karar gerektirir).
