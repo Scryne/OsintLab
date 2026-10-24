@@ -397,6 +397,14 @@ export const api = {
     create: (payload: { title: string; research_question: string }) =>
       post<Investigation>("/investigations", payload),
     addFinding: (id: string, claimId: string) => put<void>(`/investigations/${id}/findings/${claimId}`, {}),
+    // v6 — Rakip Hipotezler Analizi matrisi.
+    ach: (id: string) =>
+      get<{
+        hypotheses: { id: string; text: string; status: string; inconsistency: number; supporting: number; unassessed: number }[];
+        evidence: { id: string; name: string; evidence_type: string; cells: Record<string, string | null>; diagnostic: boolean }[];
+        ranking: string[];
+        unassessed_cells: number;
+      }>(`/investigations/${id}/ach`),
     removeFinding: (id: string, claimId: string) => del(`/investigations/${id}/findings/${claimId}`),
     hypotheses: (id: string) => get<Hypothesis[]>(`/investigations/${id}/hypotheses`),
     createHypothesis: (id: string, text: string) => post<Hypothesis>(`/investigations/${id}/hypotheses`, { text }),
@@ -592,6 +600,8 @@ export const api = {
       del(`/selectors/${encodeURIComponent(id)}/entities/${entityId}`),
     forEntity: (entityId: string) => get<(Selector & { link_note: string | null })[]>(`/entities/${entityId}/selectors`),
     forClaim: (claimId: string) => get<Selector[]>(`/claims/${claimId}/selectors`),
+    claimGrade: (claimId: string) =>
+      get<{ code: string; source: string; source_label: string; info: number; info_label: string }>(`/claims/${claimId}/grade`),
     watchCheck: (id: string) => post<{ modules: string[]; notices: unknown[] }>(`/selectors/${encodeURIComponent(id)}/watch-check`),
     reindex: () =>
       post<{ observations_scanned: number; evidence_scanned: number; new_sightings: number; selectors_total: number; duration_seconds: number }>(

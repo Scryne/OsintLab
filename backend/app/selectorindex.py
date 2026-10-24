@@ -120,6 +120,24 @@ tz ua ug uk us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw
 """.split())
 
 
+# IANA kök bölgesindeki bütün TLD'ler (`app/data/tlds-alpha-by-domain.txt`, IANA'nın yayımladığı
+# dosya, repoda sabit — ağ isteği yok). Düz metin dışındaki yollarda (URL host'u, elle giriş, DNS
+# yanıtı) "alfabetik her son ek" yetmiyordu: bir CISA advisory'si `upl.natcloudservice[.]com.ews`
+# yazmıştı ve `.ews` gerçek bir TLD değil. Özel kullanım adları (RFC 6761/7686) ayrıca eklendi.
+def _load_iana_tlds() -> frozenset[str]:
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent / "data" / "tlds-alpha-by-domain.txt"
+    try:
+        lines = path.read_text(encoding="ascii").splitlines()
+    except OSError:
+        return frozenset()
+    return frozenset(line.strip().lower() for line in lines if line.strip() and not line.startswith("#"))
+
+
+_IANA_TLDS = _load_iana_tlds() | {"onion", "example", "test"}
+
+
 def _tld_ok(tld: str, *, strict: bool) -> bool:
     tld = tld.lower()
     if tld.startswith("xn--"):
@@ -162,6 +180,8 @@ def valid_domain(value: str, *, strict: bool = False) -> bool:
     if strict and not _tld_ok(tld, strict=True):
         return False
     if not strict and (len(tld) < 2 or not (tld.isalpha() or tld.startswith("xn--"))):
+        return False
+    if not strict and _IANA_TLDS and tld not in _IANA_TLDS:
         return False
     sld = labels[-2]
     # "U.S", "e.g" gibi tek harfli ikinci seviye + ülke kodu kısaltmadır; `x.com` gibi tek

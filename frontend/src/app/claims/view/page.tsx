@@ -33,6 +33,7 @@ function ClaimView() {
   const { data: source } = useApi(() => (claim ? api.sources.get(claim.source_id) : Promise.resolve(null)), [claim?.source_id]);
   const { data: mentions } = useApi(() => (id ? api.claims.mentions(id) : Promise.resolve([])), [id]);
   const { data: selectors } = useApi(() => (id ? api.selectors.forClaim(id) : Promise.resolve([])), [id]);
+  const { data: grade } = useApi(() => (id ? api.selectors.claimGrade(id).catch(() => null) : Promise.resolve(null)), [id, claim?.knowledge_state]);
   const { data: archive } = useApi(() => (id ? api.archive.forClaim(id).catch(() => null) : Promise.resolve(null)), [id]);
 
   if (!id) return <EmptyState title="Claim belirtilmedi" />;
@@ -45,6 +46,14 @@ function ClaimView() {
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <ConfidenceBadge state={claim.knowledge_state} confidence={claim.confidence} />
+          {grade && (
+            <span
+              className="rounded border border-border px-1.5 py-0.5 font-mono text-xs text-text-secondary"
+              title={`NATO/Admiralty: ${grade.source_label} kaynak · ${grade.info_label.toLowerCase()} bilgi`}
+            >
+              {grade.code}
+            </span>
+          )}
           {claim.superseded_by_claim_id && (
             <Link href={`/claims/view?id=${claim.superseded_by_claim_id}`} className="text-xs text-priority-medium-text hover:underline">
               Daha yeni bir claim bunun yerini aldı →

@@ -11,6 +11,7 @@ import { AddFindingDialog } from "@/components/forms/add-finding-dialog";
 import { InvestigationNarrative } from "@/components/forms/investigation-narrative";
 import { WorkflowRail } from "@/components/forms/workflow-rail";
 import { ReportExport } from "@/components/pivot/report-export";
+import { AchMatrix } from "@/components/pivot/ach-matrix";
 import type { Hypothesis, InvestigationStatus, KnowledgeState } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -272,6 +273,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
             ))}
           </div>
         )}
+        <AchMatrix investigationId={investigationId} readOnly={readOnly} onChanged={reloadAll} />
       </section>
 
       <InvestigationNarrative

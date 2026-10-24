@@ -250,3 +250,22 @@ def test_entity_module_bulk(client, make_entity, monkeypatch):
             break
         time.sleep(0.05)
     assert "Bulk Org One" in calls
+
+
+def test_rdap_hides_individual_contacts():
+    from app.enrichment.modules_net import _rdap_entities
+
+    def card(kind, fn, org=None):
+        items = [["version", {}, "text", "4.0"], ["fn", {}, "text", fn], ["kind", {}, "text", kind]]
+        if org:
+            items.append(["org", {}, "text", org])
+        return ["vcard", items]
+
+    ents = _rdap_entities([
+        {"roles": ["administrative", "technical"], "vcardArray": card("group", "EXAMPLE NOC")},
+        {"roles": ["administrative", "technical"], "vcardArray": card("individual", "Jane Person")},
+        {"roles": ["registrant"], "vcardArray": card("org", "Example Hosting Ltd")},
+    ])
+    shown = [e["name"] for e in ents if not e["individual"]]
+    assert shown == ["EXAMPLE NOC", "Example Hosting Ltd"]
+    assert all(e["name"] is None for e in ents if e["individual"])

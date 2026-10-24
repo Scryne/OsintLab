@@ -180,3 +180,11 @@ def test_claim_selectors_come_from_producing_observation(client, make_source):
     claim_id = r.json().get("claim_id") or r.json()["claim"]["id"]
     sels = client.get(f"/claims/{claim_id}/selectors").json()
     assert [s["id"] for s in sels] == ["cve:CVE-2031-77777"]
+
+
+def test_unknown_tld_is_not_a_domain():
+    # Gerçek bir CISA advisory'sindeki bozuk yazım: `.ews` IANA'da yok.
+    found = _kinds("C2 at https://upl.natcloudservice[.]com.ews and https://ok.example.org/x")
+    assert "upl.natcloudservice.com.ews" not in found.get("domain", set())
+    assert "ok.example.org" in found["domain"]
+    assert detect("something.notarealtld") is None

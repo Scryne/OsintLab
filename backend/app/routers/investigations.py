@@ -712,3 +712,62 @@ def investigation_report(investigation_id: str, format: str = "md", tlp: str = "
     if download:
         headers["Content-Disposition"] = f'attachment; filename="{slug}.md"'
     return PlainTextResponse(report.to_markdown(data, tlp), media_type="text/markdown; charset=utf-8", headers=headers)
+
+
+# ---- v6: Rakip Hipotezler Analizi (ACH) -------------------------------------
+
+# Heuer'in tutarsızlık puanı: çürüten kanıt 2, zayıflatan 1. ACH'nin temel fikri "en çok
+# destekleneni" değil "en az çürütüleni" aramaktır — destek sayısı yalnızca bilgi olarak döner.
+_ACH_WEIGHT = {"REFUTES": 2, "WEAKENS": 1, "SUPPORTS": 0}
+
+
+@router.get("/{investigation_id}/ach")
+def ach_matrix(investigation_id: str) -> dict:
+    """Kanıt × hipotez matrisi. Satırlar: herhangi bir hipoteze bağlanmış ya da investigation'ın
+    claim'lerini destekleyen/çürüten kanıtlar. Boş hücre "değerlendirilmedi" demektir — ACH'nin
+    asıl değeri bu boşlukları görünür kılmak: her kanıt her hipoteze karşı tartılmalı."""
+    conn = get_connection()
+    if not _node_exists(conn, "Investigation", investigation_id):
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    hyps = [h.model_dump(mode="json") for h in list_hypotheses(investigation_id)]
+    hids = [h["id"] for h in hyps]
+    links = fetch_all(conn.execute(
+        "MATCH (ev:Evidence)-[r:HYPOTHESIS_EVIDENCE]->(h:Hypothesis) WHERE h.id IN $ids "
+        "RETURN ev.id AS eid, h.id AS hid, r.stance AS stance",
+        {"ids": hids},
+    )) if hids else []
+    ws_evidence = get_workspace(investigation_id)["evidence"]
+    evidence_ids = {link["eid"] for link in links} | {e["id"] for e in ws_evidence}
+    rows = fetch_all(conn.execute(
+        "MATCH (ev:Evidence) WHERE ev.id IN $ids RETURN ev.id AS id, ev.evidence_type AS evidence_type, "
+        "ev.file_path AS file_path, ev.content_hash AS content_hash, ev.created_at AS created_at ORDER BY created_at",
+        {"ids": sorted(evidence_ids)},
+    )) if evidence_ids else []
+    cells = {(link["eid"], link["hid"]): link["stance"] for link in links}
+    evidence = []
+    for row in rows:
+        row_cells = {hid: cells.get((row["id"], hid)) for hid in hids}
+        assessed = [s for s in row_cells.values() if s]
+        evidence.append({
+            **row,
+            "name": (row["file_path"] or "").replace("\\", "/").split("/")[-1] or row["evidence_type"],
+            "cells": row_cells,
+            # Her hipoteze aynı duruşu taşıyan kanıt ayırt edici değildir (Heuer: "diagnosticity").
+            "diagnostic": len(set(assessed)) > 1 or (0 < len(assessed) < len(hids)),
+        })
+    scored = []
+    for h in hyps:
+        column = [cells.get((e["id"], h["id"])) for e in evidence]
+        scored.append({
+            **h,
+            "inconsistency": sum(_ACH_WEIGHT.get(s or "", 0) for s in column),
+            "supporting": sum(1 for s in column if s == "SUPPORTS"),
+            "unassessed": sum(1 for s in column if s is None),
+        })
+    ranking = sorted(scored, key=lambda h: (h["inconsistency"], -h["supporting"]))
+    return {
+        "hypotheses": scored,
+        "evidence": evidence,
+        "ranking": [h["id"] for h in ranking],
+        "unassessed_cells": sum(h["unassessed"] for h in scored),
+    }

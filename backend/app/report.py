@@ -23,7 +23,7 @@ import html
 import json
 from datetime import datetime, timezone
 
-from app import pivot
+from app import admiralty, pivot
 from app.db import fetch_all, fetch_one, get_connection
 from app.selectorindex import KIND_LABELS
 
@@ -128,6 +128,7 @@ def build(investigation_id: str) -> dict:
                 "evidence": conf.evidence, "corroboration": conf.corroboration,
             },
             "selectors": [s["id"] for s in sels],
+            "admiralty": admiralty.code(full.get("reliability"), c.get("knowledge_state")),
         })
     selectors = [
         {**s, "label": KIND_LABELS.get(s["kind"], s["kind"]), "highlights": _enrichment_highlights(s["id"])}
@@ -186,6 +187,8 @@ def to_markdown(r: dict, tlp: str = "CLEAR") -> str:
             f"- **Confidence dökümü:** kaynak kalitesi {_pct(b['source_quality'])}, bağımsızlık {_pct(b['independence'])}, "
             f"kanıt {_pct(b['evidence'])}, doğrulama {_pct(b['corroboration'])}",
             f"- **Kaynak:** {c.get('source') or '?'}" + (f" ({c['source_url']})" if c.get("source_url") else ""),
+            f"- **NATO/Admiralty:** {c['admiralty']['code']} ({c['admiralty']['source_label']} kaynak · "
+            f"{c['admiralty']['info_label'].lower()} bilgi)",
         ]
         if c.get("archive_hash"):
             out.append(f"- **Arşiv:** {c.get('archive_status')} · sha256 `{c['archive_hash']}`" + (f" · {c['archive_url']}" if c.get("archive_url") else ""))

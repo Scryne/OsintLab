@@ -72,3 +72,31 @@ def test_report_markdown_and_html_are_deterministic_and_safe(client, make_invest
     assert "<script>" not in r.text and "&lt;script&gt;" in r.text
     assert "<img" not in r.text
     assert client.get(f"/investigations/{inv['id']}/report", params={"tlp": "purple"}).status_code == 422
+
+
+def test_ach_matrix_ranks_least_inconsistent(client, make_investigation):
+    inv = make_investigation()
+    h1 = client.post(f"/investigations/{inv['id']}/hypotheses", json={"text": "H1 iç tehdit"}).json()
+    h2 = client.post(f"/investigations/{inv['id']}/hypotheses", json={"text": "H2 dış saldırı"}).json()
+    evs = []
+    for i in range(2):
+        r = client.post("/evidence", json={"evidence_type": "log", "file_path": f"ach-{inv['id']}-{i}.txt"})
+        assert r.status_code == 201, r.text
+        evs.append(r.json())
+    client.put(f"/hypotheses/{h1['id']}/evidence", json={"evidence_id": evs[0]["id"], "stance": "REFUTES"})
+    client.put(f"/hypotheses/{h2['id']}/evidence", json={"evidence_id": evs[0]["id"], "stance": "SUPPORTS"})
+    client.put(f"/hypotheses/{h2['id']}/evidence", json={"evidence_id": evs[1]["id"], "stance": "WEAKENS"})
+    m = client.get(f"/investigations/{inv['id']}/ach").json()
+    assert m["ranking"][0] == h2["id"]  # tutarsızlık 1 < 2
+    assert m["unassessed_cells"] == 1   # ikinci kanıt H1'e karşı tartılmamış
+    by = {h["id"]: h for h in m["hypotheses"]}
+    assert by[h1["id"]]["inconsistency"] == 2 and by[h2["id"]]["supporting"] == 1
+
+
+def test_admiralty_mapping():
+    from app.admiralty import code
+
+    assert code(0.8, "CORROBORATED")["code"] == "B1"
+    assert code(0.95, "REPORTED")["code"] == "A3"
+    assert code(None, "CONTRADICTED")["code"] == "F5"
+    assert code(0.3, "OBSERVED")["code"] == "E6"

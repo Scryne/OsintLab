@@ -203,11 +203,24 @@ def _rdap_entities(entities: list[dict], depth: int = 0) -> list[dict]:
     out = []
     for ent in entities or []:
         roles = ent.get("roles", [])
+        # Kayıttaki BİREYLER (RIPE/ARIN teknik irtibat kişileri) gösterilmez: bu araç kurum ve
+        # altyapı düzeyinde kalır (Q25). vCard `kind=individual` ya da kurum alanı olmayan ve
+        # rolü kişi rolü olan kayıtlar bireydir; kurum adı, kayıt şirketi ve kötüye kullanım
+        # kutusu kalır.
+        kind = (_vcard_field(ent, "kind") or "").lower()
+        org = _vcard_field(ent, "org")
+        # vCard `kind` varsa ona güvenilir (RIPE rol nesneleri `group`, kurumlar `org`); yoksa
+        # kurum alanı olmayan bir teknik/idari irtibat birey sayılır.
+        if kind:
+            individual = kind == "individual"
+        else:
+            individual = not org and not ({"registrar", "abuse", "registrant"} & set(roles))
         out.append({
             "roles": roles,
             "handle": ent.get("handle"),
-            "name": _vcard_field(ent, "fn"),
-            "org": _vcard_field(ent, "org"),
+            "name": None if individual else _vcard_field(ent, "fn"),
+            "org": org,
+            "individual": individual,
             "email": _vcard_field(ent, "email") if ({"abuse", "registrar"} & set(roles)) else None,
         })
         if depth < 1:

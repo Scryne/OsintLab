@@ -185,7 +185,7 @@ function Rdap({ s }: { s: S }) {
           <Table
             head={["Rol", "Ad / kurum", "İletişim"]}
             rows={s.entities
-              .filter((e: any) => e.name || e.org || e.email)
+              .filter((e: any) => !e.individual && (e.name || e.org || e.email))
               .slice(0, 12)
               .map((e: any) => [e.roles?.join(", "), e.org || e.name || e.handle, e.email ? <Mono key="e">{e.email}</Mono> : "—"])}
           />

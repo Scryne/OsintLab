@@ -144,6 +144,23 @@ def update(selector_id: str, payload: SelectorUpdate) -> Selector:
     return Selector(**row)
 
 
+@claim_router.get("/{claim_id}/grade")
+def claim_grade(claim_id: str) -> dict:
+    """NATO/Admiralty kodu (ör. B2) — kaynağın güvenilirliği + claim'in doğrulama durumundan
+    deterministik çeviri (bkz. `app/admiralty.py`)."""
+    from app import admiralty
+    from app.db import fetch_one, get_connection
+
+    row = fetch_one(get_connection().execute(
+        "MATCH (c:Claim {id: $id}) OPTIONAL MATCH (s:Source)-[:ASSERTS]->(c) "
+        "RETURN c.knowledge_state AS state, s.reliability AS reliability",
+        {"id": claim_id},
+    ))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Claim bulunamadı")
+    return admiralty.code(row["reliability"], row["state"])
+
+
 @claim_router.get("/{claim_id}/selectors", response_model=list[Selector])
 def claim_selectors(claim_id: str) -> list[Selector]:
     return [Selector(**row) for row in pivot.claim_selectors(claim_id)]

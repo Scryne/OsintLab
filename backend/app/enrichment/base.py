@@ -45,6 +45,9 @@ HOST_INTERVALS = {
     "archive.org": 1.0,
     "urlscan.io": 2.0,
     "query.wikidata.org": 1.0,
+    # Toplu kurum taramasında 72 entity × 3 istek 0,25 sn aralıkla 67 tane 429 aldı (2026-10-24).
+    "www.wikidata.org": 1.5,
+    "api.gleif.org": 0.5,
     "api.adsb.lol": 1.0,
 }
 DEFAULT_INTERVAL = 0.25
