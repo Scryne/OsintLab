@@ -23,6 +23,7 @@ from app.models_pivot import (
 
 router = APIRouter(prefix="/selectors", tags=["selectors"])
 entity_router = APIRouter(prefix="/entities", tags=["selectors"])
+claim_router = APIRouter(prefix="/claims", tags=["selectors"])
 
 
 @router.get("", response_model=SelectorList)
@@ -129,6 +130,11 @@ def update(selector_id: str, payload: SelectorUpdate) -> Selector:
     if row is None:
         raise HTTPException(status_code=404, detail="Seçici bulunamadı")
     return Selector(**row)
+
+
+@claim_router.get("/{claim_id}/selectors", response_model=list[Selector])
+def claim_selectors(claim_id: str) -> list[Selector]:
+    return [Selector(**row) for row in pivot.claim_selectors(claim_id)]
 
 
 @entity_router.get("/{entity_id}/selectors", response_model=list[EntitySelector])

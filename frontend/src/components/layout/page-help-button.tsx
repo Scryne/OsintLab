@@ -32,7 +32,7 @@ export function PageHelpButton() {
       <DialogTrigger
         aria-label={`${help.title} — bu sayfa nasıl kullanılır`}
         title="Bu sayfa nasıl kullanılır"
-        className="glass-panel fixed right-4 top-4 z-30 flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:right-6 md:top-6"
+        className="glass-panel fixed right-4 top-[68px] z-30 flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:right-6 md:top-6"
       >
         <HelpCircle aria-hidden className="h-[18px] w-[18px]" />
       </DialogTrigger>

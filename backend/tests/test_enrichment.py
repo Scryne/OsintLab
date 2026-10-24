@@ -188,3 +188,15 @@ def test_tool_links_and_dorks(client):
     assert client.get("/tools/links", params={"kind": "username", "value": "x"}).status_code == 422
     cat = client.get("/tools").json()
     assert len(cat["tools"]) >= 90 and all(t["category_label"] for t in cat["tools"])
+
+
+def test_queue_signals_from_selectors(client, make_entity):
+    entity = make_entity(name="Quiet Infra Owner")
+    sid = _selector(client, "c2-signal.example")
+    client.post(f"/selectors/{quote(sid, safe='')}/entities", json={"entity_id": entity["id"]})
+    obs = client.post("/observations", json={"raw_content": "Beacon traffic to c2-signal[.]example observed"}).json()
+    items = client.get("/observations/queue", params={"limit": 2000}).json()["items"]
+    row = next(i for i in items if i["id"] == obs["id"])
+    codes = {r["code"] for r in row["signal_reasons"]}
+    assert {"KNOWN_SELECTOR", "DEFANGED_IOC"} <= codes
+    assert row["signal_score"] >= 0.40

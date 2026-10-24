@@ -426,3 +426,23 @@ def pivot_graph(selector_id: str, depth: int = 2) -> dict | None:
         nodes.setdefault(nid, {"id": nid, "kind": "entity", "value": row["name"], "entity_type": row["etype"], "type": "entity", "level": -1})
         edges.append({"source": row["sid"], "target": nid, "relation": "belongs_to", "module": None})
     return {"root": selector_id, "nodes": list(nodes.values()), "edges": edges, "truncated": truncated}
+
+
+def claim_selectors(claim_id: str) -> list[dict]:
+    """Claim'i üreten gözlem(ler)de görülen seçiciler. Claim metni gözlemin bir alt kümesi olabilir
+    (başlık), bu yüzden bağ gözlem üzerinden kuruluyor — kayıt ettiğimiz şey zaten orası."""
+    conn = get_connection()
+    return fetch_all(conn.execute(
+        f"MATCH (s:Selector)-[r:SEEN_IN]->(:Observation)-[:PRODUCED]->(:Claim {{id: $id}}) "
+        f"WHERE s.status <> 'IGNORED' RETURN DISTINCT {_SEL} ORDER BY kind, value",
+        {"id": claim_id},
+    ))
+
+
+def link_evidence_selector(evidence_id: str, kind: str, value: str, context: str) -> str:
+    """Metinden değil, dosyanın kendisinden gelen bir seçici (EXIF GPS → koordinat)."""
+    sid = selectorindex.selector_id(kind, value)
+    rows = [{"sid": sid, "kind": kind, "value": value, "tid": evidence_id, "ctx": context, "defanged": False, "occ": 1}]
+    with graph_lock:
+        _merge_rows(get_connection(), rows, "evidence")
+    return sid

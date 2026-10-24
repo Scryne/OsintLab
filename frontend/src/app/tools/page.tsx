@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { ExternalLink, Lock, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { ErrorState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { SunTool } from "@/components/pivot/sun-tool";
 
 const COST = { free: "ücretsiz", freemium: "kısmen ücretsiz", paid: "ücretli" } as const;
 
@@ -41,6 +42,9 @@ export default function ToolsPage() {
       </header>
 
       <DorkBuilder />
+      <Suspense fallback={null}>
+        <SunTool />
+      </Suspense>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Katalog</h2>

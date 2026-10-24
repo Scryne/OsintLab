@@ -18,3 +18,7 @@ pypdf==6.17.0
 # %33 kelime isabeti ve 8,0 sn verirken tesseract %99,5 ve 1,3 sn verdi (bkz. Roadmap 15.4).
 pypdfium2==5.13.0
 pytesseract==0.3.13
+
+# Faz 34 (MEDIAINT): EXIF/GPS, algisal hash, gorsel onizleme. Zaten pytesseract ile geliyordu;
+# artik dogrudan kullanildigi icin sabitlendi.
+pillow==12.3.0

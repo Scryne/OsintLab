@@ -60,11 +60,14 @@ import type {
   SelectorDetect,
   SelectorKindCount,
   SelectorList,
+  ChronoWindow,
+  SearchResult,
+  SunResult,
   ToolCatalog,
   ToolLink,
 } from "./types-pivot";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8420";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8420";
 
 export class ApiError extends Error {
   status: number;
@@ -325,6 +328,10 @@ export const api = {
   },
 
   evidence: {
+    // Faz 34 — görsel analizi (EXIF, GPS, algısal hash, üretim izleri). Özet şekli dosyaya göre
+    // değişir; bileşen alanları kendisi okur.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    media: (id: string) => get<{ evidence_id: string; analysis: any; similar: { evidence_id: string; file_path: string; distance: number }[] }>(`/evidence/${id}/media`),
     // Faz 13: liste artık bağlı claim'leri ve dosyanın gerçekten yerinde olup olmadığını da
     // taşıyor (Evidence Vault). Ek alanlar geriye dönük uyumlu — eski çağıranlar etkilenmiyor.
     list: () => get<EvidenceVaultItem[]>("/evidence"),
@@ -584,6 +591,7 @@ export const api = {
     unlinkEntity: (id: string, entityId: string) =>
       del(`/selectors/${encodeURIComponent(id)}/entities/${entityId}`),
     forEntity: (entityId: string) => get<(Selector & { link_note: string | null })[]>(`/entities/${entityId}/selectors`),
+    forClaim: (claimId: string) => get<Selector[]>(`/claims/${claimId}/selectors`),
     reindex: () =>
       post<{ observations_scanned: number; evidence_scanned: number; new_sightings: number; selectors_total: number; duration_seconds: number }>(
         "/selectors/reindex"
@@ -618,6 +626,26 @@ export const api = {
     dorks: (kind: string, value: string) =>
       get<DorkRecipe[]>(`/tools/dorks?kind=${kind}&value=${encodeURIComponent(value)}`),
   },
+
+  // Faz 33 — komut paleti: seçici tanıma + gruplu arama.
+  search: (q: string) => get<SearchResult>(`/search?q=${encodeURIComponent(q)}`),
+
+  // Faz 34 — güneş konumu ve kronolokasyon (yerel hesap, ağ yok).
+  sun: (lat: number, lon: number, opts?: { at?: string; day?: string }) => {
+    const qs = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    if (opts?.at) qs.set("at", opts.at);
+    if (opts?.day) qs.set("day", opts.day);
+    return get<SunResult>(`/tools/sun?${qs}`);
+  },
+  chronolocate: (payload: {
+    lat: number;
+    lon: number;
+    day: string;
+    shadow_direction?: number | null;
+    length_ratio?: number | null;
+    direction_tolerance?: number;
+    ratio_tolerance?: number;
+  }) => post<{ windows: ChronoWindow[] }>("/tools/chronolocate", payload),
 
   intelligence: {
     diff: (days = 30) =>

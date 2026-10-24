@@ -679,3 +679,36 @@ def unlink_hypothesis_evidence(hypothesis_id: str, evidence_id: str) -> Hypothes
     _recompute_hypothesis_status(conn, hypothesis_id)
     safe_render_vault(conn)
     return get_hypothesis(hypothesis_id)
+
+
+# ---- Faz 35: rapor ---------------------------------------------------------
+
+_REPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+
+
+@router.get("/{investigation_id}/report")
+def investigation_report(investigation_id: str, format: str = "md", tlp: str = "CLEAR", download: bool = False):
+    """Deterministik rapor (bkz. `app/report.py`). `format=md|html|json`. HTML, betik çalıştırmayı
+    yasaklayan bir CSP ile döner: içinde toplanmış (güvenilmeyen) metin var."""
+    from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+
+    from app import report
+
+    tlp = tlp.upper()
+    if tlp not in report.TLP_LEVELS:
+        raise HTTPException(status_code=422, detail=f"TLP şunlardan biri olmalı: {', '.join(report.TLP_LEVELS)}")
+    data = report.build(investigation_id)
+    slug = "".join(ch if ch.isalnum() else "-" for ch in data["investigation"]["title"].lower())[:60].strip("-") or "rapor"
+    headers = {"X-Content-Type-Options": "nosniff"}
+    if format == "json":
+        return JSONResponse(data)
+    if format == "html":
+        headers["Content-Security-Policy"] = _REPORT_CSP
+        if download:
+            headers["Content-Disposition"] = f'attachment; filename="{slug}.html"'
+        return HTMLResponse(report.to_html(data, tlp), headers=headers)
+    if format != "md":
+        raise HTTPException(status_code=422, detail="format md, html ya da json olmalı")
+    if download:
+        headers["Content-Disposition"] = f'attachment; filename="{slug}.md"'
+    return PlainTextResponse(report.to_markdown(data, tlp), media_type="text/markdown; charset=utf-8", headers=headers)

@@ -158,3 +158,25 @@ def test_registrable_domain():
     assert registrable_domain("www.cisa.gov") == "cisa.gov"
     assert registrable_domain("support.example.co.uk") == "example.co.uk"
     assert registrable_domain("haber.sabah.com.tr") == "sabah.com.tr"
+
+
+def test_search_groups_and_detection(client, make_entity, make_source, make_claim):
+    entity = make_entity(name="Searchable Holding Zeta")
+    src = make_source()
+    make_claim(src["id"], text="Searchable Holding Zeta announced a breach")
+    body = client.get("/search", params={"q": "holding zeta"}).json()
+    keys = {g["key"] for g in body["groups"]}
+    assert {"entities", "claims"} <= keys
+    assert body["groups"][0]["items"][0]["href"] == f"/entities/{entity['id']}"
+    det = client.get("/search", params={"q": "hxxps://pivot-search[.]example/x"}).json()["detected"]
+    assert det["kind"] == "url" and det["value"] == "https://pivot-search.example/x"
+
+
+def test_claim_selectors_come_from_producing_observation(client, make_source):
+    src = make_source()
+    obs = client.post("/observations", json={"raw_content": "Patch CVE-2031-77777 now", "source_url": "https://news.example/a"}).json()
+    r = client.post(f"/observations/{obs['id']}/promote", json={"source_id": src["id"], "text": "Patch CVE-2031-77777 now"})
+    assert r.status_code in (200, 201), r.text
+    claim_id = r.json().get("claim_id") or r.json()["claim"]["id"]
+    sels = client.get(f"/claims/{claim_id}/selectors").json()
+    assert [s["id"] for s in sels] == ["cve:CVE-2031-77777"]

@@ -34,6 +34,7 @@ import { useApi } from "@/lib/use-api";
 import { IconChip } from "@/components/ui/icon-chip";
 import { WireframeGlobe } from "@/components/ui/wireframe-globe";
 import { PageHelpButton } from "@/components/layout/page-help-button";
+import { CommandPalette, CommandPaletteHint } from "@/components/layout/command-palette";
 
 const NAV = [
   { href: "/", label: "Ana Çalışma Alanı", icon: Compass },
@@ -159,7 +160,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </div>
       {mobileNavOpen && (
-        <div className="glass-panel sticky top-[57px] z-30 p-3 md:hidden">{navList}</div>
+        <div className="glass-panel sticky top-[57px] z-30 p-3 md:hidden">
+          <CommandPaletteHint />
+          {navList}
+        </div>
       )}
 
       {/* Taslağın .dashboard-sidebar tarifi: kenarlardan boşluklu, yuvarlak köşeli "yüzen"
@@ -177,6 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             diye kaydırma yalnızca bu sarmalayıcıda: aksi halde "burası neresi" bilgisi
             listeyle birlikte kayıp giderdi.
             `overscroll-contain`: nav'ın sonuna gelince kaydırma arkadaki sayfaya ATLAMASIN. */}
+        <CommandPaletteHint />
         <div className="relative -mr-1 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           {navList}
         </div>
@@ -191,6 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             (lib/page-help.ts). 17 sayfaya ayrı ayrı düğme koymak, metnin bir kısmının
             zamanla güncellenmeden kalmasının en kolay yoluydu. */}
         <PageHelpButton />
+        <CommandPalette />
         {children}
       </main>
     </div>

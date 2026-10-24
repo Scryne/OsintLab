@@ -56,3 +56,19 @@ def test_hypothesis_evidence_stance_is_replaced_not_stacked(client, make_investi
     assert len(client.get(url).json()) == 1
     assert client.put(url, json={"evidence_id": ev["id"], "stance": "WEAKENS"}).json()["status"] == "WEAKENED"
     assert client.delete(f"{url}/{ev['id']}").json()["status"] == "PROPOSED"
+
+
+def test_report_markdown_and_html_are_deterministic_and_safe(client, make_investigation, make_source, make_claim):
+    inv = make_investigation(title="Rapor <script>alert(1)</script>")
+    src = make_source()
+    claim = make_claim(src["id"], text="Vendor confirmed CVE-2031-44444 exploitation <img src=x onerror=alert(1)>")
+    client.put(f"/investigations/{inv['id']}/findings/{claim['id']}")
+    md = client.get(f"/investigations/{inv['id']}/report", params={"tlp": "amber"}).text
+    assert md.startswith("**TLP:AMBER**")
+    assert "## Bulgular" in md and "CVE-2031-44444" in md
+    assert "gövde sha256" in md
+    r = client.get(f"/investigations/{inv['id']}/report", params={"format": "html"})
+    assert "script-src" not in r.headers["content-security-policy"] and "default-src 'none'" in r.headers["content-security-policy"]
+    assert "<script>" not in r.text and "&lt;script&gt;" in r.text
+    assert "<img" not in r.text
+    assert client.get(f"/investigations/{inv['id']}/report", params={"tlp": "purple"}).status_code == 422

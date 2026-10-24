@@ -234,3 +234,49 @@ export const KIND_LABELS: Record<SelectorKind, string> = {
 export function selectorHref(id: string): string {
   return `/selectors/view?id=${encodeURIComponent(id)}`;
 }
+
+export interface SearchResult {
+  query: string;
+  detected: { id: string; kind: SelectorKind; value: string; label: string; exists: boolean } | null;
+  groups: {
+    key: string;
+    label: string;
+    total: number;
+    items: { id: string; title: string; subtitle: string | null; href: string; kind?: SelectorKind }[];
+  }[];
+}
+
+export interface SunPosition {
+  azimuth: number;
+  elevation: number;
+}
+
+export interface SunShadow {
+  direction: number;
+  length_ratio: number;
+}
+
+export interface SunResult {
+  lat: number;
+  lon: number;
+  at_utc: string;
+  position: SunPosition;
+  shadow: SunShadow | null;
+  day: {
+    date: string;
+    sunrise_utc: string | null;
+    sunset_utc: string | null;
+    solar_noon_utc: string | null;
+    max_elevation: number;
+    rows: ({ utc: string; shadow: SunShadow | null } & SunPosition)[];
+  };
+}
+
+export interface ChronoWindow {
+  from_utc: string;
+  to_utc: string;
+  best_utc: string;
+  error: number;
+  sun: SunPosition;
+  shadow: SunShadow;
+}

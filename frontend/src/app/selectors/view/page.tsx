@@ -128,6 +128,11 @@ function Detail({ data, reload }: { data: SelectorDetail; reload: () => void }) 
           <span><strong className="tabular-nums text-foreground">{data.source_hosts.length}</strong> farklı kaynakta</span>
           <span><strong className="tabular-nums text-foreground">{data.pivots.length}</strong> pivot</span>
           {data.documents.length > 0 && <span><strong className="tabular-nums text-foreground">{data.documents.length}</strong> belgede</span>}
+          {sel.kind === "coord" && (
+            <Link href={`/tools?lat=${sel.value.split(",")[0]}&lon=${sel.value.split(",")[1]}#gunes`} className="text-brand-accent-text hover:underline">
+              Güneş konumu / kronolokasyon →
+            </Link>
+          )}
           <Button size="sm" variant="ghost" onClick={toggleIgnore} className="ml-auto">
             {sel.status === "IGNORED" ? <Eye aria-hidden className="h-3.5 w-3.5" /> : <EyeOff aria-hidden className="h-3.5 w-3.5" />}
             {sel.status === "IGNORED" ? "Geri al" : "Yanlış pozitif"}
@@ -209,7 +214,7 @@ function Detail({ data, reload }: { data: SelectorDetail; reload: () => void }) 
                   {s.defanged && <span>defang&apos;li yazılmış</span>}
                   {(s.occurrences ?? 1) > 1 && <span>{s.occurrences} kez</span>}
                   <Link href={`/observations?ids=${s.observation_id}`} className="hover:text-foreground">gözlem</Link>
-                  {s.claim_id && <span className="text-text-secondary">claim&apos;e dönüştü · {s.claim_state}</span>}
+                  {s.claim_id && <Link href={`/claims/view?id=${s.claim_id}`} className="text-brand-accent-text hover:underline">claim · {s.claim_state}</Link>}
                 </div>
                 {/* Toplanan metin güvenilmeyen veridir (Q22) — yalnızca gösterilir, yorumlanmaz. */}
                 <p className="mt-1 font-mono text-xs leading-relaxed text-text-secondary">…{s.context}…</p>

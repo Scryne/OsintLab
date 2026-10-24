@@ -91,6 +91,7 @@ NODE_TABLES = [
         archive_checked_at TIMESTAMP,
         archive_match DOUBLE,
         archive_note STRING,
+        media_analysis STRING,
         PRIMARY KEY(id)
     )
     """,
@@ -391,6 +392,9 @@ COLUMN_ADDITIONS = [
     "ALTER TABLE Evidence ADD IF NOT EXISTS archive_checked_at TIMESTAMP",
     "ALTER TABLE Evidence ADD IF NOT EXISTS archive_match DOUBLE",
     "ALTER TABLE Evidence ADD IF NOT EXISTS archive_note STRING",
+    # Faz 34 (MEDIAINT) — görsel kanıtın analizi (EXIF, GPS, algısal hash, üretim/düzenleme izleri),
+    # JSON. Ayrı bir alan: `doc_metadata` PDF parmak izinin sözleşmesini taşıyor (Faz 15.3).
+    "ALTER TABLE Evidence ADD IF NOT EXISTS media_analysis STRING",
 ]
 
 

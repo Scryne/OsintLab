@@ -10,6 +10,7 @@ import { HypothesisEvidenceDialog } from "@/components/forms/hypothesis-evidence
 import { AddFindingDialog } from "@/components/forms/add-finding-dialog";
 import { InvestigationNarrative } from "@/components/forms/investigation-narrative";
 import { WorkflowRail } from "@/components/forms/workflow-rail";
+import { ReportExport } from "@/components/pivot/report-export";
 import type { Hypothesis, InvestigationStatus, KnowledgeState } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
               : "Arşivlendi — araştırma bırakıldı; kayıt olduğu gibi duruyor, bulgular doğrulanmış sayılmadı."}
           </p>
         )}
+        <ReportExport investigationId={inv.id} />
         {inv.status === "RESOLVED" && !inv.conclusion && (
           <p className="mt-2 text-xs text-priority-medium-text">
             Kapatmak için önce Sonuç yazılmalı — kapanış, doğrulanmış bulguları Knowledge

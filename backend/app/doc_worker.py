@@ -28,7 +28,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from app import docint, pivot
+from app import docint, mediaint, pivot
 from app.db import fetch_all, fetch_one, get_connection
 
 logger = logging.getLogger(__name__)
@@ -104,6 +104,11 @@ def process_evidence(evidence_id: str, mode: str = "extract") -> str:
             result["metadata"] = docint.extract(path)["metadata"] if sayfa_sayisi else {}
         else:
             result = docint.extract(path, on_progress=on_progress)
+        # Faz 34 (MEDIAINT): PDF olmayan bir dosya görselse analiz edilir ve üzerindeki yazı
+        # OCR'lanır. Eskiden UNSUPPORTED'da kalıyordu: bir ekran görüntüsünün metni ve bir
+        # fotoğrafın GPS'i sisteme hiç girmiyordu.
+        if result["status"] == docint.UNSUPPORTED and mediaint.is_image(path):
+            result, mode = _process_image(evidence_id, path), "ocr"
     except Exception as exc:  # noqa: BLE001 — işçi hiçbir belgede ölmemeli
         logger.exception("DOCINT: %s çıkarılırken beklenmedik hata", evidence_id[:8])
         _set_status(
@@ -172,6 +177,32 @@ def process_evidence(evidence_id: str, mode: str = "extract") -> str:
         except Exception:  # noqa: BLE001
             logger.exception("DOCINT (%s): seçici indekslemesi başarısız", evidence_id[:8])
     return result["status"]
+
+
+def _process_image(evidence_id: str, path) -> dict:
+    """Görseli analiz eder, analizi kaydeder, GPS varsa koordinat seçicisi açar ve OCR sonucunu
+    DOCINT'in sonuç sözleşmesiyle döndürür (metin varsa DONE, yoksa NO_TEXT_LAYER)."""
+    import json
+
+    analysis = mediaint.analyze(path)
+    _set_status(evidence_id, docint.RUNNING, media_analysis=json.dumps(analysis, ensure_ascii=False, default=str))
+    gps = analysis.get("gps")
+    if gps:
+        try:
+            pivot.link_evidence_selector(evidence_id, "coord", f"{gps['lat']:.6f},{gps['lon']:.6f}", "EXIF GPS konumu")
+        except Exception:  # noqa: BLE001
+            logger.exception("MEDIAINT (%s): GPS seçicisi açılamadı", evidence_id[:8])
+    lang = docint.ocr_status()["lang"] or "eng"
+    ocr = None
+    try:
+        ocr = mediaint.ocr_image(path, lang)
+    except Exception:  # noqa: BLE001 — OCR düşerse analiz yine kalır
+        logger.exception("MEDIAINT (%s): OCR başarısız", evidence_id[:8])
+    base = {"metadata": {}, "page_count": 1, "pages_done": 1, "lang": lang}
+    if ocr and len(ocr["text"]) >= 3:
+        return {**base, "status": docint.DONE, "text": ocr["text"], "confidence": ocr["confidence"], "error": None}
+    note = "Görselde okunabilir yazı bulunamadı." if ocr is not None else "OCR kurulu değil — yalnızca görsel analizi yapıldı."
+    return {**base, "status": docint.NO_TEXT_LAYER, "text": "", "confidence": None, "error": note}
 
 
 def mark_pending(evidence_id: str) -> None:

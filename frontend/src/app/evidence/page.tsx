@@ -30,6 +30,7 @@ import { EvidenceClaimLinkDialog } from "@/components/forms/evidence-claim-link-
 import { EvidenceObservationDialog } from "@/components/forms/evidence-observation-dialog";
 import { InjectionWarning } from "@/components/provenance/injection-warning";
 import { DocumentFingerprint } from "@/components/provenance/document-fingerprint";
+import { MediaPanel, isImagePath } from "@/components/pivot/media-panel";
 import { useToast } from "@/components/ui/toast";
 
 // Öneri listesi — kural DEĞİL (bkz. TypeCombo).
@@ -288,9 +289,11 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
 
       {/* Faz 15.3 — belge parmak izi. Varsayılan kapalı: her satırda açık dursaydı Kanıt
           Kasası okunamazdı. Yalnızca gerçekten çıkarılmış bir belge için gösteriliyor. */}
-      {(item.extraction_status === "DONE" || item.extraction_status === "NO_TEXT_LAYER") && (
+      {(item.extraction_status === "DONE" || item.extraction_status === "NO_TEXT_LAYER") && !isImagePath(item.file_path) && (
         <DocumentFingerprint evidenceId={item.id} />
       )}
+      {/* Faz 34 — görselin parmak izi PDF'inkinden farklı: kamera, GPS, düzenleme/üretim izleri. */}
+      {isImagePath(item.file_path) && <MediaPanel evidenceId={item.id} />}
 
       <div className="mt-3 border-t border-border pt-3">
         {item.linked_claims.length === 0 ? (

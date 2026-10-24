@@ -13,7 +13,7 @@ from app.db import bump_data_version, get_connection
 from app.enrichment import engine as enrichment_engine
 from app.routers import (
     archive, claims, collectors, enrichment, entities, evidence, events, investigations, monitors, observations,
-    selectors, sources, tools, vault,
+    search, selectors, sources, tools, vault,
 )
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ app.include_router(events.router)
 app.include_router(sources.router)
 app.include_router(evidence.router)
 app.include_router(claims.mentions_router)
+app.include_router(selectors.claim_router)
 app.include_router(claims.router)
 app.include_router(observations.router)
 app.include_router(investigations.router)
@@ -135,6 +136,7 @@ app.include_router(vault.router)
 app.include_router(selectors.router)
 app.include_router(enrichment.router)
 app.include_router(tools.router)
+app.include_router(search.router)
 
 
 @app.get("/health")

@@ -87,6 +87,19 @@ SIGNAL_WEIGHTS = {
     "PENDING_CANDIDATE": 0.15,
     "DISMISSED_CANDIDATE": -0.10,
     "HOST_HISTORY": 0.15,
+    # --- Faz 30: seçici katmanının kuyruğa girdisi ---
+    #
+    # KNOWN_SELECTOR, KNOWN_ENTITY ile AYNI ağırlıkta ve aynı anlamda: gözlem, kullanıcının bir
+    # entity'ye bağladığı altyapıya (alan adı, IP, cüzdan) değiyor — "bildiğimiz bir şeye değmek",
+    # eşiği geçmenin tek meşru yolu. Adı geçmeden yalnızca altyapısı geçen bir haber (ör. bir C2
+    # alan adı) entity eşleştiricisinin hiç göremeyeceği bir sinyal.
+    #
+    # EXPLOITED_CVE ve DEFANGED_IOC sıralamayı ayrıştırır, kapıyı açmaz (Faz 27 kuralı). Ölçüm
+    # (2026-10-24, 3.870 bekleyen): KEV'deki bir CVE'yi geçiren 15 gözlem (11'i zaten eşiğin
+    # üstünde), defang'li gösterge taşıyan 4 gözlem.
+    "KNOWN_SELECTOR": 0.40,
+    "EXPLOITED_CVE": 0.25,
+    "DEFANGED_IOC": 0.10,
 }
 
 # Bu eşiğin ÜSTÜ "bak", altı "toplu elenebilir". Tam olarak KNOWN_ENTITY ağırlığına eşit:
@@ -279,7 +292,30 @@ def _load_context(conn) -> dict:
         if b["decided"] >= HOST_RATE_MIN_DECIDED
     }
 
+    # Faz 30: bekleyen gözlemlerin seçicileri, KEV'deki CVE'ler ve entity'ye bağlı seçiciler.
+    # Kuyruk başına üç sorgu; gözlem başına sorgu yok (F58'in dersi).
+    obs_selectors: dict[str, list[tuple[str, bool]]] = {}
+    for row in fetch_all(conn.execute(
+        "MATCH (s:Selector)-[r:SEEN_IN]->(o:Observation) WHERE o.promoted = false AND s.status <> 'IGNORED' "
+        "RETURN o.id AS oid, s.id AS sid, r.defanged AS defanged"
+    )):
+        obs_selectors.setdefault(row["oid"], []).append((row["sid"], bool(row["defanged"])))
+    exploited: set[str] = set()
+    for row in fetch_all(conn.execute(
+        "MATCH (r:EnrichmentRun) WHERE r.module = 'kev' AND r.status = 'DONE' RETURN r.selector_id AS sid, r.summary AS summary"
+    )):
+        if row["summary"] and '"in_kev": true' in row["summary"]:
+            exploited.add(row["sid"])
+    linked_selectors: dict[str, list[str]] = {}
+    for row in fetch_all(conn.execute(
+        "MATCH (s:Selector)-[:SELECTOR_OF]->(e:Entity) RETURN s.id AS sid, e.name AS name"
+    )):
+        linked_selectors.setdefault(row["sid"], []).append(row["name"])
+
     return {
+        "obs_selectors": obs_selectors,
+        "exploited_cves": exploited,
+        "linked_selectors": linked_selectors,
         "entity_rows": entity_rows,
         "monitored": monitored,
         "investigated": investigated,
@@ -380,6 +416,38 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
                     )
                 )
 
+
+    seen = ctx.get("obs_selectors", {}).get(observation.id, [])
+    if seen:
+        linked = ctx.get("linked_selectors", {})
+        touching = [(sid, linked[sid]) for sid, _ in seen if sid in linked]
+        if touching and not matched:
+            reasons.append(
+                SignalReason(
+                    code="KNOWN_SELECTOR",
+                    text="Bir entity'ye bağlı altyapıya değiyor: "
+                    + ", ".join(f"{sid.split(':', 1)[1]} ({', '.join(names)})" for sid, names in touching[:3]),
+                    weight=SIGNAL_WEIGHTS["KNOWN_SELECTOR"],
+                )
+            )
+        kev = sorted({sid.split(":", 1)[1] for sid, _ in seen if sid in ctx.get("exploited_cves", set())})
+        if kev:
+            reasons.append(
+                SignalReason(
+                    code="EXPLOITED_CVE",
+                    text="Gerçekte sömürülen açık (CISA KEV): " + ", ".join(kev[:4]) + (" …" if len(kev) > 4 else ""),
+                    weight=SIGNAL_WEIGHTS["EXPLOITED_CVE"],
+                )
+            )
+        defanged = sum(1 for _, d in seen if d)
+        if defanged:
+            reasons.append(
+                SignalReason(
+                    code="DEFANGED_IOC",
+                    text=f"Yazar {defanged} göstergeyi bilerek etkisizleştirerek yazmış (defang) — tehdit raporu işareti",
+                    weight=SIGNAL_WEIGHTS["DEFANGED_IOC"],
+                )
+            )
 
     if observation.from_evidence:
         # Belge kuyruğa kendi kendine düşmedi; kullanıcı onu bilerek yükledi. Pasif bir

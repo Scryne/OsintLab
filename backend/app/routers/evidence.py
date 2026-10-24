@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 
-from app import archive, doc_worker, docint
+from app import archive, doc_worker, docint, mediaint
 from app.db import DATA_ROOT, fetch_all, fetch_one, get_connection
 from app.models import (
     _to_utc,
@@ -604,6 +604,50 @@ def reextract_evidence(evidence_id: str) -> dict:
         "status_label": docint.STATUS_LABELS[docint.PENDING],
         "queue_depth": doc_worker.queue_depth(),
     }
+
+
+@router.get("/{evidence_id}/media")
+def media_analysis(evidence_id: str) -> dict:
+    """Faz 34 — görsel kanıtın analizi (EXIF, GPS, algısal hash, üretim/düzenleme izleri).
+    Görsel değilse ya da henüz işlenmediyse `analysis: null`."""
+    import json
+
+    get_evidence(evidence_id)
+    row = fetch_one(get_connection().execute(
+        "MATCH (ev:Evidence {id: $id}) RETURN ev.media_analysis AS m", {"id": evidence_id}
+    ))
+    analysis = json.loads(row["m"]) if row and row["m"] else None
+    similar = []
+    if analysis:
+        # Algısal olarak yakın diğer görseller (yeniden kodlanmış/kırpılmış kopya adayı).
+        others = fetch_all(get_connection().execute(
+            "MATCH (ev:Evidence) WHERE ev.media_analysis IS NOT NULL AND ev.id <> $id "
+            "RETURN ev.id AS id, ev.file_path AS file_path, ev.media_analysis AS m",
+            {"id": evidence_id},
+        ))
+        mine = analysis["hashes"]["dhash"]
+        for o in others:
+            try:
+                theirs = json.loads(o["m"])["hashes"]["dhash"]
+            except (ValueError, KeyError, TypeError):
+                continue
+            distance = mediaint.hamming(mine, theirs)
+            if distance <= 10:
+                similar.append({"evidence_id": o["id"], "file_path": o["file_path"], "distance": distance})
+        similar.sort(key=lambda s: s["distance"])
+    return {"evidence_id": evidence_id, "analysis": analysis, "similar": similar}
+
+
+@router.get("/{evidence_id}/preview")
+def media_preview(evidence_id: str) -> Response:
+    """Görselin yeniden kodlanmış PNG önizlemesi (bkz. `mediaint.preview_png`). Orijinal dosya
+    `/file` ucundan yalnızca ek olarak iner."""
+    evidence = get_evidence(evidence_id)
+    path = _resolve_stored_file(evidence.file_path)
+    if path is None or not mediaint.is_image(path):
+        raise HTTPException(status_code=404, detail="Bu kanıt bir görsel değil.")
+    return Response(content=mediaint.preview_png(path), media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/{evidence_id}/file")
