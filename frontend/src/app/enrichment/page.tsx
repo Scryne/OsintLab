@@ -65,9 +65,9 @@ function Modules() {
               <tr>
                 <th className="px-3 py-2 font-medium">Açık</th>
                 <th className="px-3 py-2 font-medium">Modül</th>
-                <th className="px-3 py-2 font-medium">Hedef</th>
+                <th className="hidden px-3 py-2 font-medium sm:table-cell">Hedef</th>
                 <th className="px-3 py-2 font-medium">OPSEC</th>
-                <th className="px-3 py-2 font-medium">Gittiği host</th>
+                <th className="hidden px-3 py-2 font-medium md:table-cell">Gittiği host</th>
               </tr>
             </thead>
             <tbody>
@@ -98,12 +98,12 @@ function Modules() {
                       </button>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-secondary">{m.target === "entity" ? "Kurum (entity)" : m.target === "claim" ? "Claim" : m.kind_labels.join(", ")}</td>
+                  <td className="hidden px-3 py-2 text-xs text-text-secondary sm:table-cell">{m.target === "entity" ? "Kurum (entity)" : m.target === "claim" ? "Claim" : m.kind_labels.join(", ")}</td>
                   <td className="px-3 py-2">
                     <OpsecBadge opsec={m.opsec} title={m.opsec_note} />
                     <div className="mt-1 text-[11px] text-text-tertiary">önbellek {m.cache_hours >= 1 ? `${m.cache_hours} sa` : `${Math.round(m.cache_hours * 60)} dk`}</div>
                   </td>
-                  <td className="px-3 py-2 font-mono text-[11px] text-text-secondary">
+                  <td className="hidden px-3 py-2 font-mono text-[11px] text-text-secondary md:table-cell">
                     {m.hosts.length ? m.hosts.join(", ") : m.opsec === "LOCAL" ? "— (yerel)" : "hedefin kendisi"}
                     {m.docs_url && (
                       <a href={m.docs_url} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 font-sans text-text-tertiary hover:text-foreground">
