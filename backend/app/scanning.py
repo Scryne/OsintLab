@@ -32,7 +32,9 @@ from app.collector import (
     extract_content_from_html,
     load_allowlist,
     parse_rss,
+    parse_telegram,
     safe_fetch,
+    telegram_preview_url,
 )
 from app.db import fetch_all, fetch_one, get_connection, graph_lock
 from app.models import Observation
@@ -120,6 +122,12 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
     from app.routers.observations import create_observation_record
 
     allowlist = load_allowlist()
+    if mode == "telegram":
+        # `@kanal`, `t.me/kanal` ya da tam önizleme adresi kabul edilir; istek hep önizlemeye gider.
+        preview = telegram_preview_url(url)
+        if preview is None:
+            raise CollectorFetchError(f"Telegram kanal adı tanınamadı: {url!r} (ör. @kanal ya da https://t.me/s/kanal)")
+        url = preview
     final_url, content, content_type = safe_fetch(url, allowlist)
 
     if mode == "rss":
@@ -140,6 +148,17 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
             {"text": i["text"], "url": i["link"] or final_url, "published": i["published"]}
             for i in selected
         ]
+    elif mode == "telegram":
+        parsed_items = parse_telegram(content)
+        available = len(parsed_items)
+        if available == 0 and "tgme_channel_info" not in content.decode("utf-8", errors="replace"):
+            raise CollectorFetchError(
+                f"Telegram kanal önizlemesi bulunamadı ({final_url}). Kanal özel olabilir ya da "
+                "herkese açık önizlemesi kapalı olabilir."
+            )
+        # En yeni mesajlar sayfanın sonunda; seçim yayın tarihine göre (RSS ile aynı kural).
+        selected = _select_items(parsed_items, limit=limit, since_days=since_days)
+        candidates = [{"text": i["text"], "url": i["link"], "published": i["published"]} for i in selected]
     else:
         available = 1
         candidates = [{"text": extract_content_from_html(content), "url": final_url, "published": None}]

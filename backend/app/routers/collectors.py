@@ -82,7 +82,7 @@ def fetch(payload: CollectorFetchRequest) -> dict:
     Faz 12: toplama mantığı `app/scanning.py`'ye taşındı; elle tarama ile zamanlanmış tarama
     artık aynı çekirdeği kullanıyor (güvenlik ve dedup davranışı ikisinde de aynı olsun diye)."""
     if payload.mode not in SCAN_MODES:
-        raise HTTPException(status_code=422, detail="mode must be 'rss' or 'web'")
+        raise HTTPException(status_code=422, detail="mode 'rss', 'web' ya da 'telegram' olmalı")
 
     try:
         result = collect_from_url(
@@ -288,7 +288,7 @@ def create_scan_schedule(payload: ScanScheduleCreate) -> ScanSchedule:
     hostname ya da olmayan bir Source ile kurulan tarama, saatler sonra sessizce başarısız
     olurdu ve kullanıcı bunu ancak hiçbir şey gelmediğini fark edince anlardı."""
     if payload.mode not in SCAN_MODES:
-        raise HTTPException(status_code=422, detail="mode must be 'rss' or 'web'")
+        raise HTTPException(status_code=422, detail="mode 'rss', 'web' ya da 'telegram' olmalı")
 
     conn = get_connection()
     source = fetch_one(

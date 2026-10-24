@@ -25,6 +25,7 @@ import logging
 import os
 
 from app.scanning import run_due_schedules
+from app.selectorwatch import run_due_watches
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,23 @@ def enabled() -> bool:
     return os.environ.get(ENV_FLAG, "1").strip().lower() not in ("0", "false", "off", "no")
 
 
+# Faz 36: altyapı izleme günde bir koşuyor; "zamanı geldi mi" kontrolü 10 dakikada bir yeter.
+WATCH_EVERY_TICKS = 10
+
+
 async def _loop() -> None:
+    tick = 0
     while True:
+        if tick % WATCH_EVERY_TICKS == 0:
+            try:
+                notices = await asyncio.to_thread(run_due_watches)
+                if notices:
+                    logger.info("Altyapı izleme: %s değişiklik bildirildi", len(notices))
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 — izleme taramayı durdurmamalı
+                logger.exception("Altyapı izleme turu beklenmedik şekilde çöktü")
+        tick += 1
         try:
             results = await asyncio.to_thread(run_due_schedules)
             for r in results:

@@ -145,6 +145,14 @@ def compute_priority(inputs: PriorityInputs) -> str:
     if inputs.item_type == "INVESTIGATION_UPDATE":
         return "MEDIUM"
 
+    # Faz 36 — izlenen altyapıdaki değişiklik. "Sömürülmeye başladı" ve "yaptırım listesine
+    # girdi" eyleme dönük olgular (HIGH; aktif bir investigation'daysa CRITICAL); DNS, sertifika,
+    # kayıt değişikliği dikkat ister ama acil değildir (MEDIUM).
+    if inputs.item_type == "SELECTOR_ALERT":
+        return "CRITICAL" if inputs.active_investigation else "HIGH"
+    if inputs.item_type == "SELECTOR_CHANGE":
+        return "MEDIUM"
+
     confidence = inputs.confidence or 0.0
 
     if inputs.active_investigation and confidence >= HIGH_CONFIDENCE_THRESHOLD:
@@ -198,7 +206,7 @@ def _subject_id(detail: dict) -> str:
 
     Hedef (`target_id`) tek başına yetmiyor: aynı entity hakkında iki farklı claim değişirse
     ikisi de bildirilmeli. Konu, detayda taşınan claim/event/investigation id'sidir."""
-    for key in ("claim_id", "event_id", "investigation_id", "schedule_id"):
+    for key in ("claim_id", "event_id", "investigation_id", "schedule_id", "subject_id"):
         value = detail.get(key)
         if value:
             return str(value)

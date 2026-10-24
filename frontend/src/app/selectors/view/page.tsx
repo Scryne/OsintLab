@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, Copy, Eye, EyeOff, FileText, Link2, Network, Unlink } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, Check, Copy, Eye, EyeOff, FileText, Link2, Network, Unlink } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type { SelectorDetail, SelectorPivot } from "@/lib/types-pivot";
@@ -133,6 +133,7 @@ function Detail({ data, reload }: { data: SelectorDetail; reload: () => void }) 
               Güneş konumu / kronolokasyon →
             </Link>
           )}
+          <WatchButton selectorId={sel.id} kind={sel.kind} />
           <Button size="sm" variant="ghost" onClick={toggleIgnore} className="ml-auto">
             {sel.status === "IGNORED" ? <Eye aria-hidden className="h-3.5 w-3.5" /> : <EyeOff aria-hidden className="h-3.5 w-3.5" />}
             {sel.status === "IGNORED" ? "Geri al" : "Yanlış pozitif"}
@@ -338,5 +339,44 @@ function EntityLinks({ data, onChanged }: { data: SelectorDetail; onChanged: () 
         </div>
       )}
     </div>
+  );
+}
+
+
+// Faz 36: altyapı izlemenin kapsadığı türler (backend `selectorwatch.WATCH_MODULES` ile aynı).
+const WATCHABLE = new Set(["domain", "email", "ip", "asn", "cve", "btc", "eth"]);
+
+function WatchButton({ selectorId, kind }: { selectorId: string; kind: string }) {
+  const toast = useToast();
+  const { data: monitors, reload } = useApi(() => api.monitors.list(true), []);
+  const monitor = monitors?.find((m) => m.target_type === "Selector" && m.target_id === selectorId);
+  const [busy, setBusy] = useState(false);
+  if (!WATCHABLE.has(kind)) return null;
+
+  async function toggle() {
+    setBusy(true);
+    try {
+      if (monitor) {
+        await api.monitors.delete(monitor.id);
+        toast("İzleme bırakıldı", "default");
+      } else {
+        await api.monitors.create({ target_type: "Selector", target_id: selectorId });
+        // İlk koşu taban çizgisi: sonraki günlük koşular bununla karşılaştırılır.
+        await api.selectors.watchCheck(selectorId);
+        toast("İzlemeye alındı — değişiklikler günde bir kontrol edilip Inbox'a düşer", "success");
+      }
+      reload();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Değiştirilemedi", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Button size="sm" variant={monitor ? "secondary" : "outline"} onClick={toggle} disabled={busy || monitors === null}>
+      {monitor ? <Bell aria-hidden className="h-3.5 w-3.5" /> : <BellOff aria-hidden className="h-3.5 w-3.5" />}
+      {monitor ? "İzleniyor" : "İzlemeye al"}
+    </Button>
   );
 }

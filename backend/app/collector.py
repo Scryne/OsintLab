@@ -544,3 +544,70 @@ def parse_rss(content: bytes, base_url: str | None = None) -> list[dict]:
             "published": _entry_published(entry),
         })
     return items
+
+
+# --- v6: Telegram herkese açık kanal önizlemesi ------------------------------------------
+#
+# `https://t.me/s/<kanal>` Telegram'ın kendi herkese açık web önizlemesi: giriş istemez, yalnızca
+# önizlemesi açık kanalları gösterir (son ~20 mesaj). OSINT'te tehdit aktörü, hacktivist ve haber
+# kanallarını izlemenin standart yolu. Kişi hesabı ya da özel grup değil, herkese açık YAYIN —
+# yani bir RSS feed'i ile aynı sınıf (Q25 kapsam sınırı içinde).
+#
+# Ayrıştırma da RSS gibi yalnızca yapılandırılmış alanlar: mesajın kalıcı bağlantısı
+# (`data-post="kanal/123"` → `https://t.me/kanal/123`), zamanı (`<time datetime>`) ve metni.
+# Medya indirilmez; yalnızca "fotoğraf/video var" diye not düşülür.
+TELEGRAM_HOST = "t.me"
+
+
+def telegram_preview_url(value: str) -> str | None:
+    """`@kanal`, `t.me/kanal`, `https://t.me/s/kanal` → `https://t.me/s/kanal`."""
+    import re as _re
+
+    value = value.strip()
+    m = _re.match(r"^(?:https?://)?(?:www\.)?t(?:elegram)?\.me/(?:s/)?([A-Za-z0-9_]{4,64})/?(?:\?.*)?$", value) or \
+        _re.match(r"^@?([A-Za-z0-9_]{4,64})$", value)
+    return f"https://t.me/s/{m.group(1)}" if m else None
+
+
+def parse_telegram(html_bytes: bytes) -> list[dict]:
+    soup = BeautifulSoup(html_bytes, "html.parser")
+    items = []
+    for msg in soup.select("div.tgme_widget_message[data-post]"):
+        post = msg.get("data-post") or ""
+        if "/" not in post:
+            continue
+        text_node = msg.select_one(".tgme_widget_message_text")
+        text = ""
+        if text_node is not None:
+            # Satır sonları <br> ile geliyor; bağlantı/kalın gibi satır içi etiketlerde ayırıcı
+            # kullanmak cümleleri satırlara bölüyordu (gerçek bir kanalda görüldü).
+            for br in text_node.find_all("br"):
+                br.replace_with("\n")
+            text = "\n".join(" ".join(line.split()) for line in text_node.get_text().splitlines()).strip()
+        media = []
+        if msg.select_one(".tgme_widget_message_photo_wrap"):
+            media.append("fotoğraf")
+        if msg.select_one(".tgme_widget_message_video_player"):
+            media.append("video")
+        if msg.select_one(".tgme_widget_message_document"):
+            media.append("dosya")
+        preview = msg.select_one(".tgme_widget_message_link_preview")
+        if preview is not None and preview.get("href"):
+            text += f"\n[bağlantı önizlemesi: {preview.get('href')}]"
+        if not text and not media:
+            continue
+        published = None
+        time_node = msg.select_one("time[datetime]")
+        if time_node is not None:
+            try:
+                published = datetime.fromisoformat(time_node["datetime"]).astimezone(timezone.utc)
+            except ValueError:
+                published = None
+        channel = post.split("/")[0]
+        header = f"[Telegram @{channel}]" + (f" ({', '.join(media)})" if media else "")
+        items.append({
+            "text": _truncate(f"{header}\n{text}".strip()),
+            "link": f"https://t.me/{post}",
+            "published": published,
+        })
+    return items

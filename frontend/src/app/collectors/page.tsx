@@ -114,7 +114,7 @@ export default function CollectorsPage() {
 
 function FetchForm({ hostnames }: { hostnames: string[] }) {
   const [url, setUrl] = useState("");
-  const [mode, setMode] = useState<"rss" | "web">("rss");
+  const [mode, setMode] = useState<"rss" | "web" | "telegram">("rss");
   const [limit, setLimit] = useState("50");
   const [sinceDays, setSinceDays] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -146,21 +146,27 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
       )}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="collector-url">URL</Label>
-        <Input id="collector-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+        <Input id="collector-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={mode === "telegram" ? "@kanal ya da https://t.me/s/kanal" : "https://…"} />
+        {mode === "telegram" && (
+          <p className="text-xs text-text-tertiary">
+            Yalnızca önizlemesi açık herkese açık kanallar (son ~20 mesaj). Allowlist&apos;te <span className="font-mono">t.me</span> olmalı.
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="page-mod-1">Mod</Label>
-        <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası" }} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
+        <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası", telegram: "Telegram kanalı (herkese açık)" }} onValueChange={(v) => v && setMode(v as "rss" | "web" | "telegram")}>
           <SelectTrigger id="page-mod-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="rss">RSS feed</SelectItem>
             <SelectItem value="web">Tek web sayfası</SelectItem>
+                <SelectItem value="telegram">Telegram kanalı (herkese açık)</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {mode === "rss" && (
+      {mode !== "web" && (
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="collector-limit">En fazla kaç öğe</Label>

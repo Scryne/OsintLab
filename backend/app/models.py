@@ -911,7 +911,7 @@ class AllowlistAdd(BaseModel):
 
 class CollectorFetchRequest(BaseModel):
     url: str
-    mode: str = Field(..., examples=["rss", "web"])
+    mode: str = Field(..., examples=["rss", "web", "telegram"])
     # Faz 11 (dogfooding F2): bazı feed'ler tüm arşivi yayınlıyor (ör. openai.com/news:
     # 1164 item). Limitsiz tarama sistemi tek hamlede kullanılamaz hale getiriyordu.
     limit: int = Field(default=50, ge=1, le=500)
@@ -1023,7 +1023,7 @@ class ReparseResult(BaseModel):
     items: list[ReparseItem]
 
 
-SCAN_MODES = ("rss", "web")
+SCAN_MODES = ("rss", "web", "telegram")
 
 # Varsayılan aralık: 3 saat. Faz 11'in gerçek kullanım deseni (günde bir-iki oturum, izlenen
 # feed'ler günde birkaç kez yayın yapıyor) için "birkaç saat içinde haberim olsun" ihtiyacını
@@ -1160,7 +1160,7 @@ class EventFromClusterResult(BaseModel):
 # bildirimin hedefi bir kaynaktır ("Krebs on Security'de 3 yeni içerik"), tek tek gözlemler
 # değil. Gözlem başına bildirim, günde bir düzine öğe yayınlayan bir feed'de Inbox'ı
 # kullanılamaz hale getirirdi ("more signal, less noise", madde 25).
-MONITOR_TARGET_TYPES = ("Entity", "Event", "Investigation", "Source")
+MONITOR_TARGET_TYPES = ("Entity", "Event", "Investigation", "Source", "Selector")
 
 
 class MonitorCreate(BaseModel):

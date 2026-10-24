@@ -241,7 +241,7 @@ export interface Observation {
 export interface Monitor {
   id: string;
   // Faz 12: "Source" — zamanlanmış tarama bildirimleri kaynak üzerinden gider.
-  target_type: "Entity" | "Event" | "Investigation" | "Source";
+  target_type: "Entity" | "Event" | "Investigation" | "Source" | "Selector";
   target_id: string;
   label: string | null;
   active: boolean;
@@ -270,7 +270,7 @@ export interface ScanSchedule {
   source_id: string;
   source_name: string | null;
   url: string;
-  mode: "rss" | "web";
+  mode: "rss" | "web" | "telegram";
   interval_minutes: number;
   item_limit: number;
   since_days: number | null;

@@ -200,3 +200,34 @@ def test_queue_signals_from_selectors(client, make_entity):
     codes = {r["code"] for r in row["signal_reasons"]}
     assert {"KNOWN_SELECTOR", "DEFANGED_IOC"} <= codes
     assert row["signal_score"] >= 0.40
+
+
+def test_watched_selector_change_lands_in_inbox(client, monkeypatch):
+    from app import selectorwatch
+
+    state = {"subs": ["a.watch-me.example"]}
+
+    def fake_crtsh(ctx, target):
+        return Result({"domain": target.value, "subdomains": list(state["subs"]), "certificate_count": len(state["subs"])})
+
+    monkeypatch.setitem(engine.REGISTRY, "crtsh", Module(
+        "crtsh", "Sertifika şeffaflığı", "test", "test", "selector", ("domain",), PASSIVE, frozenset(), fake_crtsh))
+    monkeypatch.setitem(selectorwatch.WATCH_MODULES, "domain", ("crtsh",))
+    sid = _selector(client, "watch-me.example")
+    assert client.post("/monitors", json={"target_type": "Selector", "target_id": sid}).status_code == 201
+
+    first = client.post(f"/selectors/{quote(sid, safe='')}/watch-check").json()
+    assert first["notices"] == []  # ilk koşu taban çizgisi
+    state["subs"] = ["a.watch-me.example", "vpn.watch-me.example"]
+    second = client.post(f"/selectors/{quote(sid, safe='')}/watch-check").json()
+    assert len(second["notices"]) == 1 and second["notices"][0]["priority"] == "MEDIUM"
+    items = [i for i in client.get("/inbox").json() if i["target_id"] == sid]
+    assert items and "vpn.watch-me.example" in items[0]["title"]
+
+
+def test_watch_diff_rules():
+    from app.selectorwatch import diff
+
+    assert diff("kev", {"in_kev": False}, {"in_kev": True, "date_added": "2026-10-01"})[0]["code"] == "KEV_ADDED"
+    assert diff("dns", {"records": {"A": ["1.1.1.1"]}}, {"records": {"A": ["2.2.2.2"]}})[0]["code"] == "DNS_ADDED"
+    assert diff("internetdb", {"ports": [22]}, {"ports": [22]}) == []

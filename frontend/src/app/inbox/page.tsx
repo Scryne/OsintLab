@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Eye, Flag, Star, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { selectorHref } from "@/lib/types-pivot";
 import { useApi } from "@/lib/use-api";
 import type { InboxItem, InboxStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ const TARGET_HREF: Record<string, (id: string) => string> = {
   Investigation: (id) => `/investigations/${id}`,
   // Faz 12'de liste sayfasına bağlanıyordu (detay sayfası yoktu); Faz 13'te düzeltildi.
   Source: (id) => `/sources/${id}`,
+  // Faz 36: izlenen altyapı (alan adı, IP, CVE, cüzdan).
+  Selector: (id) => selectorHref(id),
 };
 
 /** Faz 12 — NEW_OBSERVATION öğesinin detayı: hangi başlıklar geldi, bildiğimiz hangi
@@ -243,6 +246,7 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
           </div>
           <p className="mt-1 text-sm text-foreground">{item.title}</p>
           {item.item_type === "NEW_OBSERVATION" && <ScanDetail detail={item.detail} />}
+          {(item.item_type === "SELECTOR_CHANGE" || item.item_type === "SELECTOR_ALERT") && <SelectorChangeDetail detail={item.detail} />}
           <div className="mt-1 flex items-center gap-2 text-[11px] text-text-tertiary">
             <span className="font-mono">{new Date(item.created_at).toLocaleString("tr-TR")}</span>
             {href && (
@@ -271,5 +275,22 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
         ))}
       </div>
     </div>
+  );
+}
+
+
+/** Faz 36 — izlenen bir seçicideki değişikliğin ayrıntısı: hangi modül, ne değişti. */
+function SelectorChangeDetail({ detail }: { detail: Record<string, unknown> }) {
+  const changes = (detail.changes as { code: string; text: string }[] | undefined) ?? [];
+  if (!changes.length) return null;
+  return (
+    <ul className="mt-1.5 flex flex-col gap-0.5 text-xs text-text-secondary">
+      <li className="text-text-tertiary">{String(detail.module_label ?? detail.module ?? "")}</li>
+      {changes.map((c) => (
+        <li key={c.code + c.text} className="font-mono">
+          {c.text}
+        </li>
+      ))}
+    </ul>
   );
 }

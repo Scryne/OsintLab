@@ -263,7 +263,7 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
   const { data: sources } = useApi(() => api.sources.list(), []);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [url, setUrl] = useState("");
-  const [mode, setMode] = useState<"rss" | "web">("rss");
+  const [mode, setMode] = useState<"rss" | "web" | "telegram">("rss");
   const [interval, setInterval] = useState("180");
   const [itemLimit, setItemLimit] = useState("20");
   const [sinceDays, setSinceDays] = useState("7");
@@ -327,13 +327,14 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="scan-schedules-mod-1">Mod</Label>
-          <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası" }} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
+          <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası", telegram: "Telegram kanalı (herkese açık)" }} onValueChange={(v) => v && setMode(v as "rss" | "web" | "telegram")}>
             <SelectTrigger id="scan-schedules-mod-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="rss">RSS feed</SelectItem>
               <SelectItem value="web">Tek web sayfası</SelectItem>
+                <SelectItem value="telegram">Telegram kanalı (herkese açık)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -354,7 +355,7 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
         </div>
       </div>
 
-      {mode === "rss" && (
+      {mode !== "web" && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="schedule-limit">Koşu başına en fazla öğe</Label>

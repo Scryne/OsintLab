@@ -508,7 +508,7 @@ export const api = {
     allowlist: () => get<{ hostnames: string[] }>("/collectors/allowlist"),
     addAllowlist: (hostname: string) => post<{ hostnames: string[] }>("/collectors/allowlist", { hostname }),
     removeAllowlist: (hostname: string) => del(`/collectors/allowlist/${encodeURIComponent(hostname)}`),
-    fetch: (url: string, mode: "rss" | "web", opts?: { limit?: number; since_days?: number | null }) =>
+    fetch: (url: string, mode: "rss" | "web" | "telegram", opts?: { limit?: number; since_days?: number | null }) =>
       post<CollectorFetchResult>("/collectors/fetch", {
         url,
         mode,
@@ -521,7 +521,7 @@ export const api = {
     createSchedule: (payload: {
       source_id: string;
       url?: string | null;
-      mode?: "rss" | "web";
+      mode?: "rss" | "web" | "telegram";
       interval_minutes?: number;
       item_limit?: number;
       since_days?: number | null;
@@ -592,6 +592,7 @@ export const api = {
       del(`/selectors/${encodeURIComponent(id)}/entities/${entityId}`),
     forEntity: (entityId: string) => get<(Selector & { link_note: string | null })[]>(`/entities/${entityId}/selectors`),
     forClaim: (claimId: string) => get<Selector[]>(`/claims/${claimId}/selectors`),
+    watchCheck: (id: string) => post<{ modules: string[]; notices: unknown[] }>(`/selectors/${encodeURIComponent(id)}/watch-check`),
     reindex: () =>
       post<{ observations_scanned: number; evidence_scanned: number; new_sightings: number; selectors_total: number; duration_seconds: number }>(
         "/selectors/reindex"

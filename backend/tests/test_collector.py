@@ -167,3 +167,28 @@ def test_validate_hop_rejects_non_allowlisted_and_private(monkeypatch):
         collector._validate_hop("https://example.com/", {"example.com"})
     with pytest.raises(CollectorSecurityError, match="scheme"):
         collector._validate_hop("file:///etc/passwd", {"example.com"})
+
+
+_TG_HTML = b"""<html><body><div class="tgme_channel_info"></div>
+<div class="tgme_widget_message js-widget_message" data-post="osintchan/41">
+  <div class="tgme_widget_message_text js-message_text">Leak site lists <b>Example Corp</b> victim<br/>IOC: evil-c2[.]example</div>
+  <a class="tgme_widget_message_date"><time datetime="2026-10-20T08:00:00+00:00"></time></a>
+</div>
+<div class="tgme_widget_message js-widget_message" data-post="osintchan/42">
+  <a class="tgme_widget_message_photo_wrap"></a>
+  <a class="tgme_widget_message_date"><time datetime="2026-10-21T09:30:00+00:00"></time></a>
+</div>
+</body></html>"""
+
+
+def test_parse_telegram_public_preview():
+    from app.collector import parse_telegram, telegram_preview_url
+
+    items = parse_telegram(_TG_HTML)
+    assert [i["link"] for i in items] == ["https://t.me/osintchan/41", "https://t.me/osintchan/42"]
+    assert items[0]["text"] == "[Telegram @osintchan]\nLeak site lists Example Corp victim\nIOC: evil-c2[.]example"
+    assert items[1]["text"] == "[Telegram @osintchan] (fotoğraf)"
+    assert items[0]["published"].isoformat() == "2026-10-20T08:00:00+00:00"
+    assert telegram_preview_url("@osintchan") == "https://t.me/s/osintchan"
+    assert telegram_preview_url("https://t.me/osintchan") == "https://t.me/s/osintchan"
+    assert telegram_preview_url("https://evil.example/osintchan") is None

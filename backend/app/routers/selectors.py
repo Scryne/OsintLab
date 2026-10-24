@@ -103,6 +103,18 @@ def detail(selector_id: str) -> SelectorDetail:
     return SelectorDetail(**data)
 
 
+@router.post("/{selector_id:path}/watch-check")
+def watch_check(selector_id: str) -> dict:
+    """İzlenen bir seçicinin izleme modüllerini şimdi çalıştırır (24 saatlik aralığı beklemeden)."""
+    from app.selectorwatch import WATCH_MODULES, check_selector
+
+    sel = pivot.get_selector(selector_id)
+    if sel is None:
+        raise HTTPException(status_code=404, detail="Seçici bulunamadı")
+    notices = check_selector(sel, force=True)
+    return {"modules": list(WATCH_MODULES.get(sel["kind"], ())), "notices": notices}
+
+
 @router.get("/{selector_id:path}/graph")
 def graph(selector_id: str, depth: int = Query(2, ge=1, le=3)) -> dict:
     data = pivot.pivot_graph(selector_id, depth)
