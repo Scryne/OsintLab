@@ -278,6 +278,12 @@ Ayrıntı ve ölçümler: `docs/Roadmap.md` → "v6 Roadmap" ve Faz 29-36 detayl
 - **Görsel kanıt** (`app/mediaint.py`): orijinal dosya tarayıcıda açılmaz, önizleme Pillow'dan
   geçirilip PNG olarak yeniden kodlanır. "AI üretimi" yalnızca dosyanın kendi beyanından okunur.
 - **Rapor deterministiktir** (`app/report.py`); HTML betiksiz CSP ile döner.
+- **Zenginleştirme hedefi üç türlü:** seçici (`tür:değer`), kurum (`entity:<id>`), claim
+  (`claim:<id>` — yalnızca haber araması; "bu iddiayı başka kim söylüyor"). GDELT bu ağdan 429
+  veriyor; haber araması Google News RSS üzerinden.
+- **ACH ve Admiralty** (`/investigations/{id}/ach`, `app/admiralty.py`) yeni değerlendirme yapmaz;
+  mevcut hipotez-kanıt duruşlarını ve confidence durumunu standart biçime çevirir.
+- Kullanıcıya dönük özet: `docs/v6-Kullanim-Rehberi.md`.
 - **Frontend:** seçici sayfası `/selectors/view?id=<url-kodlu kimlik>` (kimlikte `/` olabilir),
   claim sayfası `/claims/view?id=`. Base UI `Select`'te Root'a `items` verilmezse ham değer
   görünür — yeni her `Select`'e etiket haritası ver.

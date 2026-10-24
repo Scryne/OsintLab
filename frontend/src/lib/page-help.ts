@@ -198,7 +198,10 @@ export const PAGE_HELP: Record<string, PageHelp> = {
       "Bir araştırma sorusuyla başlar, kapsam (entity/olay) seçilir, hipotezler kurulur.",
       "Bulgular claim olarak eklenir, kanıtlar hipotezleri destekler ya da çürütür.",
       "Sonuçta analiz ve vargı yazılır — soruyu cevaplamadan kapatma.",
+      "İki ya da daha fazla hipotez ve kanıt olunca ACH matrisi açılır: en olası hipotez en az tutarsız olandır; boş hücreleri doldur.",
+      "Rapor: TLP etiketini seç, yazdırılabilir raporu aç (tarayıcıdan PDF'e) ya da Markdown indir.",
     ],
+    warnings: ["Rapor deterministiktir; yorum yalnızca senin Analiz ve Sonuç metnindir — orada kaynağın söylediğiyle kendi çıkarımını ayır."],
   },
   "/selectors": {
     title: "Seçiciler",
@@ -248,6 +251,15 @@ export const PAGE_HELP: Record<string, PageHelp> = {
       "Bir seçiciyle çalışıyorsan buradan değil, seçicinin 'Dış araçlar' sekmesinden aç: bağlantılar değerle hazır gelir.",
     ],
     warnings: ["Bağlantılar tarayıcında açılır; giriş yapılmış bir hesapla yapılan arama o hesaba bağlanır."],
+  },
+  "/claims/view": {
+    title: "Claim",
+    steps: [
+      "Üstteki rozetler: doğrulama durumu ve NATO/Admiralty kodu (harf kaynağın güvenilirliği, rakam bilginin teyit düzeyi).",
+      "\"Bu skor nereden geliyor?\" confidence'ın dört bileşenini açar.",
+      "\"Bu iddiayı başka kim söylüyor?\" haber araması yapar; bağımsız bir yayıncının haberini Gözlem düğmesiyle ekle — Doğrulama ekranı onu bu claim'e önerir.",
+    ],
+    warnings: ["Claim metni toplanan kaynaktan gelir ve güvenilmeyen veridir; içindeki talimat-benzeri ifadeler uygulanmaz."],
   },
   "/inbox": {
     title: "Inbox",
