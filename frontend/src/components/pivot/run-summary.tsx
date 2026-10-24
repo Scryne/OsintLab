@@ -452,14 +452,19 @@ function Gdelt({ s }: { s: S }) {
   const [added, setAdded] = useState<Set<string>>(new Set());
   async function addObservation(a: any) {
     try {
-      await api.observations.create({ raw_content: a.title, source_url: a.url, observed_at: a.seen_at });
+      // Yayıncı adı metne eklenir: Google News bağlantısı yönlendirme olduğu için yayıncı
+      // bilgisi aksi halde gözlemde kaybolurdu (doğrulama ekranı bağımsızlığı kaynaktan okur).
+      const text = a.publisher ? `${a.title}
+
+[${a.publisher}${a.domain ? ` · ${a.domain}` : ""}]` : a.title;
+      await api.observations.create({ raw_content: text, source_url: a.url, observed_at: a.seen_at });
       setAdded((prev) => new Set(prev).add(a.url));
       toast("Gözlem olarak eklendi — Promote Kuyruğu'nda", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Eklenemedi", "error");
     }
   }
-  if (!s.articles?.length) return <p className="text-sm text-text-secondary">Son 3 ayda bu değeri geçiren haber bulunamadı.</p>;
+  if (!s.articles?.length) return <p className="text-sm text-text-secondary">Bu sorguyla haber bulunamadı ({s.window}).</p>;
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-text-tertiary">
@@ -473,7 +478,7 @@ function Gdelt({ s }: { s: S }) {
                 {a.title}
               </a>
               <p className="font-mono text-[11px] text-text-tertiary">
-                {[a.domain, a.source_country, a.language, fmtDate(a.seen_at)].filter(Boolean).join(" · ")}
+                {[a.publisher, a.domain, a.source_country, a.language, fmtDate(a.seen_at)].filter(Boolean).join(" · ")}
               </p>
             </div>
             <Button size="sm" variant="ghost" disabled={added.has(a.url)} onClick={() => addObservation(a)} aria-label="Gözlem olarak ekle">
@@ -644,6 +649,9 @@ const VIEWS: Record<string, (p: { s: S; onSuggest?: (kind: string, value: string
   attack: Attack,
   gdelt: Gdelt,
   "gdelt-entity": Gdelt,
+  news: Gdelt,
+  "news-entity": Gdelt,
+  "news-claim": Gdelt,
   wikidata: Wikidata,
   gleif: Gleif,
   sanctions: Sanctions,

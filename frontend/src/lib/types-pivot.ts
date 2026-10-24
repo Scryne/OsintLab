@@ -22,6 +22,7 @@ export interface SelectorListItem extends Selector {
   entity_count: number;
   first_seen: string | null;
   last_seen: string | null;
+  flags: string[];
 }
 
 export interface SelectorList {
@@ -119,7 +120,7 @@ export interface EnrichmentRun {
   module: string;
   module_label: string;
   target_id: string;
-  target_type: "selector" | "entity";
+  target_type: "selector" | "entity" | "claim";
   status: "RUNNING" | "DONE" | "FAILED";
   opsec: Opsec;
   request_url: string | null;
@@ -140,7 +141,7 @@ export interface EnrichmentModule {
   label: string;
   provider: string;
   description: string;
-  target: "selector" | "entity";
+  target: "selector" | "entity" | "claim";
   kinds: SelectorKind[];
   kind_labels: string[];
   opsec: Opsec;

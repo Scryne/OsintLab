@@ -48,6 +48,7 @@ HOST_INTERVALS = {
     # Toplu kurum taramasında 72 entity × 3 istek 0,25 sn aralıkla 67 tane 429 aldı (2026-10-24).
     "www.wikidata.org": 1.5,
     "api.gleif.org": 0.5,
+    "news.google.com": 2.0,
     "api.adsb.lol": 1.0,
 }
 DEFAULT_INTERVAL = 0.25
@@ -175,7 +176,7 @@ class Module:
     label: str
     provider: str
     description: str
-    target: str  # "selector" | "entity"
+    target: str  # "selector" | "entity" | "claim"
     kinds: tuple[str, ...]
     opsec: str
     hosts: frozenset[str]
@@ -188,4 +189,4 @@ class Module:
     def accepts(self, target: Target) -> bool:
         if self.target != target.type:
             return False
-        return target.type == "entity" or target.kind in self.kinds
+        return target.type in ("entity", "claim") or target.kind in self.kinds

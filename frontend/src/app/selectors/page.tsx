@@ -37,6 +37,7 @@ export default function SelectorsPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("sightings");
   const [ignored, setIgnored] = useState(false);
+  const [kevOnly, setKevOnly] = useState(false);
   const [limit, setLimit] = useState(PAGE);
 
   useEffect(() => {
@@ -46,8 +47,8 @@ export default function SelectorsPage() {
 
   const { data: kinds, reload: reloadKinds } = useApi(() => api.selectors.kinds(), []);
   const { data, error, loading, refreshing, reload } = useApi(
-    () => api.selectors.list({ kind: kind || undefined, q: query || undefined, sort, limit, include_ignored: ignored }),
-    [kind, query, sort, limit, ignored]
+    () => api.selectors.list({ kind: kind || undefined, q: query || undefined, sort, limit, include_ignored: ignored, flag: kevOnly ? "kev" : undefined }),
+    [kind, query, sort, limit, ignored, kevOnly]
   );
   const total = useMemo(() => (kinds ?? []).reduce((a, k) => a + k.count, 0), [kinds]);
 
@@ -102,6 +103,10 @@ export default function SelectorsPage() {
             </SelectContent>
           </Select>
           <label className="flex items-center gap-2 text-sm text-text-secondary">
+            <Checkbox checked={kevOnly} onCheckedChange={(v) => { setKevOnly(!!v); setLimit(PAGE); }} aria-label="Yalnız gerçekte sömürülenler (KEV)" />
+            Yalnız sömürülenler (KEV)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-secondary">
             <Checkbox checked={ignored} onCheckedChange={(v) => setIgnored(!!v)} aria-label="Yok sayılanları da göster" />
             Yok sayılanları da göster
           </label>
@@ -135,6 +140,11 @@ export default function SelectorsPage() {
                 <tr key={s.id} className="border-t border-border">
                   <td className="max-w-[28rem] px-3 py-1.5">
                     <SelectorChip id={s.id} kind={s.kind} value={s.value} ignored={s.status === "IGNORED"} />
+                    {s.flags?.includes("KEV") && (
+                      <span className="ml-2 rounded border border-priority-high/40 px-1 py-0.5 font-mono text-[10px] text-priority-high-text" title="CISA KEV: gerçekte sömürülüyor">
+                        KEV
+                      </span>
+                    )}
                     {s.origin !== "extracted" && (
                       <span className="ml-2 text-[10px] text-text-tertiary">{s.origin === "manual" ? "elle" : "zenginleştirmeden"}</span>
                     )}

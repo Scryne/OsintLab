@@ -98,7 +98,7 @@ function Modules() {
                       </button>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-secondary">{m.target === "entity" ? "Kurum (entity)" : m.kind_labels.join(", ")}</td>
+                  <td className="px-3 py-2 text-xs text-text-secondary">{m.target === "entity" ? "Kurum (entity)" : m.target === "claim" ? "Claim" : m.kind_labels.join(", ")}</td>
                   <td className="px-3 py-2">
                     <OpsecBadge opsec={m.opsec} title={m.opsec_note} />
                     <div className="mt-1 text-[11px] text-text-tertiary">önbellek {m.cache_hours >= 1 ? `${m.cache_hours} sa` : `${Math.round(m.cache_hours * 60)} dk`}</div>
@@ -209,6 +209,10 @@ function RecentRuns() {
               {r.target_type === "selector" ? (
                 <Link href={selectorHref(r.target_id)} className="min-w-0 truncate font-mono text-xs text-text-secondary hover:text-foreground">
                   {r.target_id}
+                </Link>
+              ) : r.target_type === "claim" ? (
+                <Link href={`/claims/view?id=${r.target_id.slice(6)}`} className="text-xs text-text-secondary hover:text-foreground">
+                  claim
                 </Link>
               ) : (
                 <Link href={`/entities/${r.target_id.slice(7)}`} className="text-xs text-text-secondary hover:text-foreground">

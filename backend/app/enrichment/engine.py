@@ -116,6 +116,17 @@ def resolve_target(target_id: str) -> Target:
         if row is None:
             raise EnrichmentError("Entity bulunamadı", 404)
         return Target("entity", target_id, "entity", row["name"], row["type"], list(row["aliases"] or []))
+    if target_id.startswith("claim:"):
+        # Claim hedefi yalnızca haber araması için: "bu iddiayı başka kim söylüyor?" (Faz 28'in
+        # açık bıraktığı ters arama). Sorgu claim'in başlık satırı.
+        from app.monitoring import claim_headline
+
+        row = fetch_one(conn.execute(
+            "MATCH (c:Claim {id: $id}) RETURN c.text AS text", {"id": target_id[len("claim:"):]}
+        ))
+        if row is None:
+            raise EnrichmentError("Claim bulunamadı", 404)
+        return Target("claim", target_id, "claim", claim_headline(row["text"] or "", limit=160))
     sel = pivot.get_selector(target_id)
     if sel is None:
         raise EnrichmentError("Seçici bulunamadı", 404)
@@ -274,9 +285,10 @@ def run(name: str, target_id: str, *, force: bool = False, confirm_active: bool 
         if target.type == "selector":
             conn.execute("MATCH (r:EnrichmentRun {id: $r}), (s:Selector {id: $s}) CREATE (r)-[:RAN_ON]->(s)",
                          {"r": run_id, "s": target.id})
-        else:
+        elif target.type == "entity":
             conn.execute("MATCH (r:EnrichmentRun {id: $r}), (e:Entity {id: $e}) CREATE (r)-[:RAN_ON_ENTITY]->(e)",
                          {"r": run_id, "e": target.id[len("entity:"):]})
+        # Claim hedefli koşunun kenarı yok: hedef kimliği (`claim:<id>`) koşunun kendisinde.
     if wait:
         _execute(run_id, module, target, started)
     else:

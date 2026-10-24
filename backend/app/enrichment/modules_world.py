@@ -19,9 +19,14 @@ from app.selectorindex import KIND_LABELS, normalize_domain, valid_domain
 
 def _gdelt_query(target: Target) -> str:
     value = target.value
+    if target.type == "claim":
+        # İddia cümlesi tam ifade olarak aranırsa neredeyse hiç sonuç çıkmaz (her yayıncı kendi
+        # cümlesini kurar); tırnaksız, ilk 14 kelime.
+        words = [w.strip("\"'“”‘’") for w in value.split()]
+        return " ".join(w for w in words if w)[:200] if len(words) <= 14 else " ".join(words[:14])
     if target.type == "entity" or target.kind in ("cve", "attack", "domain", "ip", "asn"):
         return f'"{value}"'
-    raise ModuleError("GDELT araması bu seçici türü için anlamlı değil.")
+    raise ModuleError("Haber araması bu seçici türü için anlamlı değil.")
 
 
 def run_gdelt(ctx: Ctx, target: Target) -> Result:
@@ -49,6 +54,49 @@ def run_gdelt(ctx: Ctx, target: Target) -> Result:
     domains = sorted({a["domain"] for a in articles if a.get("domain")})
     return Result({"query": query, "window": "3 ay", "count": len(articles), "distinct_sources": len(domains),
                    "articles": articles})
+
+
+# --- Google News RSS araması ------------------------------------------------------------
+#
+# GDELT bu ağdan tek istekte bile 429 döndürüyor (2026-10-24, sunucu "5 sn'de bir" diyor ama ilk
+# istek de reddediliyor). Google News'in RSS arama ucu anahtarsız ve kişisel, ticari olmayan
+# okuma için açık (feed'in kendi kullanım notu). Doğrulayıcı kaynak bulmak v5'ten beri
+# projenin en büyük açığı (Faz 28: doğrulayansız claim'ler).
+def run_news(ctx: Ctx, target: Target) -> Result:
+    import feedparser
+
+    query = _gdelt_query(target)
+    content, _ = ctx.get("https://news.google.com/rss/search",
+                         {"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"},
+                         headers={"Accept": "application/rss+xml"})
+    feed = feedparser.parse(content)
+    articles = []
+    for entry in feed.entries[:75]:
+        src = entry.get("source") or {}
+        publisher_url = src.get("href") or ""
+        from urllib.parse import urlparse
+
+        host = (urlparse(publisher_url).hostname or "").lower().removeprefix("www.")
+        published = None
+        if entry.get("published_parsed"):
+            published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).isoformat()
+        title = entry.get("title") or ""
+        publisher = src.get("title")
+        if publisher and title.endswith(f" - {publisher}"):
+            title = title[: -len(publisher) - 3]
+        articles.append({
+            "title": title,
+            "url": entry.get("link"),
+            "domain": host or None,
+            "publisher": publisher,
+            "seen_at": published,
+            "language": None,
+            "source_country": None,
+        })
+    domains = sorted({a["domain"] for a in articles if a.get("domain")})
+    return Result({"query": query, "window": "Google News", "count": len(articles), "distinct_sources": len(domains),
+                   "articles": articles},
+                  raw_override={"feed_title": feed.feed.get("title"), "items": len(feed.entries)})
 
 
 # --- Wikidata -------------------------------------------------------------------------
@@ -289,6 +337,19 @@ MODULES = [
            "Son 3 ayda dünya basınında bu adı geçiren haberler — bağımsız doğrulayıcı kaynak bulmak için.",
            "entity", (), PASSIVE, frozenset({"api.gdeltproject.org"}), run_gdelt, cache_hours=12,
            docs_url="https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/"),
+    Module("news", "Haber araması", "Google News (RSS)",
+           "Bu değeri geçiren haberler ve yayıncıları — bağımsız doğrulayıcı kaynak bulmak için.",
+           "selector", ("cve", "attack", "domain", "ip", "asn"), PASSIVE, frozenset({"news.google.com"}), run_news,
+           cache_hours=12, docs_url="https://news.google.com/",
+           terms_note="Feed yalnızca kişisel, ticari olmayan okuma için açık."),
+    Module("news-entity", "Haber araması", "Google News (RSS)",
+           "Bu adı geçiren haberler ve yayıncıları — bağımsız doğrulayıcı kaynak bulmak için.",
+           "entity", (), PASSIVE, frozenset({"news.google.com"}), run_news, cache_hours=12,
+           docs_url="https://news.google.com/", terms_note="Feed yalnızca kişisel, ticari olmayan okuma için açık."),
+    Module("news-claim", "Doğrulayıcı haber ara", "Google News (RSS)",
+           "Bu iddiayı başka hangi yayıncıların aktardığı — bulunan haberi gözleme çevirip doğrulama hattına sok.",
+           "claim", (), PASSIVE, frozenset({"news.google.com"}), run_news, cache_hours=12,
+           docs_url="https://news.google.com/", terms_note="Feed yalnızca kişisel, ticari olmayan okuma için açık."),
     Module("wikidata", "Wikidata", "Wikimedia",
            "Ad eşleşen Wikidata öğeleri; en iyi adayın resmi sitesi, ülkesi, kuruluş tarihi, ana şirketi, LEI'si.",
            "entity", (), PASSIVE, frozenset({"www.wikidata.org"}), run_wikidata, cache_hours=24 * 7,

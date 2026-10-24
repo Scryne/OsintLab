@@ -34,10 +34,19 @@ def list_selectors(
     sort: str = Query("sightings", pattern="^(sightings|recent|value)$"),
     limit: int = Query(200, ge=1, le=2000),
     offset: int = Query(0, ge=0),
+    flag: str | None = Query(None, pattern="^kev$"),
 ) -> SelectorList:
     if kind and kind not in selectorindex.KINDS:
         raise HTTPException(status_code=422, detail=f"Bilinmeyen seçici türü: {kind}")
-    return SelectorList(**pivot.list_selectors(kind, q, include_ignored, sort, limit, offset))
+    from app.enrichment.engine import exploited_cves
+
+    exploited = {row["id"] for row in exploited_cves(limit=100_000)}
+    data = pivot.list_selectors(kind, q, include_ignored, sort, limit, offset,
+                                only_ids=exploited if flag == "kev" else None)
+    for item in data["items"]:
+        # Satır başına işaret: şimdilik yalnızca "gerçekte sömürülüyor" (KEV'in son koşusu).
+        item["flags"] = ["KEV"] if item["id"] in exploited else []
+    return SelectorList(**data)
 
 
 @router.get("/kinds", response_model=list[SelectorKindCount])

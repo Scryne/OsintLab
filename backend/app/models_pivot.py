@@ -25,6 +25,7 @@ class SelectorListItem(Selector):
     entity_count: int = 0
     first_seen: datetime | None = None
     last_seen: datetime | None = None
+    flags: list[str] = Field(default_factory=list)
 
 
 class SelectorList(BaseModel):

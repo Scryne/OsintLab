@@ -298,3 +298,19 @@ def test_crtsh_provider_switch_is_not_a_change():
     after = {"provider": "Cert Spotter", "subdomains": ["a.x.example"], "subdomain_count": 1}
     assert diff("crtsh", before, after) == []
     assert diff("crtsh", after | {"provider": "crt.sh"}, before)[0]["code"] == "NEW_SUBDOMAIN"
+
+
+def test_claim_target_news_search(client, make_source, make_claim, monkeypatch):
+    seen = {}
+
+    def fake_news(ctx, target):
+        seen["q"] = target.value
+        return Result({"query": target.value, "count": 0, "distinct_sources": 0, "articles": []})
+
+    monkeypatch.setitem(engine.REGISTRY, "news-claim", Module(
+        "news-claim", "Doğrulayıcı haber ara", "test", "test", "claim", (), PASSIVE, frozenset(), fake_news))
+    claim = make_claim(make_source()["id"], text="Vendor patches actively exploited firewall bug\n\nLong summary here")
+    mods = {m["name"] for m in client.get(f"/enrichment/targets/claim%3A{claim['id']}/modules").json()}
+    assert mods == {"news-claim"}
+    run = client.post("/enrichment/run", json={"module": "news-claim", "target_id": f"claim:{claim['id']}"}).json()
+    assert run["status"] == "DONE" and seen["q"].startswith("Vendor patches actively exploited")

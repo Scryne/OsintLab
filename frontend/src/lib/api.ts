@@ -581,7 +581,7 @@ export const api = {
   // Faz 29 — seçici katmanı. Kimlik `tür:değer` ve değer `/` içerebilir (URL): yol parçası
   // olarak her zaman tamamen kodlanır.
   selectors: {
-    list: (params?: { kind?: string; q?: string; sort?: string; limit?: number; offset?: number; include_ignored?: boolean }) => {
+    list: (params?: { kind?: string; q?: string; sort?: string; limit?: number; offset?: number; include_ignored?: boolean; flag?: "kev" }) => {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined && v !== "") qs.set(k, String(v));
       return get<SelectorList>(`/selectors${qs.toString() ? `?${qs}` : ""}`);

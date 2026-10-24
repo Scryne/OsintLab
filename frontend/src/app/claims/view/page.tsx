@@ -10,6 +10,7 @@ import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { ConfidenceExplainDisclosure } from "@/components/provenance/confidence-explain";
 import { WhyMattersDisclosure } from "@/components/provenance/why-matters-disclosure";
 import { SelectorChip } from "@/components/pivot/selector-chip";
+import { EnrichmentPanel } from "@/components/pivot/enrichment-panel";
 import { EmptyState, ErrorState } from "@/components/ui/state";
 import { SkeletonDetail } from "@/components/ui/skeleton";
 
@@ -90,6 +91,15 @@ function ClaimView() {
       <section className="flex flex-col gap-2">
         <ConfidenceExplainDisclosure claimId={claim.id} />
         <WhyMattersDisclosure claimId={claim.id} />
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Bu iddiayı başka kim söylüyor?</h2>
+        <p className="text-xs text-pretty text-text-secondary">
+          Haber araması iddianın başlığıyla yapılır. Bağımsız bir yayıncının haberini gözleme çevir: Promote Kuyruğu ve
+          Doğrulama ekranı onu bu claim&apos;in olası doğrulayıcısı olarak önerir.
+        </p>
+        <EnrichmentPanel targetId={`claim:${claim.id}`} />
       </section>
 
       {mentions && mentions.length > 0 && (

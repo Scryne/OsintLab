@@ -178,6 +178,7 @@ def list_selectors(
     sort: str = "sightings",
     limit: int = 200,
     offset: int = 0,
+    only_ids: set[str] | None = None,
 ) -> dict:
     conn = get_connection()
     where = []
@@ -204,6 +205,8 @@ def list_selectors(
         "count(en) AS entity_count, first_seen, last_seen",
         params,
     ))
+    if only_ids is not None:
+        rows = [r for r in rows if r["id"] in only_ids]
     if sort == "recent":
         rows.sort(key=lambda r: (r["last_seen"] or r["created_at"]), reverse=True)
     elif sort == "value":
