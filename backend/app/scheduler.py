@@ -48,18 +48,29 @@ def enabled() -> bool:
 WATCH_EVERY_TICKS = 10
 
 
+_watch_task: asyncio.Task | None = None
+
+
+async def _watch_round() -> None:
+    try:
+        notices = await asyncio.to_thread(run_due_watches)
+        if notices:
+            logger.info("Altyapı izleme: %s değişiklik bildirildi", len(notices))
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001 — izleme taramayı durdurmamalı
+        logger.exception("Altyapı izleme turu beklenmedik şekilde çöktü")
+
+
 async def _loop() -> None:
+    global _watch_task
     tick = 0
     while True:
-        if tick % WATCH_EVERY_TICKS == 0:
-            try:
-                notices = await asyncio.to_thread(run_due_watches)
-                if notices:
-                    logger.info("Altyapı izleme: %s değişiklik bildirildi", len(notices))
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # noqa: BLE001 — izleme taramayı durdurmamalı
-                logger.exception("Altyapı izleme turu beklenmedik şekilde çöktü")
+        # İzleme turu AYRI bir görevde: onlarca izlenen alan adının DNS + crt.sh (12 sn aralık) +
+        # RDAP turu dakikalar sürebilir ve zamanlanmış taramayı o süre boyunca bekletmemeli. Önceki
+        # tur bitmediyse yenisi başlamaz.
+        if tick % WATCH_EVERY_TICKS == 0 and (_watch_task is None or _watch_task.done()):
+            _watch_task = asyncio.create_task(_watch_round(), name="osintlab-selector-watch")
         tick += 1
         try:
             results = await asyncio.to_thread(run_due_schedules)
@@ -90,7 +101,10 @@ def start() -> bool:
 
 
 async def stop() -> None:
-    global _task
+    global _task, _watch_task
+    if _watch_task is not None and not _watch_task.done():
+        _watch_task.cancel()
+    _watch_task = None
     if _task is None:
         return
     _task.cancel()

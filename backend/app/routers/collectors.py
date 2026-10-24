@@ -13,6 +13,7 @@ from app.collector import (
     normalize_hostname,
     safe_fetch,
     save_allowlist,
+    telegram_preview_url,
 )
 from app.db import fetch_all, fetch_one, get_connection
 from app.models import (
@@ -301,6 +302,13 @@ def create_scan_schedule(payload: ScanScheduleCreate) -> ScanSchedule:
         raise HTTPException(status_code=404, detail=f"Source not found: {payload.source_id}")
 
     url = (payload.url or source["url"] or "").strip()
+    if payload.mode == "telegram" and url:
+        # `@kanal` / `telegram.me/kanal` elle taramada kabul ediliyordu ama burada ham girdinin
+        # host'u kontrol edilince 403 dönüyordu; saklanan adres de önizleme adresi olmalı.
+        preview = telegram_preview_url(url)
+        if preview is None:
+            raise HTTPException(status_code=422, detail=f"Telegram kanal adı tanınamadı: {url!r} (ör. @kanal ya da https://t.me/s/kanal)")
+        url = preview
     if not url:
         raise HTTPException(
             status_code=422,

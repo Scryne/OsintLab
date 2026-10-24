@@ -142,6 +142,14 @@ def build(investigation_id: str) -> dict:
     }
 
 
+def _md(text) -> str:
+    """Güvenilmeyen metni Markdown'a tek satır ve yapısız koyar: satır sonları (yalnız `\r` dahil)
+    boşluğa, `<`/`>` varlığa çevrilir. Aksi halde claim metni Markdown görüntüleyicide sahte bir
+    "Sonuç" başlığı ya da ham HTML üretebilirdi (2026-10-24 incelemesi). HTML yolu ayrıca kaçırıyor."""
+    text = " ".join(str(text or "").replace("\r", " ").split())
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _pct(x) -> str:
     return f"%{round((x or 0) * 100)}"
 
@@ -177,16 +185,16 @@ def to_markdown(r: dict, tlp: str = "CLEAR") -> str:
     def claim_block(i: int, c: dict) -> list[str]:
         b = c["breakdown"]
         out = [
-            f"### {i}. {c['headline']}",
+            f"### {i}. {_md(c['headline'])}",
             "",
-            f"> {(c.get('text') or '').strip().replace(chr(10), ' ')}",
+            f"> {_md(c.get('text'))}",
             "",
             f"- **Durum:** {STATE_LABELS.get(c['knowledge_state'], c['knowledge_state'])} ({_pct(c['confidence'])})"
             + (" · kapanışta doğrulanmış bulgu" if c.get("validated") else "")
             + (" · **yerini daha yeni bir claim aldı**" if c.get("superseded") else ""),
             f"- **Confidence dökümü:** kaynak kalitesi {_pct(b['source_quality'])}, bağımsızlık {_pct(b['independence'])}, "
             f"kanıt {_pct(b['evidence'])}, doğrulama {_pct(b['corroboration'])}",
-            f"- **Kaynak:** {c.get('source') or '?'}" + (f" ({c['source_url']})" if c.get("source_url") else ""),
+            f"- **Kaynak:** {_md(c.get('source') or '?')}" + (f" ({_md(c['source_url'])})" if c.get("source_url") else ""),
             f"- **NATO/Admiralty:** {c['admiralty']['code']} ({c['admiralty']['source_label']} kaynak · "
             f"{c['admiralty']['info_label'].lower()} bilgi)",
         ]
@@ -268,7 +276,9 @@ def _md_inline(text: str) -> str:
     """Kaçırılmış metinde yalnızca **kalın** ve `kod` biçimini uygular — başka hiçbir şey."""
     import re
 
-    text = html.escape(text)
+    # Markdown çıktısı `<`/`>`i zaten varlığa çevirdi (`_md`); çift kaçırma olmasın diye geri
+    # alınıp TEK kez kaçırılıyor.
+    text = html.escape(text.replace("&lt;", "<").replace("&gt;", ">"))
     text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     return text.replace("&lt;br&gt;", "<br>")
@@ -300,7 +310,7 @@ def to_html(r: dict, tlp: str = "CLEAR") -> str:
         elif line.startswith("# "):
             out.append(f"<h1>{_md_inline(line[2:])}</h1>")
         elif line.startswith("> "):
-            out.append(f"<blockquote>{html.escape(line[2:])}</blockquote>")
+            out.append(f"<blockquote>{html.escape(line[2:].replace('&lt;', '<').replace('&gt;', '>'))}</blockquote>")
         elif line.startswith("- "):
             if not in_list:
                 out.append("<ul>")

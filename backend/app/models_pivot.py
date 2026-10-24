@@ -149,4 +149,5 @@ class SelectorReindexResult(BaseModel):
     new_sightings: int
     selectors_total: int
     orphans_removed: int = 0
+    failed: int = 0
     duration_seconds: float

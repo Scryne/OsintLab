@@ -9,11 +9,12 @@ Collector güvenlik katmanı — Q22 (kritik güvenlik sorusu).
        metin olarak döner; LLM'e "talimat" değil "güvenilmeyen veri" olarak sunulması
        görevi çağıran katmana (bkz. .claude/skills/osint-brain/) aittir.
 
-Bilinen sınırlama (v1, bilinçli kabul edildi — bkz. Roadmap.md Faz 5 notları): DNS
-rebinding'e karşı tam koruma yok. Hostname her redirect hop'unda yeniden çözülüp
-doğrulanıyor, ama doğrulama ile asıl bağlantı arasında çok kısa bir pencerede DNS yanıtı
-teorik olarak değişebilir. Bu, v1 için kabul edilen bir risk — tam çözüm (IP'ye pinleyip
-Host header'ı elle ayarlamak) ileride gerekirse eklenebilir.
+DNS rebinding (v1'de bilinçli kabul edilmiş sınırlamaydı, bkz. Roadmap.md Faz 5): hostname her
+redirect hop'unda çözülüp doğrulanıyor; v6'dan beri ayrıca bağlantı kurulduktan sonra soketin
+GERÇEK karşı adresi kontrol ediliyor (`_check_peer`) ve genel değilse yanıt gövdesi okunmadan
+istek bırakılıyor. Kalan pencere: istek satırı ve başlıklar o adrese gitmiş olur (yalnızca GET,
+gövdesiz). Tam çözüm IP'ye pinlemek; aktif modül olmasa bu risk yine v1'deki gibi yalnızca
+kullanıcının allowlist'ine eklediği host'larla sınırlı.
 """
 import ipaddress
 import json
@@ -235,6 +236,7 @@ def safe_fetch(
                     "kaynağın sunucusu yanıt vermiyor; sonra tekrar denenecek."
                 ) from exc
             try:
+                _check_peer(response, hostname)
                 if response.status_code in (301, 302, 303, 307, 308):
                     location = response.headers.get("Location")
                     if not location:
@@ -247,6 +249,29 @@ def safe_fetch(
             return _finish(response, current_url, content)
 
     raise CollectorSecurityError("Çok fazla redirect")
+
+
+def _check_peer(response: requests.Response, hostname: str) -> None:
+    """DNS rebinding'e karşı ikinci kontrol: `_validate_hop` adı çözüp doğruluyor, ama `requests`
+    bağlantı için adı YENİDEN çözüyor — TTL'i 0 olan bir ad ilk soruda genel bir IP, ikincide
+    127.0.0.1 döndürebilir. Burada gerçekten bağlanılan soketin karşı adresi okunuyor; genel
+    değilse yanıt gövdesi okunmadan istek bırakılıyor.
+
+    v1'de "bilinen sınırlama" olarak kabul edilmişti (yalnızca kullanıcının allowlist'e eklediği
+    host'lar çekiliyordu). v6'da aktif HTTP modülü toplanan metindeki bir host'a gidebildiği için
+    kapatıldı. Karşı adres okunamazsa (urllib3 iç yapısı değişirse) istek engellenmez, loglanır."""
+    sock = getattr(getattr(getattr(response, "raw", None), "_connection", None), "sock", None)
+    if sock is None:
+        logger.debug("Karşı adres okunamadı (%s) — rebinding kontrolü atlandı", hostname)
+        return
+    try:
+        peer_ip = sock.getpeername()[0]
+    except OSError:
+        return
+    if not is_safe_ip(peer_ip):
+        raise CollectorSecurityError(
+            f"Reddedildi: {hostname!r} bağlantı anında genel-olmayan bir adrese ({peer_ip}) gitti — DNS rebinding koruması"
+        )
 
 
 def _read_body(
@@ -576,7 +601,13 @@ def parse_telegram(html_bytes: bytes) -> list[dict]:
         post = msg.get("data-post") or ""
         if "/" not in post:
             continue
-        text_node = msg.select_one(".tgme_widget_message_text")
+        # Yanıt mesajlarında alıntılanan metin (`.tgme_widget_message_reply` içinde) asıl metinden
+        # önce gelir; asıl metin `js-message_text` sınıfını taşır.
+        text_node = next(
+            (n for n in msg.select(".tgme_widget_message_text.js-message_text")
+             if n.find_parent(class_="tgme_widget_message_reply") is None),
+            None,
+        )
         text = ""
         if text_node is not None:
             # Satır sonları <br> ile geliyor; bağlantı/kalın gibi satır içi etiketlerde ayırıcı

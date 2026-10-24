@@ -102,7 +102,7 @@ def run_dns(ctx: Ctx, target: Target) -> Result:
                     pivots.append(Pivot("spf_include", "domain", inc))
             for ip4 in re.findall(r"ip4:([0-9.]+)(?!/)", txt):
                 if valid_public_ip(ip4):
-                    pivots.append(Pivot("spf_allows", "ip", ip4))
+                    pivots.append(Pivot("spf_allows", "ip", str(ipaddress.ip_address(ip4))))
         m = _VERIFICATION_RE.match(txt)
         if m:
             verifications.append({"service": m.group(1), "token": m.group(2)})
@@ -433,7 +433,8 @@ def run_internetdb(ctx: Ctx, target: Target) -> Result:
         if exc.status_code == 404:
             return Result({"ip": ip, "found": False, "ports": [], "hostnames": [], "vulns": [], "cpes": [], "tags": []})
         raise
-    pivots = [Pivot("hostname", "domain", h.lower()) for h in data.get("hostnames", []) if valid_domain(h)]
+    hostnames = {h.lower().rstrip(".") for h in data.get("hostnames", [])}
+    pivots = [Pivot("hostname", "domain", h) for h in sorted(hostnames) if valid_domain(h)]
     pivots += [Pivot("exposes", "cve", v.upper()) for v in data.get("vulns", []) if v.upper().startswith("CVE-")]
     return Result({"ip": ip, "found": True, **{k: data.get(k, []) for k in ("ports", "hostnames", "vulns", "cpes", "tags")}}, pivots)
 
@@ -515,9 +516,11 @@ def run_urlscan(ctx: Ctx, target: Target) -> Result:
             "result": item.get("result"),
         })
         ip = page.get("ip")
-        if target.kind != "ip" and ip and valid_public_ip(ip) and ip not in seen_ips:
-            seen_ips.add(ip)
-            pivots.append(Pivot("scanned_on", "ip", ip))
+        if target.kind != "ip" and ip and valid_public_ip(ip):
+            ip = str(ipaddress.ip_address(ip))  # IPv6 yazımı tek biçime: aynı adres iki seçici olmasın
+            if ip not in seen_ips:
+                seen_ips.add(ip)
+                pivots.append(Pivot("scanned_on", "ip", ip))
     return Result({"query": query, "total": data.get("total"), "has_more": data.get("has_more"), "results": results}, pivots[:30])
 
 
@@ -586,12 +589,14 @@ def run_http(ctx: Ctx, target: Target) -> Result:
     generator = soup.find("meta", attrs={"name": "generator"})
     icon_link = soup.find("link", rel=lambda v: v and "icon" in (v if isinstance(v, list) else [v]))
     icon_url = None
+    icon_url = f"{urlparse(url).scheme}://{host}/favicon.ico"
     if icon_link and icon_link.get("href") and not icon_link["href"].startswith("data:"):
         from urllib.parse import urljoin
 
-        icon_url = urljoin(url, icon_link["href"])
-    else:
-        icon_url = f"{urlparse(url).scheme}://{host}/favicon.ico"
+        try:
+            icon_url = urljoin(url, icon_link["href"])
+        except ValueError:
+            pass
     icon_hash = None
     icon_note = None
     try:
@@ -606,7 +611,10 @@ def run_http(ctx: Ctx, target: Target) -> Result:
     links = Counter()
     for a in soup.find_all(["a", "script", "link", "img", "iframe"], href=True) + soup.find_all(["script", "img", "iframe"], src=True):
         ref = a.get("href") or a.get("src")
-        h = (urlparse(ref).hostname or "").lower()
+        try:
+            h = (urlparse(ref).hostname or "").lower()
+        except ValueError:
+            continue  # bozuk bir bağlantı (`http://[x`) bütün parmak izini düşürmemeli
         if h and h != host:
             links[h] += 1
     pivots = [Pivot("links_to", "domain", h) for h, _ in links.most_common(25) if valid_domain(h)]

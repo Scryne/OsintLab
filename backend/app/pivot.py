@@ -45,7 +45,10 @@ def _merge_rows(conn, rows: list[dict], target: str) -> int:
 
 
 def _rows_for(target_id: str, text: str, source_url: str | None = None) -> list[dict]:
-    own = selectorindex.registrable_domain(urlparse(source_url).hostname or "") if source_url else ""
+    try:
+        own = selectorindex.registrable_domain(urlparse(source_url).hostname or "") if source_url else ""
+    except ValueError:
+        own = ""
     return [
         {
             "sid": s.id, "kind": s.kind, "value": s.value, "tid": target_id,
@@ -82,7 +85,7 @@ def reindex_all() -> dict:
     sonrası). Kilit parça başına alınır: tek kilitte tüm tur arayüzdeki her yazmayı bekletirdi."""
     conn = get_connection()
     started = datetime.now(timezone.utc)
-    stats = {"observations_scanned": 0, "evidence_scanned": 0, "new_sightings": 0}
+    stats = {"observations_scanned": 0, "evidence_scanned": 0, "new_sightings": 0, "failed": 0}
     # Yeniden tarama bir YENİDEN KURMA: görülme kenarları silinip baştan kuruluyor, çünkü kural
     # değişikliği (ör. kaynağın kendine referansının dışlanması) eski kenarları geçersiz kılabilir
     # ve MERGE yalnızca ekleyebilir. Seçici düğümleri, notları, durumları ve zenginleştirme
@@ -95,7 +98,13 @@ def reindex_all() -> dict:
     ))
     rows: list[dict] = []
     for obs in observations:
-        rows.extend(_rows_for(obs["id"], obs["text"], obs["url"]))
+        # Tek bir gözlemin çıkarımı düşerse (beklenmeyen bir metin) yeniden kurulum yarıda kalmamalı:
+        # kenarlar az önce silindi, yarıda kalan bir tur indeksi boş bırakırdı.
+        try:
+            rows.extend(_rows_for(obs["id"], obs["text"], obs["url"]))
+        except Exception:  # noqa: BLE001
+            logger.exception("Gözlem %s indekslenemedi, atlandı", obs["id"])
+            stats["failed"] = stats.get("failed", 0) + 1
         stats["observations_scanned"] += 1
         if len(rows) >= REINDEX_CHUNK:
             with graph_lock:
@@ -107,10 +116,12 @@ def reindex_all() -> dict:
     # Kaynak arşivleri (Faz 26) gözlem metninin birebir kopyası: indekslenseler her seçici "iki
     # yerde görüldü" sayılırdı. Yalnızca kullanıcının yüklediği belgeler taranır; önceki bir
     # taramanın arşivlere açtığı kenarlar temizlenir.
+    # Belge kenarları da baştan kurulur (kural değişikliği eski kenarları geçersiz kılabilir) —
+    # dosyanın kendisinden gelen EXIF GPS kenarları hariç: onlar metinden yeniden üretilemez.
     with graph_lock:
         conn.execute(
-            "MATCH (:Selector)-[r:SEEN_IN_EVIDENCE]->(e:Evidence) WHERE e.evidence_type = $t DELETE r",
-            {"t": ARCHIVE_TYPE},
+            "MATCH (:Selector)-[r:SEEN_IN_EVIDENCE]->(:Evidence) WHERE r.context <> $gps DELETE r",
+            {"gps": GPS_CONTEXT},
         )
     docs = fetch_all(conn.execute(
         "MATCH (e:Evidence) WHERE e.extracted_text IS NOT NULL AND e.extracted_text <> '' "
@@ -119,7 +130,11 @@ def reindex_all() -> dict:
         {"t": ARCHIVE_TYPE},
     ))
     for doc in docs:
-        doc_rows = _rows_for(doc["id"], doc["text"])
+        try:
+            doc_rows = _rows_for(doc["id"], doc["text"])
+        except Exception:  # noqa: BLE001
+            logger.exception("Belge %s indekslenemedi, atlandı", doc["id"])
+            continue
         stats["evidence_scanned"] += 1
         if doc_rows:
             with graph_lock:
@@ -129,7 +144,10 @@ def reindex_all() -> dict:
             "MATCH (s:Selector) WHERE s.origin = 'extracted' AND s.status = 'ACTIVE' "
             "AND NOT EXISTS { MATCH (s)-[:SEEN_IN]->() } AND NOT EXISTS { MATCH (s)-[:SEEN_IN_EVIDENCE]->() } "
             "AND NOT EXISTS { MATCH (s)-[:PIVOT]-() } AND NOT EXISTS { MATCH (s)-[:SELECTOR_OF]->() } "
-            "AND NOT EXISTS { MATCH (:EnrichmentRun)-[:RAN_ON]->(s) } RETURN s.id AS id"
+            "AND NOT EXISTS { MATCH (:EnrichmentRun)-[:RAN_ON]->(s) } "
+            # İzlemedeki bir seçici silinirse izleme sessizce dururdu.
+            "AND NOT EXISTS { MATCH (m:Monitor) WHERE m.target_type = 'Selector' AND m.target_id = s.id } "
+            "RETURN s.id AS id"
         ))
         for row in orphans:
             conn.execute("MATCH (s:Selector {id: $id}) DETACH DELETE s", {"id": row["id"]})
@@ -437,6 +455,9 @@ def claim_selectors(claim_id: str) -> list[dict]:
         f"WHERE s.status <> 'IGNORED' RETURN DISTINCT {_SEL} ORDER BY kind, value",
         {"id": claim_id},
     ))
+
+
+GPS_CONTEXT = "EXIF GPS konumu"
 
 
 def link_evidence_selector(evidence_id: str, kind: str, value: str, context: str) -> str:

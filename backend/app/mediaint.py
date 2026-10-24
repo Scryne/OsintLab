@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import io
 import logging
+import math
 import re
+import warnings
 from datetime import datetime
 from pathlib import Path
 
@@ -27,7 +29,19 @@ from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
 logger = logging.getLogger(__name__)
 
 IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "TIFF", "GIF", "BMP", "HEIF", "MPO"}
+# Görseller güvenilmeyen kaynaktan geliyor: piksel sınırı modül yüklenirken konuyor ve Pillow'un
+# "uyar ama aç" bandı hataya çevriliyor (yoksa sınırın iki katına kadar görsel tamamen açılırdı).
 MAX_PIXELS = 80_000_000
+Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+warnings.simplefilter("error", Image.DecompressionBombWarning)
+# Hash ve önizleme için çalışma kopyası: tam çözünürlükte iki kez döndürüp gri tona çevirmek
+# yerine bir kez küçültülüyor (algısal hash zaten 9×8'e iniyor).
+WORK_SIDE = 1024
+# OCR büyütmesi: dar görseller büyütülünce Tesseract daha iyi okuyor, ama 1×100.000 px'lik bir
+# görseli 1400 px genişliğe ölçeklemek 140 milyon piksel yüksekliğe çıkar (2026-10-24 incelemesi).
+OCR_TARGET_WIDTH = 1400
+OCR_MAX_SCALE = 4.0
+OCR_MAX_PIXELS = 25_000_000
 
 # Bir kamera dosyasında OSINT açısından anlamlı EXIF alanları. Sıra arayüzdeki sıradır.
 _EXIF_FIELDS = (
@@ -49,15 +63,18 @@ def is_image(path: Path) -> bool:
     try:
         with Image.open(path) as img:
             return (img.format or "").upper() in IMAGE_FORMATS
-    except (UnidentifiedImageError, OSError, ValueError):
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombWarning, Image.DecompressionBombError):
         return False
 
 
 def _num(value):
+    # EXIF 0/0 rasyoneli (manuel lenste FNumber, GPSAltitude) Pillow'da NaN olur; NaN JSON'a
+    # yazılabiliyor ama FastAPI geri döndüremiyor — /media 500 veriyordu.
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError, ZeroDivisionError):
         return None
+    return number if math.isfinite(number) else None
 
 
 def _clean(value) -> str | float | None:
@@ -69,6 +86,8 @@ def _clean(value) -> str | float | None:
     num = _num(value)
     if num is not None:
         return round(num, 6)
+    if isinstance(value, (int, float)) or hasattr(value, "numerator"):
+        return None  # sayısal ama sonlu değil (0/0) — "nan" metni bir değer değil
     return str(value)[:200] if value is not None else None
 
 
@@ -156,8 +175,9 @@ def _xmp(raw: bytes) -> dict:
 
 def analyze(path: Path) -> dict:
     raw = path.read_bytes()
-    Image.MAX_IMAGE_PIXELS = MAX_PIXELS
     with Image.open(io.BytesIO(raw)) as img:
+        if img.width * img.height > MAX_PIXELS:
+            raise ValueError(f"Görsel çok büyük ({img.width}×{img.height}); sınır {MAX_PIXELS:,} piksel.")
         img.load()
         info = {
             "format": img.format,
@@ -183,7 +203,9 @@ def analyze(path: Path) -> dict:
                 text = _clean(value)
                 if isinstance(text, str):
                     text_chunks[str(key)] = text[:1500]
-        hashes = {"dhash": dhash(img), "ahash": ahash(img)}
+        work = ImageOps.exif_transpose(img)
+        work.thumbnail((WORK_SIDE, WORK_SIDE))
+        hashes = {"dhash": dhash(work), "ahash": ahash(work)}
 
     xmp = _xmp(raw)
     c2pa = b"c2pa" in raw or b"jumb" in raw[:2_000_000]
@@ -235,10 +257,12 @@ def ocr_image(path: Path, lang: str, timeout: int = 60) -> dict | None:
         pytesseract.pytesseract.tesseract_cmd = cmd
     with Image.open(path) as img:
         img = ImageOps.exif_transpose(img).convert("RGB")
-        # Küçük ekran görüntüleri büyütülünce Tesseract belirgin biçimde daha iyi okuyor.
-        if img.width < 1400:
-            scale = 1400 / img.width
-            img = img.resize((int(img.width * scale), int(img.height * scale)), Image.Resampling.LANCZOS)
+        # Küçük ekran görüntüleri büyütülünce Tesseract belirgin biçimde daha iyi okuyor — ama
+        # ölçek ve sonuç piksel sayısı sınırlı.
+        if img.width < OCR_TARGET_WIDTH:
+            scale = min(OCR_TARGET_WIDTH / img.width, OCR_MAX_SCALE)
+            if img.width * img.height * scale * scale <= OCR_MAX_PIXELS:
+                img = img.resize((int(img.width * scale), int(img.height * scale)), Image.Resampling.LANCZOS)
         data = pytesseract.image_to_data(img, lang=lang, output_type=pytesseract.Output.DICT, timeout=timeout)
     words, confs = [], []
     for text, conf in zip(data.get("text", []), data.get("conf", []), strict=False):
@@ -256,8 +280,10 @@ def preview_png(path: Path, max_side: int = 1200) -> bytes:
     zaman tarayıcıda satır içi açılmaz (kanıt dosyaları güvenilmeyen kaynaktan geliyor); yeniden
     kodlama metadata'yı ve gömülü her şeyi atar, geriye yalnızca pikseller kalır."""
     with Image.open(path) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
+        img.draft("RGB", (max_side, max_side))  # JPEG'de tam çözünürlüğü hiç açmadan küçültür
+        img = ImageOps.exif_transpose(img)
         img.thumbnail((max_side, max_side))
+        img = img.convert("RGB")
         buf = io.BytesIO()
         img.save(buf, format="PNG", optimize=True)
         return buf.getvalue()

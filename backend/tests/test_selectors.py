@@ -55,7 +55,7 @@ def test_real_domains_and_emails():
 
 def test_ids_and_hashes():
     found = _kinds(
-        "CVE-2024-3400 exploited (T1190, T1059.004) by AS13335; sample "
+        "CVE-2024-3400 exploited (T1190, T1059.004) from hosting network AS13335; sample "
         "BBDD3620A67AEDEC4B9A68B2C9CC880B6631215E129816AEA19902A6F4BC6F41 and d41d8cd98f00b204e9800998ecf8427e"
     )
     assert found["cve"] == {"CVE-2024-3400"}
@@ -188,3 +188,14 @@ def test_unknown_tld_is_not_a_domain():
     assert "upl.natcloudservice.com.ews" not in found.get("domain", set())
     assert "ok.example.org" in found["domain"]
     assert detect("something.notarealtld") is None
+
+
+def test_plain_as_numbers_need_network_context():
+    assert "asn" not in _kinds("Runs on IBM AS400 and is AS 9100 certified")
+    assert _kinds("traffic from ASN 64600 and AS13335")["asn"] == {"AS13335"}  # 64600 özel aralık (RFC 6996)
+    assert _kinds("announced by AS13335")["asn"] == {"AS13335"}
+
+
+def test_bad_port_url_does_not_crash_extraction():
+    found = _kinds("PoC: curl http://target:port/x and http://a.example.com:99999/ then https://ok.example.com:8443/a")
+    assert found["url"] == {"https://ok.example.com:8443/a"}

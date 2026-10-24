@@ -189,7 +189,7 @@ def _process_image(evidence_id: str, path) -> dict:
     gps = analysis.get("gps")
     if gps:
         try:
-            pivot.link_evidence_selector(evidence_id, "coord", f"{gps['lat']:.6f},{gps['lon']:.6f}", "EXIF GPS konumu")
+            pivot.link_evidence_selector(evidence_id, "coord", f"{gps['lat']:.6f},{gps['lon']:.6f}", pivot.GPS_CONTEXT)
         except Exception:  # noqa: BLE001
             logger.exception("MEDIAINT (%s): GPS seçicisi açılamadı", evidence_id[:8])
     lang = docint.ocr_status()["lang"] or "eng"

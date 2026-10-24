@@ -290,6 +290,10 @@ _EMAIL_RE = re.compile(r"(?<![\w.+-])([a-z0-9][a-z0-9._%+-]{0,63})@((?:" + _LABE
 _CVE_RE = re.compile(r"\bCVE-(\d{4})-(\d{4,7})\b", re.I)
 _ATTACK_RE = re.compile(r"\b(T1[0-6]\d{2}(?:\.\d{3})?)\b")
 _ASN_RE = re.compile(r"\bASN?\s?(\d{2,10})\b")
+_ASN_CONTEXT = re.compile(
+    r"\b(?:asn|autonomous system|bgp|announced|prefix(?:es)?|hosting|hosted|network|isp|provider|ip address|netblock)\b",
+    re.I,
+)
 _ETH_RE = re.compile(r"\b(0x[a-fA-F0-9]{40})\b")
 _BTC_B58_RE = re.compile(r"(?<![A-Za-z0-9])([13][1-9A-HJ-NP-Za-km-z]{25,34})(?![A-Za-z0-9])")
 _BTC_BECH_RE = re.compile(r"\b(bc1[ac-hj-np-z02-9]{11,71})\b", re.I)
@@ -314,14 +318,17 @@ def _strip_url(url: str) -> str:
 
 
 def normalize_url(url: str) -> str | None:
+    # `.port` erişimi de ValueError fırlatır (`http://target:port/x`, `:99999`) — CVE/PoC
+    # metinlerinde sık. Yakalanmazsa tek bir gözlem bütün yeniden indekslemeyi düşürüyordu
+    # (2026-10-24 incelemesi).
     try:
         parts = urlsplit(url.strip())
+        if parts.scheme.lower() not in ("http", "https", "ftp") or not parts.hostname:
+            return None
+        host = parts.hostname.lower()
+        netloc = host if parts.port is None else f"{host}:{parts.port}"
     except ValueError:
         return None
-    if parts.scheme.lower() not in ("http", "https", "ftp") or not parts.hostname:
-        return None
-    host = parts.hostname.lower()
-    netloc = host if parts.port is None else f"{host}:{parts.port}"
     path = parts.path or "/"
     return urlunsplit((parts.scheme.lower(), netloc, path, parts.query, ""))
 
@@ -426,8 +433,15 @@ def extract(text: str) -> list[Found]:
         add(_HASH_KIND[len(value)], value.lower(), m.start(), m.end())
     for m in _ASN_RE.finditer(plain):
         number = int(m.group(1))
-        if _asn_public(number):
-            add("asn", f"AS{number}", m.start(), m.end())
+        if not _asn_public(number):
+            continue
+        # "ASN 13335" her zaman gösterge; düz "AS400", "AS 9100 certified", "AS 2024 ENDS" ise
+        # ürün/standart/manşet. Düz "AS" yalnızca yakında ağ bağlamı varsa kabul edilir.
+        if not m.group(0).upper().startswith("ASN") and not _ASN_CONTEXT.search(
+            plain[max(0, m.start() - 80):m.end() + 80]
+        ):
+            continue
+        add("asn", f"AS{number}", m.start(), m.end())
 
     # 4. IPv4 — defang'li biçim filtreyi atlar, düz biçim sürüm bağlamında reddedilir.
     for m in _IPV4_DEFANGED_RE.finditer(plain):

@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 
-from app.db import fetch_all, get_connection, graph_lock
+from app.db import DATA_ROOT, atomic_write_text, fetch_all, fetch_one, get_connection, graph_lock
 from app.enrichment import engine
 from app.enrichment.base import ACTIVE
 from app.monitoring import notify_if_monitored
@@ -66,8 +67,19 @@ def diff(module: str, before: dict, after: dict) -> list[dict]:
         if bool(before.get("nxdomain")) != bool(after.get("nxdomain")):
             add("NXDOMAIN", "Alan adı artık çözülmüyor" if after.get("nxdomain") else "Alan adı yeniden çözülüyor")
     elif module == "crtsh":
+        # İki koşu farklı kaynaktan geldiyse (crt.sh ↔ yedek Cert Spotter) karşılaştırılmaz: Cert
+        # Spotter'ın anonim yanıtı çok daha küçük, geri dönüşte sahte "N yeni alt alan adı" çıkardı.
+        if before.get("provider") != after.get("provider"):
+            return out
+        capped = (before.get("subdomain_count") or 0) > len(before.get("subdomains") or []) or \
+            (after.get("subdomain_count") or 0) > len(after.get("subdomains") or [])
         new = _set(after.get("subdomains")) - _set(before.get("subdomains"))
-        if new:
+        if capped:
+            # Liste kesilmişse küme farkı yanıltıcı (sıralamada sona düşen yeni ad görünmez).
+            grown = (after.get("subdomain_count") or 0) - (before.get("subdomain_count") or 0)
+            if grown > 0:
+                add("NEW_SUBDOMAIN", f"Alt alan adı sayısı arttı: {before.get('subdomain_count')} → {after.get('subdomain_count')}")
+        elif new:
             shown = ", ".join(sorted(new)[:10])
             add("NEW_SUBDOMAIN", f"{len(new)} yeni alt alan adı sertifikası: {shown}{' …' if len(new) > 10 else ''}")
         elif (after.get("certificate_count") or 0) > (before.get("certificate_count") or 0):
@@ -121,15 +133,32 @@ def diff(module: str, before: dict, after: dict) -> list[dict]:
     return out
 
 
-def _last_two(module: str, target_id: str) -> list[dict]:
-    rows = fetch_all(get_connection().execute(
-        "MATCH (r:EnrichmentRun) WHERE r.module = $m AND r.selector_id = $t AND r.status = 'DONE' "
-        "RETURN r.id AS id, r.summary AS summary, r.finished_at AS finished_at ORDER BY r.finished_at DESC LIMIT 2",
-        {"m": module, "t": target_id},
+# İzleme durumu: (seçici, modül) başına son deneme zamanı ve son KARŞILAŞTIRILAN koşu.
+#
+# Taban çizgisi "en son başarılı koşu" olsaydı, kullanıcının aradaki elle koşusu (ya da toplu bir
+# KEV turu) geçişi yutardı: KEV'e giriş elle koşuda görülür, izleme koşusu "değişiklik yok" der ve
+# alarm hiç düşmezdi. Aralık da yalnızca başarılı koşulara bakınca, sürekli düşen bir modül
+# (crt.sh 502) günde bir yerine her 10 dakikada bir yeniden sorgulanıyordu — OPSEC kuralına aykırı.
+STATE_PATH = DATA_ROOT / "config" / "selector_watch.json"
+_state_lock = threading.Lock()
+
+
+def _load_state() -> dict:
+    try:
+        return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(state: dict) -> None:
+    atomic_write_text(STATE_PATH, json.dumps(state, ensure_ascii=False, indent=1))
+
+
+def _run_summary(run_id: str) -> dict | None:
+    row = fetch_one(get_connection().execute(
+        "MATCH (r:EnrichmentRun {id: $id}) WHERE r.status = 'DONE' RETURN r.summary AS summary", {"id": run_id}
     ))
-    for row in rows:
-        row["summary"] = json.loads(row["summary"]) if row["summary"] else {}
-    return rows
+    return json.loads(row["summary"]) if row and row["summary"] else None
 
 
 def watched_selectors() -> list[dict]:
@@ -149,17 +178,33 @@ def check_selector(selector: dict, *, now: datetime | None = None, force: bool =
         module = engine.REGISTRY.get(name)
         if module is None or module.opsec == ACTIVE or not engine.is_enabled(module, settings):
             continue
-        history = _last_two(name, selector["id"])
-        if not force and history and history[0]["finished_at"] and now - history[0]["finished_at"] < WATCH_INTERVAL:
-            continue
+        key = f"{selector['id']}|{name}"
+        with _state_lock:
+            state = _load_state()
+            entry = state.get(key, {})
+            last = entry.get("last_attempt")
+            if not force and last and now - datetime.fromisoformat(last) < WATCH_INTERVAL:
+                continue
+            entry["last_attempt"] = now.isoformat()
+            state[key] = entry
+            _save_state(state)
         try:
             run = engine.run(name, selector["id"], force=True, wait=True)
         except engine.EnrichmentError as exc:
             logger.warning("İzleme %s / %s çalıştırılamadı: %s", name, selector["id"], exc)
             continue
-        if run["status"] != "DONE" or not history:
-            continue  # ilk başarılı koşu taban çizgisidir; başarısız koşu fark üretmez
-        changes = diff(name, history[0]["summary"], run["summary"] or {})
+        if run["status"] != "DONE":
+            continue  # başarısız koşu taban çizgisini değiştirmez ve fark üretmez
+        baseline_id = entry.get("compared_run")
+        with _state_lock:
+            state = _load_state()
+            state.setdefault(key, {})["compared_run"] = run["id"]
+            state[key]["last_attempt"] = entry["last_attempt"]
+            _save_state(state)
+        baseline = _run_summary(baseline_id) if baseline_id else None
+        if baseline is None:
+            continue  # ilk başarılı izleme koşusu taban çizgisidir
+        changes = diff(name, baseline, run["summary"] or {})
         if not changes:
             continue
         alert = any(c["code"] in ALERT_CODES for c in changes)
@@ -176,9 +221,9 @@ def check_selector(selector: dict, *, now: datetime | None = None, force: bool =
                     "module_label": module.label,
                     "changes": changes,
                     "run_id": run["id"],
-                    "previous_run_id": history[0]["id"],
+                    "previous_run_id": baseline_id,
                     # Aynı modülün aynı seçicideki bekleyen bildirimi güncellenir, çoğaltılmaz.
-                    "subject_id": f"{selector['id']}|{name}",
+                    "subject_id": key,
                 },
             )
         if notice:

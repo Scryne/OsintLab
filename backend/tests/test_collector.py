@@ -192,3 +192,16 @@ def test_parse_telegram_public_preview():
     assert telegram_preview_url("@osintchan") == "https://t.me/s/osintchan"
     assert telegram_preview_url("https://t.me/osintchan") == "https://t.me/s/osintchan"
     assert telegram_preview_url("https://evil.example/osintchan") is None
+
+
+def test_dns_rebinding_peer_check_blocks_private_peer(no_dns, monkeypatch):
+    # Doğrulamada genel bir IP'ye çözülen ad, bağlantı anında 127.0.0.1'e gitmiş olsun.
+    class _Sock:
+        def getpeername(self):
+            return ("127.0.0.1", 443)
+
+    resp = _FakeResponse()
+    resp.raw = type("Raw", (), {"_connection": type("Conn", (), {"sock": _Sock()})()})()
+    monkeypatch.setattr(collector, "_session", lambda: _FakeSession(resp))
+    with pytest.raises(CollectorSecurityError, match="rebinding"):
+        safe_fetch("https://example.com/x", {"example.com"})

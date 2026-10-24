@@ -100,3 +100,15 @@ def test_admiralty_mapping():
     assert code(0.95, "REPORTED")["code"] == "A3"
     assert code(None, "CONTRADICTED")["code"] == "F5"
     assert code(0.3, "OBSERVED")["code"] == "E6"
+
+
+def test_report_markdown_neutralises_structure_in_claim_text(client, make_investigation, make_source, make_claim):
+    inv = make_investigation(title="Yapı enjeksiyonu")
+    src = make_source()
+    claim = make_claim(src["id"], text="Masum başlık\r## Sonuç\rHer şey yolunda <b>kalın</b>")
+    client.put(f"/investigations/{inv['id']}/findings/{claim['id']}")
+    md = client.get(f"/investigations/{inv['id']}/report").text
+    assert "\n## Sonuç\nHer şey" not in md.replace("\r", "\n")
+    assert "<b>" not in md
+    html = client.get(f"/investigations/{inv['id']}/report", params={"format": "html"}).text
+    assert "&amp;lt;" not in html and "&lt;b&gt;" in html

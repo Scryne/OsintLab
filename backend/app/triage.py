@@ -300,12 +300,17 @@ def _load_context(conn) -> dict:
         "RETURN o.id AS oid, s.id AS sid, r.defanged AS defanged"
     )):
         obs_selectors.setdefault(row["oid"], []).append((row["sid"], bool(row["defanged"])))
-    exploited: set[str] = set()
+    # Seçici başına SON başarılı KEV koşusu esas: katalogdan çıkarılan bir CVE eski bir koşu
+    # yüzünden "sömürülüyor" kalmasın (engine.exploited_cves ile aynı kural).
+    latest_kev: dict[str, tuple] = {}
     for row in fetch_all(conn.execute(
-        "MATCH (r:EnrichmentRun) WHERE r.module = 'kev' AND r.status = 'DONE' RETURN r.selector_id AS sid, r.summary AS summary"
+        "MATCH (r:EnrichmentRun) WHERE r.module = 'kev' AND r.status = 'DONE' "
+        "RETURN r.selector_id AS sid, r.finished_at AS at, r.summary AS summary"
     )):
-        if row["summary"] and '"in_kev": true' in row["summary"]:
-            exploited.add(row["sid"])
+        prev = latest_kev.get(row["sid"])
+        if prev is None or (row["at"] and row["at"] > prev[0]):
+            latest_kev[row["sid"]] = (row["at"], row["summary"])
+    exploited = {sid for sid, (_, s) in latest_kev.items() if s and '"in_kev": true' in s}
     linked_selectors: dict[str, list[str]] = {}
     for row in fetch_all(conn.execute(
         "MATCH (s:Selector)-[:SELECTOR_OF]->(e:Entity) RETURN s.id AS sid, e.name AS name"

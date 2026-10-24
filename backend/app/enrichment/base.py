@@ -148,13 +148,24 @@ class Ctx:
             raise ModuleError(f"{urlparse(url).hostname} JSON olmayan bir yanıt döndürdü.") from exc
 
 
+RECORD_LIST_CAP = 2000
+
+
 def _decode_for_record(content: bytes, content_type: str) -> Any:
+    """Ham yanıtın kayda girecek hali. Çok büyük JSON listeleri (crt.sh büyük bir alan için
+    on binlerce sertifika, 40 MB) kesilir ve kesildiği yazılır: günlük izlemede her koşu onlarca
+    MB ham dosya bırakırdı. Kesilen kaydın SHA-256'sı yine kendi içeriğini doğrular."""
     text = content.decode("utf-8", errors="replace")
     if "json" in content_type or text[:1] in "[{":
         try:
-            return json.loads(text)
+            data = json.loads(text)
         except ValueError:
-            pass
+            data = None
+        if isinstance(data, list) and len(data) > RECORD_LIST_CAP:
+            return {"truncated": True, "total_items": len(data), "items": data[:RECORD_LIST_CAP],
+                    "original_bytes": len(content)}
+        if data is not None:
+            return data
     return text[:200_000]
 
 

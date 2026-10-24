@@ -81,3 +81,19 @@ def test_sun_position_and_chronolocation_round_trip(client):
     assert best["from_utc"] <= "2026-10-24T08:30:00+00:00" <= best["to_utc"]
     day = client.get("/tools/sun", params={"lat": 41.0082, "lon": 28.9784, "day": "2026-06-21"}).json()["day"]
     assert day["sunrise_utc"].startswith("2026-06-21T02:3")
+
+
+def test_nan_exif_and_thin_image_are_safe(tmp_path):
+    import json
+    from PIL import TiffImagePlugin
+
+    img = Image.new("RGB", (2, 3000), (200, 200, 200))
+    exif = Image.Exif()
+    exif.get_ifd(0x8769)[0x829D] = TiffImagePlugin.IFDRational(0, 0)  # FNumber 0/0 → NaN
+    path = tmp_path / "thin.jpg"
+    img.save(path, exif=exif)
+    a = mediaint.analyze(path)
+    json.dumps(a, allow_nan=False)  # NaN kalmamalı
+    assert "FNumber" not in a["exif"]
+    # 2 px genişlikteki görsel OCR'da 4 kattan fazla büyütülmemeli (bellek sınırı).
+    assert mediaint.OCR_MAX_SCALE == 4.0

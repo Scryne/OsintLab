@@ -269,3 +269,32 @@ def test_rdap_hides_individual_contacts():
     shown = [e["name"] for e in ents if not e["individual"]]
     assert shown == ["EXAMPLE NOC", "Example Hosting Ltd"]
     assert all(e["name"] is None for e in ents if e["individual"])
+
+
+def test_watch_baseline_is_last_compared_run_not_manual_run(client, monkeypatch):
+    # Aradaki elle koşu KEV geçişini yutmamalı.
+    from app import selectorwatch
+
+    state = {"in_kev": False}
+
+    def fake_kev(ctx, target):
+        return Result({"cve": target.value, "in_kev": state["in_kev"], "date_added": "2026-10-20"})
+
+    monkeypatch.setitem(engine.REGISTRY, "kev", Module("kev", "CISA KEV", "test", "test", "selector", ("cve",), PASSIVE, frozenset(), fake_kev))
+    monkeypatch.setitem(selectorwatch.WATCH_MODULES, "cve", ("kev",))
+    sid = _selector(client, "CVE-2031-31337")
+    client.post("/monitors", json={"target_type": "Selector", "target_id": sid})
+    client.post(f"/selectors/{quote(sid, safe='')}/watch-check")          # taban: yok
+    state["in_kev"] = True
+    client.post("/enrichment/run", json={"module": "kev", "target_id": sid, "force": True})  # elle koşu
+    r = client.post(f"/selectors/{quote(sid, safe='')}/watch-check").json()
+    assert len(r["notices"]) == 1 and r["notices"][0]["priority"] == "HIGH"
+
+
+def test_crtsh_provider_switch_is_not_a_change():
+    from app.selectorwatch import diff
+
+    before = {"provider": "crt.sh", "subdomains": ["a.x.example", "b.x.example"], "subdomain_count": 2}
+    after = {"provider": "Cert Spotter", "subdomains": ["a.x.example"], "subdomain_count": 1}
+    assert diff("crtsh", before, after) == []
+    assert diff("crtsh", after | {"provider": "crt.sh"}, before)[0]["code"] == "NEW_SUBDOMAIN"
