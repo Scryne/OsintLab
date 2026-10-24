@@ -199,3 +199,23 @@ def test_plain_as_numbers_need_network_context():
 def test_bad_port_url_does_not_crash_extraction():
     found = _kinds("PoC: curl http://target:port/x and http://a.example.com:99999/ then https://ok.example.com:8443/a")
     assert found["url"] == {"https://ok.example.com:8443/a"}
+
+
+def test_export_csv_and_stix(client):
+    import json
+
+    client.post("/selectors", json={"value": "export-me.example.org"})
+    client.post("/selectors", json={"value": "CVE-2031-80808"})
+    client.post("/selectors", json={"value": "AS13335"})
+    csv_text = client.get("/selectors/export", params={"q": "export-me"}).text
+    assert csv_text.splitlines()[0].startswith("kind,value") and "export-me.example.org" in csv_text
+    bundle = json.loads(client.get("/selectors/export", params={"format": "stix"}).text)
+    assert bundle["type"] == "bundle"
+    by_name = {o.get("name"): o for o in bundle["objects"]}
+    assert by_name["domain: export-me.example.org"]["pattern"] == "[domain-name:value = 'export-me.example.org']"
+    assert by_name["CVE-2031-80808"]["type"] == "vulnerability"
+    assert by_name["asn: AS13335"]["pattern"] == "[autonomous-system:number = 13335]"
+    # Kimlikler seçiciden türetilir: ikinci dışa aktarım aynı kimliği verir.
+    again = json.loads(client.get("/selectors/export", params={"format": "stix"}).text)
+    ids = {o.get("name"): o["id"] for o in again["objects"]}
+    assert ids["CVE-2031-80808"] == by_name["CVE-2031-80808"]["id"]

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileSearch, Layers, Loader2, Plus, RefreshCw, Square } from "lucide-react";
-import { api } from "@/lib/api";
+import { Download, FileSearch, Layers, Loader2, Plus, RefreshCw, Square } from "lucide-react";
+import { api, API_BASE } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { KIND_LABELS, type ExtractedSelector, type SelectorKind } from "@/lib/types-pivot";
 import { Button } from "@/components/ui/button";
@@ -111,6 +111,7 @@ export default function SelectorsPage() {
             Yok sayılanları da göster
           </label>
           {refreshing && <Loader2 aria-label="Yükleniyor" className="h-4 w-4 animate-spin text-text-tertiary" />}
+          <ExportLinks kind={kind} q={query} kevOnly={kevOnly} />
         </div>
         {kind && <BulkEnrich kind={kind} onFinished={() => { reload(); }} />}
       </div>
@@ -340,5 +341,24 @@ function BulkEnrich({ kind, onFinished }: { kind: SelectorKind; onFinished: () =
         </span>
       )}
     </div>
+  );
+}
+
+
+/** Görünen listeyi aynı filtrelerle dışa aktarır. STIX 2.1 paketi MISP/OpenCTI gibi araçlara
+ * doğrudan girer; yanlış pozitif işaretli seçiciler hiç dışa aktarılmaz. */
+function ExportLinks({ kind, q, kevOnly }: { kind: string; q: string; kevOnly: boolean }) {
+  const qs = new URLSearchParams();
+  if (kind) qs.set("kind", kind);
+  if (q) qs.set("q", q);
+  if (kevOnly) qs.set("flag", "kev");
+  const base = `${API_BASE}/selectors/export?${qs.toString()}`;
+  return (
+    <span className="ml-auto flex items-center gap-1.5 text-xs text-text-tertiary">
+      <Download aria-hidden className="h-3.5 w-3.5" />
+      Dışa aktar:
+      <a href={`${base}&format=csv`} className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground">CSV</a>
+      <a href={`${base}&format=stix`} className="text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground">STIX 2.1</a>
+    </span>
   );
 }

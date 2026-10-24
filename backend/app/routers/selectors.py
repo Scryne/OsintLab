@@ -2,6 +2,8 @@
 
 Seçici kimliği `tür:değer` biçiminde ve değer `/` içerebilir (URL), bu yüzden yol parametreleri
 `:path` ile alınıyor ve kimliği takip eden sabit bir son ek (`/detail`) kullanılıyor."""
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, Query
 
 from app import pivot, selectorindex
@@ -47,6 +49,36 @@ def list_selectors(
         # Satır başına işaret: şimdilik yalnızca "gerçekte sömürülüyor" (KEV'in son koşusu).
         item["flags"] = ["KEV"] if item["id"] in exploited else []
     return SelectorList(**data)
+
+
+@router.get("/export")
+def export(
+    format: str = Query("csv", pattern="^(csv|stix)$"),
+    kind: str | None = None,
+    q: str | None = None,
+    flag: str | None = Query(None, pattern="^kev$"),
+):
+    """Görünen listeyi (aynı filtrelerle) dışa aktarır: CSV ya da STIX 2.1 paketi. Yok sayılan
+    (yanlış pozitif) seçiciler hiçbir zaman dışa aktarılmaz."""
+    from fastapi.responses import Response
+
+    from app import stixexport
+    from app.enrichment.engine import exploited_cves
+
+    if kind and kind not in selectorindex.KINDS:
+        raise HTTPException(status_code=422, detail=f"Bilinmeyen seçici türü: {kind}")
+    exploited = {row["id"] for row in exploited_cves(limit=100_000)}
+    rows = pivot.list_selectors(kind, q, False, "value", 100_000, 0,
+                                only_ids=exploited if flag == "kev" else None)["items"]
+    rows = [r for r in rows if r["kind"] not in ("email", "coord")]
+    flags = {r["id"]: ["KEV"] for r in rows if r["id"] in exploited}
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    if format == "stix":
+        body = stixexport.dumps(stixexport.stix_bundle(rows, flags=flags))
+        return Response(body, media_type="application/stix+json;version=2.1",
+                        headers={"Content-Disposition": f'attachment; filename="osintlab-selectors-{stamp}.json"'})
+    return Response(stixexport.to_csv(rows, flags=flags), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="osintlab-selectors-{stamp}.csv"'})
 
 
 @router.get("/kinds", response_model=list[SelectorKindCount])
