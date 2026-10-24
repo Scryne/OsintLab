@@ -249,7 +249,18 @@ def _match_names(index: dict, query: str) -> list[dict]:
     return out
 
 
+# Yaptırım listeleri kişi, kurum, gemi ve uçak listeler; bir AI modeli, ürün ya da konum adının
+# eşleşmesi anlamsızdır (gerçek veride: "Astra" AI modeli ↔ İran listesindeki ASTRA, 2026-10-24).
+NOT_SCREENABLE_TYPES = {
+    "ai model", "model", "product", "ürün", "program", "software", "yazılım", "exploit", "malware",
+    "framework", "konu", "topic", "location", "konum", "technology", "teknoloji", "cve",
+}
+
+
 def run_sanctions(ctx: Ctx, target: Target) -> Result:
+    if target.type == "entity" and (target.entity_type or "").strip().lower() in NOT_SCREENABLE_TYPES:
+        return Result({"queries": [target.value], "match_count": 0, "matches": [], "skipped": True,
+                       "caution": f"'{target.entity_type}' türü yaptırım listelerinin kapsamında değil (kişi, kurum, gemi, uçak) — taranmadı."})
     index, meta = datasets.load("ofac", auto_refresh=True)
     if target.type == "entity":
         queries = [target.value, *target.aliases]

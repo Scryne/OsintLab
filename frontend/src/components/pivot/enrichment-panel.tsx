@@ -95,7 +95,7 @@ export function EnrichmentPanel({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-text-secondary">
+        <p className="text-sm text-text-secondary" aria-live="polite">
           <span className="tabular-nums text-foreground">{done}</span>/{data.length} modül sonuç verdi.
           {polling && (
             <span className="ml-2 inline-flex items-center gap-1 text-text-tertiary">

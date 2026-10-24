@@ -574,8 +574,8 @@ function Sanctions({ s }: { s: S }) {
   }
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-priority-medium-text">{s.caution}</p>
-      {s.match_count === 0 ? (
+      <p className={s.skipped ? "text-xs text-text-secondary" : "text-xs text-priority-medium-text"}>{s.caution}</p>
+      {s.skipped ? null : s.match_count === 0 ? (
         <p className="text-sm text-text-secondary">OFAC SDN listesinde eşleşme yok (liste: {fmtDate(s.list_downloaded_at)}).</p>
       ) : (
         <Table
