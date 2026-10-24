@@ -12,6 +12,7 @@ from fastapi import APIRouter, Query
 
 from app import pivot, selectorindex
 from app.db import fetch_all, get_connection
+from app.report import STATE_LABELS
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -88,6 +89,7 @@ def search(q: str = Query(..., min_length=1, max_length=500)) -> dict:
             continue
         start = max(0, pos - 40)
         snippet = ("…" if start else "") + " ".join(text[start:pos + len(needle) + 80].split()) + "…"
-        hits.append({"id": c["id"], "title": snippet, "subtitle": c["state"], "href": f"/claims/view?id={c['id']}"})
+        hits.append({"id": c["id"], "title": snippet, "subtitle": STATE_LABELS.get(c["state"], c["state"]),
+                     "href": f"/claims/view?id={c['id']}"})
     group("claims", "Claim'ler", hits)
     return out
