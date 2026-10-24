@@ -3631,3 +3631,40 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** izlenen bir seçicide değişiklik olduğunda elle tetikleme olmadan Inbox'a
   düşüyor (testte sahte crt.sh ile doğrulandı); herkese açık bir Telegram kanalı zamanlanmış
   taramaya alınabiliyor. **Karşılandı.**
+
+### v6 ek işler (aynı gece)
+
+- **Rakip Hipotezler Analizi (ACH, Heuer).** Investigation sayfasında kanıt × hipotez matrisi:
+  en olası hipotez en çok desteklenen değil EN AZ TUTARSIZ olan (çürüten 2, zayıflatan 1);
+  tartılmamış hücreler sayılıyor, bütün hipotezlere aynı duruşu taşıyan kanıt "ayırt edici değil"
+  diye soluk gösteriliyor. Hücre tıklanarak düzenleniyor. Veri yeni değil (HYPOTHESIS_EVIDENCE
+  Faz 3'ten beri vardı) — eksik olan, hipotezleri birbirine karşı tartan görünümdü.
+- **NATO/Admiralty kodu (STANAG 2511).** Kaynak güvenilirliği (A-F) + bilgi doğruluğu (1-6),
+  ör. "B2". Yeni bir değerlendirme değil, mevcut deterministik değerlerin standart koda çevirisi
+  (`app/admiralty.py`); 4 ("şüpheli") kullanılmıyor, çünkü çelişki olmadan şüpheyi ölçen bir girdi yok.
+- **Haber araması (Google News RSS).** GDELT bu ağdan tek istekte de 429 döndürdü; anahtarsız
+  Google News RSS araması seçici, kurum ve **claim** hedefli eklendi. CVE-2026-20079 için 19 farklı
+  yayıncıdan 31 haber. Claim sayfasında "Bu iddiayı başka kim söylüyor?" — bulunan haber gözleme
+  çevrilip doğrulama hattına giriyor. Faz 28'in açık bıraktığı ters arama ("ikinci kaynak var ama
+  onu bulmanın yolu yok") burada kapanıyor.
+- **Ana Çalışma Alanı ve vault Dashboard'u:** korpusta sömürülen açıklar (KEV + EPSS); seçici
+  listesinde KEV rozeti ve filtresi; vault entity notlarında bağlı altyapı.
+- **Kurum toplu taraması:** OFAC 72/72 entity (1 ad çakışması: "Astra" AI modeli ↔ İran yaptırım
+  listesindeki ASTRA — tam olarak "ad eşleşmesi kimlik değildir" uyarısının var olma sebebi),
+  GLEIF 72/72; Wikidata host aralığına ve 429'da tek geri çekilmeye rağmen hız sınırına takılıyor.
+- **Bağımsız güvenlik/doğruluk incelemesi (15 bulgu, hepsi düzeltildi).** En önemlileri: geçersiz
+  port'lu bir URL (`http://target:port/x`, PoC metinlerinde sık) seçici çıkarımını düşürüyordu ve
+  yeniden indeksleme kenarları sildikten sonra yarıda kalabiliyordu; dar bir görselin OCR için
+  sınırsız büyütülmesi belleği tüketebiliyordu; EXIF 0/0 değeri `/media`'yı 500'e düşürüyordu;
+  izleme tabanı "son başarılı koşu" olduğu için aradaki elle koşu KEV geçişini yutuyordu. **DNS
+  rebinding** (v1'den beri kabul edilen sınırlama) bağlantı sonrası soketin gerçek karşı adresinin
+  doğrulanmasıyla kapatıldı. Gerçek veride ayrıca yakalananlar: RDAP'in alt alan adını "kayıtlı
+  değil" sanması, bozuk `.ews` TLD'si (→ IANA TLD listesi), RDAP kayıtlarındaki bireylerin
+  görünmesi (→ yalnızca kurum/rol nesneleri), toplu işin DNS'in açtığı 212 pivot alan adını da
+  kapsaması (→ varsayılan kapsam "korpus").
+
+**v6 sonu ölçüm (2026-10-24):** 1.368 seçici (637'si toplanan metinden), KEV'de 90 CVE (11'i
+fidye yazılımında), 117 backend testi yeşil, `scripts/olcum.py` artık seçici/zenginleştirme
+bölümünü de basıyor. Bilinen ve v6'nın dokunmadığı darboğaz: **Promote Kuyruğu'nda 3.870 bekleyen
+gözlem** (1.144'ü yüksek sinyalli) — zamanlanmış tarama girdiyi değerlendirme kapasitesinden hızlı
+üretiyor (Faz 12'nin dersi yeniden geçerli).

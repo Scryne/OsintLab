@@ -121,14 +121,22 @@ class Ctx:
         host = (urlparse(url).hostname or "").lower()
         _throttle(host)
         self.request_urls.append(url)
-        try:
-            final_url, content, content_type = safe_fetch(
-                url, self.hosts, headers=headers, max_bytes=max_bytes, max_seconds=max_seconds, timeout=timeout
-            )
-        except CollectorFetchError as exc:
-            if exc.status_code == 429:
-                raise ModuleError(f"{host} istek kotası doldu (429) — biraz sonra tekrar dene.") from exc
-            raise
+        for attempt in range(2):
+            try:
+                final_url, content, content_type = safe_fetch(
+                    url, self.hosts, headers=headers, max_bytes=max_bytes, max_seconds=max_seconds, timeout=timeout
+                )
+                break
+            except CollectorFetchError as exc:
+                if exc.status_code != 429:
+                    raise
+                if attempt == 1:
+                    raise ModuleError(f"{host} istek kotası doldu (429) — biraz sonra tekrar dene.") from exc
+                # Bir kez geri çekilip yeniden dene: Wikidata toplu kurum taramasında 1,5 sn aralıkla
+                # da 429 verdi (2026-10-24), kısa bir bekleme çoğunu kurtarıyor. Host kilidi tutulmadığı
+                # için bekleme diğer host'ları durdurmaz.
+                time.sleep(min(HOST_INTERVALS.get(host, DEFAULT_INTERVAL) * 6, 15))
+                _throttle(host)
         if record:
             self.responses.append({
                 "url": final_url,
