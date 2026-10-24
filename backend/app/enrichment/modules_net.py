@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 from app.collector import CollectorFetchError
 from app.db import DATA_ROOT, atomic_write_text
 from app.enrichment.base import ACTIVE, PASSIVE, Ctx, Module, ModuleError, Pivot, Result, Target
-from app.selectorindex import valid_domain, valid_public_ip
+from app.selectorindex import registrable_domain, valid_domain, valid_public_ip
 
 DNS_TYPES = ("A", "AAAA", "CNAME", "MX", "NS", "TXT", "CAA", "SOA")
 _DNS_TYPE_CODES = {1: "A", 2: "NS", 5: "CNAME", 6: "SOA", 12: "PTR", 15: "MX", 16: "TXT", 28: "AAAA", 257: "CAA"}
@@ -218,6 +218,12 @@ def _rdap_entities(entities: list[dict], depth: int = 0) -> list[dict]:
 def run_rdap(ctx: Ctx, target: Target) -> Result:
     if target.kind == "ip" and not valid_public_ip(target.value):
         raise ModuleError("Genel (public) olmayan bir IP adresi zenginleştirilmez.")
+    queried = None
+    if target.kind == "domain":
+        # Kayıt kuruluşu yalnızca KAYITLI alan adını bilir: `www.cisa.gov` sorusu 404 döner ve
+        # "kayıtlı değil" diye yanlış okunurdu (2026-10-24'te gerçek veride yakalandı).
+        queried = registrable_domain(target.value)
+        target = Target(target.type, target.id, target.kind, queried)
     base, path = _rdap_base(ctx, target)
     # Bootstrap'tan gelen sunucu güvenilir bir kaynaktan (IANA) geliyor; registry'ler sık sık
     # başka bir host'a yönlendiriyor (ARIN → RIPE), o yüzden bilinen RIR'ler de izinli.
@@ -229,13 +235,14 @@ def run_rdap(ctx: Ctx, target: Target) -> Result:
         if exc.status_code == 404 and target.kind == "domain":
             # Kayıt kuruluşu bu adı tanımıyor: alan adı kayıtlı değil (süresi dolmuş ya da silinmiş
             # olabilir). Bu bir HATA değil, başlı başına bir bulgu — eski bir C2 alanı için tipik.
-            return Result({"server": urlparse(base).hostname, "registered": False,
+            return Result({"server": urlparse(base).hostname, "queried": queried, "registered": False,
                            "note": "Kayıt kuruluşu bu alan adını tanımıyor — şu an kayıtlı değil."})
         raise
     events = {e.get("eventAction"): e.get("eventDate") for e in data.get("events", []) or []}
     entities = _rdap_entities(data.get("entities", []))
     summary: dict = {
         "server": urlparse(base).hostname,
+        "queried": queried,
         "registered": True,
         "handle": data.get("handle"),
         "name": data.get("name") or data.get("ldhName"),

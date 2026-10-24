@@ -403,6 +403,20 @@ def render_entity_note(conn, entity: dict) -> str:
         lines.append("_Bu entity bir investigation'a dahil değil._")
     lines.append("")
 
+    # v6 (Faz 31): kullanıcının bu entity'ye bağladığı altyapı. Bölüm yalnızca bağ varsa
+    # yazılır — 70 entity'nin hepsine boş bir "Altyapı" başlığı eklemek notları kirletirdi.
+    selectors = fetch_all(conn.execute(
+        "MATCH (s:Selector)-[r:SELECTOR_OF]->(e:Entity {id: $id}) "
+        "RETURN s.kind AS kind, s.value AS value, r.note AS note ORDER BY kind, value",
+        {"id": entity["id"]},
+    ))
+    if selectors:
+        lines.append("## Altyapı (seçiciler)")
+        for s in selectors:
+            note = f" — {s['note']}" if s.get("note") else ""
+            lines.append(f"- {s['kind']}: `{s['value']}`{note}")
+        lines.append("")
+
     return "\n".join(lines)
 
 
@@ -869,6 +883,20 @@ def render_dashboard_note(conn) -> str:
     else:
         lines.append("_Bekleyen gözlem yok — biriken her kayıt değerlendirilmiş._")
     lines.append("")
+    # v6 (Faz 30): korpusta geçen ve gerçekte sömürülen açıklar — Obsidian'dan da görünsün.
+    try:
+        from app.enrichment.engine import exploited_cves
+
+        exploited = exploited_cves(limit=10)
+    except Exception:  # noqa: BLE001 — vault render'ı bir panel yüzünden düşmemeli
+        exploited = []
+    if exploited:
+        lines.append("## Korpusta Sömürülen Açıklar (CISA KEV)")
+        for row in exploited:
+            ransom = " · **fidye yazılımı**" if row["known_ransomware"] else ""
+            epss = f" · EPSS %{row['epss'] * 100:.1f}" if row.get("epss") is not None else ""
+            lines.append(f"- `{row['cve']}` {row.get('vendor') or ''} {row.get('product') or ''}{ransom}{epss} — {row['sightings']} gözlem")
+        lines.append("")
     lines.append("## Açık Investigation'lar")
     if active_investigations:
         for i in active_investigations:

@@ -32,6 +32,7 @@ class BulkRequest(BaseModel):
     kind: str
     only_missing: bool = True
     limit: int = Field(1000, ge=1, le=5000)
+    scope: str = Field("corpus", pattern="^(corpus|all)$")
 
 
 def _raise(exc: engine.EnrichmentError):
@@ -72,6 +73,17 @@ def run(payload: RunRequest) -> dict:
                           confirm_active=payload.confirm_active, wait=payload.wait)
     except engine.EnrichmentError as exc:
         _raise(exc)
+
+
+@router.get("/exploited")
+def exploited(limit: int = 50) -> list[dict]:
+    """Korpustaki KEV'deki CVE'ler (Ana Çalışma Alanı paneli ve rapor için)."""
+    return engine.exploited_cves(min(max(limit, 1), 500))
+
+
+@router.get("/stats")
+def stats() -> dict:
+    return engine.stats()
 
 
 @router.get("/runs")
@@ -179,7 +191,8 @@ def bulk_status() -> dict:
 @router.post("/bulk", status_code=202)
 def bulk(payload: BulkRequest) -> dict:
     try:
-        return engine.start_bulk(payload.module, payload.kind, only_missing=payload.only_missing, limit=payload.limit)
+        return engine.start_bulk(payload.module, payload.kind, only_missing=payload.only_missing, limit=payload.limit,
+                                 scope=payload.scope)
     except engine.EnrichmentError as exc:
         _raise(exc)
 

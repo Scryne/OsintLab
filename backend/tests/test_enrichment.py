@@ -231,3 +231,22 @@ def test_watch_diff_rules():
     assert diff("kev", {"in_kev": False}, {"in_kev": True, "date_added": "2026-10-01"})[0]["code"] == "KEV_ADDED"
     assert diff("dns", {"records": {"A": ["1.1.1.1"]}}, {"records": {"A": ["2.2.2.2"]}})[0]["code"] == "DNS_ADDED"
     assert diff("internetdb", {"ports": [22]}, {"ports": [22]}) == []
+
+
+def test_entity_module_bulk(client, make_entity, monkeypatch):
+    calls = []
+
+    def fake_org(ctx, target):
+        calls.append(target.value)
+        return Result({"query": target.value, "match_count": 0, "matches": []})
+
+    monkeypatch.setitem(engine.REGISTRY, "fake-org", Module(
+        "fake-org", "Sahte kurum", "test", "test", "entity", (), PASSIVE, frozenset(), fake_org))
+    make_entity(name="Bulk Org One")
+    assert client.post("/enrichment/bulk", json={"module": "fake-org", "kind": "cve"}).status_code == 422
+    assert client.post("/enrichment/bulk", json={"module": "fake-org", "kind": "entity"}).status_code == 202
+    for _ in range(100):
+        if not client.get("/enrichment/bulk").json()["running"]:
+            break
+        time.sleep(0.05)
+    assert "Bulk Org One" in calls

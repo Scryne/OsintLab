@@ -613,6 +613,20 @@ export const api = {
     recent: (limit = 100) => get<EnrichmentRun[]>(`/enrichment/runs?limit=${limit}`),
     toObservation: (id: string) => post<Observation>(`/enrichment/runs/${id}/observation`),
     datasets: () => get<DatasetStatus[]>("/enrichment/datasets"),
+    exploited: (limit = 50) =>
+      get<{
+        id: string;
+        cve: string;
+        vendor: string | null;
+        product: string | null;
+        name: string | null;
+        date_added: string | null;
+        known_ransomware: boolean;
+        epss: number | null;
+        epss_percentile: number | null;
+        sightings: number;
+        last_seen: string | null;
+      }[]>(`/enrichment/exploited?limit=${limit}`),
     downloadDataset: (name: string) => post<{ name: string; started: boolean }>(`/enrichment/datasets/${name}/download`),
     bulkStatus: () => get<BulkJob>("/enrichment/bulk"),
     bulk: (module: string, kind: string, only_missing = true) => post<BulkJob>("/enrichment/bulk", { module, kind, only_missing }),

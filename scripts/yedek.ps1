@@ -9,9 +9,11 @@
     backend'i kısa süreliğine durdurup kopyalamak. Bu script bunu yapar ve backend'i (çalışıyorsa)
     geri başlatır; otomatik tarama en fazla birkaç saniye durur.
 
-    Yedeklenen: data\graph, data\evidence, data\archive, data\config, data\daily.
+    Yedeklenen: data\graph, data\evidence, data\archive, data\config, data\daily, data\enrichment
+    (zenginleştirme koşularının ham yanıtları — her EnrichmentRun'ın SHA-256'sı bunlara işaret eder).
     Yedeklenmeyen: data\vault (grafın türetilmiş görünümü — POST /vault/render yeniden üretir),
-    data\logs, data\tessdata (proje dışından indirilebilir dil verisi).
+    data\logs, data\tessdata (proje dışından indirilebilir dil verisi), data\datasets ve
+    data\cache (KEV/ATT&CK/OFAC listeleri ve RDAP bootstrap; Zenginleştirme sayfasından yeniden indirilir).
 
     Çıktı: data\backups\osintlab-YYYYMMDD-HHMMSS.zip. En yeni -Keep adet tutulur.
 
@@ -72,7 +74,7 @@ $target  = Join-Path $backups "osintlab-$stamp.zip"
 
 try {
     New-Item -ItemType Directory -Force $staging | Out-Null
-    foreach ($part in 'graph', 'evidence', 'archive', 'config', 'daily') {
+    foreach ($part in 'graph', 'evidence', 'archive', 'config', 'daily', 'enrichment') {
         $src = Join-Path $data $part
         if (Test-Path $src) { Copy-Item -Recurse -Force $src (Join-Path $staging $part) }
     }

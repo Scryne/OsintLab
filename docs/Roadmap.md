@@ -601,13 +601,14 @@ sızdırır — bu yüzden her modül ayrı ayrı kapatılabilir.
 
 | Faz | Adı | Durum | Bitti Kriteri |
 | --- | --- | --- | --- |
-| 29 | Seçici Katmanı (deterministik IOC çıkarma) | 🔄 Devam Ediyor | Gözlem ve belge metinlerinden alan adı/IP/URL/e-posta/hash/CVE/ATT&CK/kripto adresi seçicileri (defang'li yazımlar dahil) çıkarılıp grafta `Selector` olarak duruyor, her biri nerede görüldüğüne (`SEEN_IN`) bağlı; mevcut 4.408 gözlem geriye dönük tarandı; sürüm numarası gibi yanlış pozitifler ölçülüp elendi; yeni gözlemler otomatik taranıyor. |
-| 30 | Zenginleştirme Motoru (anahtarsız, pasif öncelikli) | ⏳ Bekliyor | En az 10 anahtarsız modül (DNS, RDAP, sertifika şeffaflığı, Wayback, InternetDB, RIPEstat, CVE/KEV/EPSS, GLEIF, Wikidata, GDELT…) çalışıyor; her koşu ham yanıtıyla (SHA-256) değişmez bir kayıt bırakıyor; modüller OPSEC sınıfıyla etiketli ve tek tek kapatılabiliyor; gerçek veride CVE'ler KEV/EPSS ile zenginleşti. |
-| 31 | Pivot Grafı + Seçici Çalışma Ekranı | ⏳ Bekliyor | Bir seçicinin sayfasında tüm zenginleştirme sonuçları yapılandırılmış görünüyor; sonuçlardan türeyen yeni seçiciler (`PIVOT` kenarı, hangi koşudan geldiğiyle) tek tıkla açılıyor; seçici bir entity'ye bağlanabiliyor; bir zenginleştirme sonucu gözleme çevrilip mevcut promote hattına girebiliyor. |
-| 32 | Araç Rehberi (Launchpad) + Arama Operatörü Kurucu | ⏳ Bekliyor | Kürasyonlu dış araç kataloğu (kategori, kabul ettiği seçici türü, anahtar gereksinimi, OPSEC notu) seçici sayfasında "dış araçta aç" bağlantıları üretiyor; arama motoru operatörleriyle (dork) sorgu kurucu çalışıyor. |
-| 33 | Hızlı Pivot (Komut Paleti) | ⏳ Bekliyor | Her sayfadan Ctrl+K ile herhangi bir değer yapıştırılınca türü tanınıyor ve seçici sayfasına gidiliyor; entity/claim/seçici araması aynı yerden yapılabiliyor. |
-| 34 | Medya Doğrulama (MEDIAINT/GEOINT temel) | ⏳ Bekliyor | Kanıt Kasası'na yüklenen bir görselin EXIF/GPS/kamera/zaman verisi ve algısal hash'i çıkıyor; GPS koordinat seçicisine dönüşüyor; ters görsel arama bağlantıları ve güneş konumu (kronolokasyon) hesaplayıcısı çalışıyor. |
-| 35 | Rapor Dışa Aktarımı | ⏳ Bekliyor | Bir investigation, claim'leri confidence ve kaynaklarıyla, kanıt hash'leriyle, seçici ve zenginleştirme kayıtlarıyla birlikte tek bir Markdown/HTML rapor olarak dışa aktarılabiliyor. |
+| 29 | Seçici Katmanı (deterministik IOC çıkarma) | ✅ Tamamlandı | Gözlem ve belge metinlerinden alan adı/IP/URL/e-posta/hash/CVE/ATT&CK/kripto adresi seçicileri (defang'li yazımlar dahil) çıkarılıp grafta `Selector` olarak duruyor, her biri nerede görüldüğüne (`SEEN_IN`) bağlı; mevcut 4.408 gözlem geriye dönük tarandı; sürüm numarası gibi yanlış pozitifler ölçülüp elendi; yeni gözlemler otomatik taranıyor. |
+| 30 | Zenginleştirme Motoru (anahtarsız, pasif öncelikli) | ✅ Tamamlandı | En az 10 anahtarsız modül (DNS, RDAP, sertifika şeffaflığı, Wayback, InternetDB, RIPEstat, CVE/KEV/EPSS, GLEIF, Wikidata, GDELT…) çalışıyor; her koşu ham yanıtıyla (SHA-256) değişmez bir kayıt bırakıyor; modüller OPSEC sınıfıyla etiketli ve tek tek kapatılabiliyor; gerçek veride CVE'ler KEV/EPSS ile zenginleşti. |
+| 31 | Pivot Grafı + Seçici Çalışma Ekranı | ✅ Tamamlandı | Bir seçicinin sayfasında tüm zenginleştirme sonuçları yapılandırılmış görünüyor; sonuçlardan türeyen yeni seçiciler (`PIVOT` kenarı, hangi koşudan geldiğiyle) tek tıkla açılıyor; seçici bir entity'ye bağlanabiliyor; bir zenginleştirme sonucu gözleme çevrilip mevcut promote hattına girebiliyor. |
+| 32 | Araç Rehberi (Launchpad) + Arama Operatörü Kurucu | ✅ Tamamlandı | Kürasyonlu dış araç kataloğu (kategori, kabul ettiği seçici türü, anahtar gereksinimi, OPSEC notu) seçici sayfasında "dış araçta aç" bağlantıları üretiyor; arama motoru operatörleriyle (dork) sorgu kurucu çalışıyor. |
+| 33 | Hızlı Pivot (Komut Paleti) | ✅ Tamamlandı | Her sayfadan Ctrl+K ile herhangi bir değer yapıştırılınca türü tanınıyor ve seçici sayfasına gidiliyor; entity/claim/seçici araması aynı yerden yapılabiliyor. |
+| 34 | Medya Doğrulama (MEDIAINT/GEOINT temel) | ✅ Tamamlandı | Kanıt Kasası'na yüklenen bir görselin EXIF/GPS/kamera/zaman verisi ve algısal hash'i çıkıyor; GPS koordinat seçicisine dönüşüyor; ters görsel arama bağlantıları ve güneş konumu (kronolokasyon) hesaplayıcısı çalışıyor. |
+| 35 | Rapor Dışa Aktarımı | ✅ Tamamlandı | Bir investigation, claim'leri confidence ve kaynaklarıyla, kanıt hash'leriyle, seçici ve zenginleştirme kayıtlarıyla birlikte tek bir Markdown/HTML rapor olarak dışa aktarılabiliyor. |
+| 36 | Altyapı İzleme + Telegram Kanal Toplayıcısı | ✅ Tamamlandı | İzlenen bir seçicide (alan adı/IP/ASN/CVE/cüzdan) değişiklik olduğunda elle tetikleme olmadan Inbox'a düşüyor; herkese açık bir Telegram kanalı zamanlanmış taramaya alınabiliyor. |
 
 ## v5 bittikten sonra nasıl ilerlenecek
 
@@ -3487,3 +3488,146 @@ ayrı" kararıyla tutarlı).
 - **Bitti Kriteri:** Doğrulayanı olmayan claim'ler için bekleyen gözlemler arasından aday
   eşleşme öneriliyor (elle arama gerekmeden). **Fazın sınavı:** doğrulayanı olmayan claim
   sayısı 30'dan belirgin biçimde düşmüş olmalı.
+
+## v6 Faz Detayları
+
+### Faz 29: Seçici Katmanı (deterministik IOC çıkarma)
+
+- **Neden (ölçüm, 2026-10-24).** 4.408 gözlemde 1.365 CVE geçişi (386 farklı), 38 ATT&CK
+  tekniği, 13 dosya hash'i, 7 e-posta — sistem bunların hiçbirini tanımıyordu. Entity katmanı
+  "kim/ne" sorusunu taşıyordu; profesyonel OSINT'in pivot noktaları (alan adı, IP, hash, CVE)
+  için bir katman yoktu.
+- **Karar: ayrı düğüm (`Selector`), entity değil.** Kimlik `tür:değer` — aynı gösterge hangi
+  metinden gelirse gelsin aynı düğüme düşer, yeniden tarama idempotent. Görüldüğü yer
+  `SEEN_IN` (gözlem) / `SEEN_IN_EVIDENCE` (belge) kenarında, ilk geçtiği yerin bağlamıyla.
+- **Kişi seçicisi yok.** Kullanıcı adı, telefon, ad-soyad çıkarılmaz (Q25 kalıcı sınırı).
+- **Yanlış pozitifler ölçülüp elendi:**
+  - IPv4 kalıbına uyan 17 farklı dizinin **17'si de sürüm numarasıydı** ("firmware:
+    <=4.9.86.0", "Bootloader_2.0.6.1", "versions 25.1.1.1 and prior", ">=3.2.0.0|<3.2.4.1,
+    3.2.4.1"). Kurallar bu örneklerden çıkarıldı; hepsi `tests/test_selectors.py`'da.
+    Defang'li yazım (`149.28.132[.]137`) filtreyi atlar — yazar onu bilerek gösterge yazmış.
+  - "Her iki harf ülke kodudur" kuralı `node.js`, `css.js`'i alan adı saydı → gerçek ccTLD
+    listesi. Dosya uzantısıyla çakışan TLD'ler (`.md`, `.py`, `.zip`...) yalnızca URL içinde ya
+    da defang'li kabul ediliyor.
+  - Defang'li `twimg.co[.]uk` düz tarama yüzünden `twimg.co`ya kesiliyordu → defang'li tarama
+    önce.
+  - **Kaynağın kendine referansı:** CISA advisory'lerinin her birinin altındaki
+    `cisa.gov/privacy-policy` listenin ilk dört satırını (85'er geçiş) kaplıyordu. Gözlemin kendi
+    kayıtlı alan adına ait alan adı/URL/e-posta atlanıyor — **339 sahte geçiş düştü.**
+  - Kaynak arşivleri (Faz 26) gözlemin kopyası olduğu için belge indeksine girmiyor.
+  - Kripto adreslerinde base58check / bech32 sağlama toplamı doğrulanıyor.
+- **Sonuç:** 4.425 gözlem 1,7 sn'de indekslendi; 637 seçici (386 CVE, 98 alan adı, 90 URL,
+  38 ATT&CK, 11 IP, 13 hash, 6 e-posta). Yeni gözlem ve belgeler kendiliğinden taranıyor.
+- **Bitti Kriteri karşılandı.**
+
+### Faz 30: Zenginleştirme Motoru
+
+- **Kaynak seçimi araştırmadan geldi.** @osintnewsletter'ın Tool Tuesday sayıları ve OSINT Tools
+  Library dizini (335 araç) tarandı; diğer iki hesabın (@0xtechrock, @techniquesOsint)
+  içeriğine X girişi olmadan ulaşılamadı (nitter kapalı, xcancel 451). Her kaynağın 2026-10
+  durumu canlı istekle doğrulandı: abuse.ch üçlüsü artık anahtar istiyor, OpenSky OAuth2'ye
+  geçti, Bluesky ve Reddit'in anonim arama yolları kapalı — bunlar modül olmadı.
+- **22 modül, hepsi anahtarsız:** DNS (DoH), ters DNS, RDAP (IANA bootstrap → kayıt kuruluşu),
+  sertifika şeffaflığı (crt.sh, yedek Cert Spotter), Wayback, Shodan InternetDB, RIPEstat
+  (IP/ASN), urlscan araması, CISA KEV, FIRST EPSS, NVD, MITRE ATT&CK, GDELT (seçici ve kurum),
+  Wikidata, GLEIF, OFAC yaptırım (kurum ve kripto adresi), Nominatim, ADS-B (adsb.lol) ve aktif
+  HTTP parmak izi (favicon mmh3 — Shodan `http.favicon.hash` pivotu, analytics kimlikleri).
+- **Değişmez kayıt.** Her koşu ham yanıtıyla `data/enrichment/<ay>/<id>.json`'a yazılıyor,
+  SHA-256'sı `EnrichmentRun`'da; "Ham kayıt" bütünlüğü yeniden doğruluyor. Pivotlar (`PIVOT`
+  kenarı) hangi koşudan geldiğini taşıyor.
+- **OPSEC sınıfı her modülde:** PASSIVE (üçüncü taraf veritabanı), LOCAL (yerel veri seti, dışarı
+  istek yok), ACTIVE (hedefin sunucusu — varsayılan kapalı, iki adımlı onay, toplu/izlemeye
+  girmez). Önbellek de bir OPSEC kararı: aynı soru `cache_hours` içinde tekrar sorulmaz.
+- **Yerel veri setleri:** KEV (1.756), ATT&CK (706 teknik, grup/yazılım/önlem ilişkileriyle),
+  OFAC SDN (19.471 kayıt + diğer adlar + kripto adresleri). "Bu CVE sömürülüyor mu" sorusu
+  hiçbir servise gönderilmiyor.
+- **Ölçülen gerçekler:** Wayback CDX'te `limit=1` 29 sn, filtreli örnek 23 sn sürdü → en eski
+  kopya Availability API'ye 1996 tarihi verilerek bulunuyor, CDX çağrıları düşerse modül kısmi
+  sonuçla dönüyor. FIRST EPSS toplayıcının RSS-öncelikli `Accept` başlığına 400 döndü → JSON
+  uçlarına `Accept: application/json`. GLEIF `fulltext` araması "Siemens" için alakasız bir İsveç
+  vakfını ilk sıraya koydu → yasal ad üzerinden bulanık tamamlama. OFAC dosyaları bir GovCloud
+  S3 kovasına yönlendiriyor (allowlist'e eklendi).
+- **Gerçek veride ilk sonuç:** korpustaki 386 CVE'nin **90'ı KEV'de** (gerçekte sömürülüyor), 11'i
+  bilinen fidye yazılımı kampanyalarında. EPSS 386/386, ATT&CK 38/38 zenginleşti.
+- **Kuyruğa bağlandı:** `KNOWN_SELECTOR` (entity'ye bağlı altyapıya değiyor, 0.40 — eşiği tek
+  başına geçen ikinci yol), `EXPLOITED_CVE` (0.25), `DEFANGED_IOC` (0.10). Ölçüm: 3.870 bekleyen
+  gözlemde KEV'deki bir CVE'yi geçiren 15 (11'i zaten eşiğin üstünde), defang'li 4.
+- **Bitti Kriteri karşılandı.**
+
+### Faz 31: Pivot Grafı + Seçici Çalışma Ekranı
+
+- Seçici sayfası (`/selectors/view?id=`): zenginleştirme (modül kartları, arka plan koşusu ve
+  yoklama, ham kayıt, gözleme çevirme), pivotlar (ilişkiye göre gruplu + iki adımlık graf),
+  görüldüğü yerler (bağlam, kaynak, claim), dış araçlar, entity bağları, kullanıcı notu,
+  "yanlış pozitif" işareti (silinmez).
+- Entity sayfasına "Altyapı ve zenginleştirme" sekmesi: bağlı seçiciler, kurum modülleri,
+  Wikidata'nın önerdiği resmi siteyi tek tıkla seçici olarak ekleyip bağlama.
+- Zenginleştirme sonucu → gözlem: deterministik metin, `text_source=enrichment`, mevcut promote
+  hattına giriyor.
+- **Bitti Kriteri karşılandı.**
+
+### Faz 32: Araç Rehberi + Arama Operatörü Kurucu
+
+- 102 araçlık katalog, 12 kategori; her biri kabul ettiği seçici türleri için bağlantı kalıbı
+  taşıyor (VirusTotal, Shodan, Censys, urlscan, OTX, ThreatFox, crt.sh, SecurityTrails, Wayback,
+  Google Lens/Yandex/TinEye, ADS-B Exchange, MarineTraffic, Blockchair, OpenSanctions, ICIJ...).
+  Tool Tuesday araçları (FOFA, Telegago, Library of Leaks, EyeDex) not düşülerek dahil.
+  Kişi arama, kullanıcı adı ve yüz tanıma araçları yok.
+- OsintLab bu araçlara istek atmıyor; bağlantı tarayıcıda açılıyor (OPSEC kararı kullanıcıda).
+- Türe göre dork tarifleri (alan adının belgeleri, açık dizinler, CVE istismar kodu, hash'in
+  yapıştırma sitelerinde geçmesi...) dört motorda; serbest operatör kurucu.
+- **Bitti Kriteri karşılandı.**
+
+### Faz 33: Hızlı Pivot (Komut Paleti)
+
+- Ctrl+K / "/" her sayfadan: yapıştırılan değerin türü tanınıyor (defang'li dahil) ve ilk satır
+  "Pivotla"; değilse entity/olay/investigation/kaynak/seçici/claim araması (`GET /search`).
+- Eksik bir sayfa kapandı: **claim'lerin kendi sayfası yoktu** — arama ve rapor bir claim'e
+  bağlanamıyordu. `/claims/view?id=`: metin (güvenilmeyen veri sınırında), confidence dökümü,
+  neden önemli, adı geçenler, seçiciler, arşiv kaydı.
+- Yan bulgu (görsel doğrulamada): Base UI `Select` Root'a `items` verilmezse seçili değeri ham
+  gösteriyor ("rss", "SUPPORTS", "sightings") — 9 yerde düzeltildi. Mobilde yardım düğmesi
+  menü düğmesinin üstüne biniyordu — düzeltildi.
+- **Bitti Kriteri karşılandı.**
+
+### Faz 34: Medya Doğrulama (MEDIAINT/GEOINT temel)
+
+- Kanıt Kasası'na yüklenen görsel artık UNSUPPORTED'da kalmıyor: EXIF (kamera, lens, yazılım,
+  çekim zamanı), GPS (→ otomatik koordinat seçicisi), dHash/aHash (yeniden kodlanmış kopyayı
+  bulur; testte yarı boyut + JPEG q60 ≤ 6/64 bit fark), C2PA bloğu, XMP `DigitalSourceType`,
+  PNG metin bloklarındaki üretim parametreleri (Stable Diffusion/ComfyUI), düzenleme yazılımı
+  izi. **"AI üretimi" yalnızca dosyanın kendi beyanından okunur** — beyan yoksa "iz yok" denir,
+  "gerçek" denmez.
+- Görseldeki yazı Tesseract ile okunup gözlem/seçici hattına giriyor (ekran görüntüleri).
+- Önizleme Pillow'dan geçirilip PNG olarak yeniden kodlanıyor; orijinal dosya tarayıcıda açılmaz.
+- Güneş konumu (NOAA algoritması, bağımlılıksız — pysolar GPL olduğu için eklenmedi): astral 3.2
+  ile karşılaştırıldı, **±0,01°**. Kronolokasyon: gölge yönü/boy oranından o gün o konumda bu
+  geometrinin oluştuğu saat aralıkları.
+- **Bitti Kriteri karşılandı.**
+
+### Faz 35: Rapor Dışa Aktarımı
+
+- `GET /investigations/{id}/report?format=md|html|json&tlp=`: araştırma sorusu, kapsam,
+  bulgular (her birinde durum, confidence'ın dört bileşeni, kaynak, arşiv hash'i, seçiciler),
+  hipotezler, kullanıcının Analiz/Sonuç'u (ayrı başlıkta — Q15), teknik göstergeler tablosu
+  (KEV/EPSS/NVD/ATT&CK/RDAP özetleri, koşu hash'iyle), kanıt hash'leri, yöntem notu.
+- Deterministik (LLM yok). TLP etiketi kullanıcının seçimi. Gövdenin SHA-256'sı alt bilgide.
+  HTML her alanı kaçırıyor ve `default-src 'none'` CSP ile dönüyor (testte `<script>` ve
+  `<img onerror>` denemeleri).
+- **Bitti Kriteri karşılandı.**
+
+### Faz 36: Altyapı İzleme + Telegram Kanal Toplayıcısı
+
+- Faz 7'nin izlemesi entity/olay/kaynak içindi; profesyonel OSINT'te en çok izlenen şey
+  altyapı. İzlemeye alınan bir seçici günde bir pasif modüllerle yeniden sorgulanıyor ve iki
+  ardışık koşunun DETERMİNİSTİK farkı Inbox'a düşüyor: yeni alt alan adı sertifikası, DNS/kayıt
+  şirketi/ad sunucusu/bitiş tarihi değişikliği, yeni port/açık, duyuran ASN değişikliği, KEV'e
+  giriş ve yaptırım listesine giriş (`SELECTOR_ALERT`, HIGH; aktif investigation'da CRITICAL),
+  diğerleri `SELECTOR_CHANGE` (MEDIUM). İlk koşu taban çizgisi; aynı modülün bekleyen
+  bildirimi güncelleniyor, çoğalmıyor.
+- Toplayıcıya `mode=telegram`: `t.me/s/<kanal>` herkese açık önizlemesi (giriş yok, son ~20
+  mesaj), mesaj başına bir gözlem, kalıcı bağlantı ve yayın zamanıyla. Kişi hesabı ya da özel
+  grup değil — RSS ile aynı sınıf bir yayın.
+- **Bitti Kriteri:** izlenen bir seçicide değişiklik olduğunda elle tetikleme olmadan Inbox'a
+  düşüyor (testte sahte crt.sh ile doğrulandı); herkese açık bir Telegram kanalı zamanlanmış
+  taramaya alınabiliyor. **Karşılandı.**

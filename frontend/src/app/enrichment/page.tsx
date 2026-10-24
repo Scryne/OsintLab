@@ -81,6 +81,22 @@ function Modules() {
                     <div className="text-xs text-text-tertiary">{m.provider}</div>
                     <div className="mt-0.5 max-w-md text-xs text-pretty text-text-secondary">{m.description}</div>
                     {m.terms_note && <div className="mt-0.5 max-w-md text-[11px] text-priority-medium-text">{m.terms_note}</div>}
+                    {m.target === "entity" && m.enabled && m.opsec !== "ACTIVE" && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await api.enrichment.bulk(m.name, "entity");
+                            toast(`${m.label} bütün entity'lerde arka planda çalışıyor (yalnız eksikler)`, "default");
+                          } catch (err) {
+                            toast(err instanceof Error ? err.message : "Başlatılamadı", "error");
+                          }
+                        }}
+                        className="mt-1 text-[11px] text-brand-accent-text hover:underline"
+                      >
+                        Bütün entity&apos;lere uygula
+                      </button>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-xs text-text-secondary">{m.target === "entity" ? "Kurum (entity)" : m.kind_labels.join(", ")}</td>
                   <td className="px-3 py-2">

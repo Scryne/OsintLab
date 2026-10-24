@@ -116,6 +116,24 @@ def main() -> int:
     ))
     print("inbox=%s" % dict(collections.Counter(i["status"] for i in inbox)))
     print("investigation=%s" % dict(collections.Counter(i["status"] for i in invs)))
+
+    # v6 (Faz 29-36): seçici katmanı ve zenginleştirme. Eşik yok — yalnızca tablo.
+    print()
+    print("### Seciciler ve zenginlestirme")
+    kinds = {k["kind"]: k["count"] for k in get("/selectors/kinds") if k["count"]}
+    print("secici=%d %s" % (sum(kinds.values()), kinds))
+    sels = get("/selectors?limit=2000&include_ignored=true")["items"]
+    print("yok sayilan=%d  zenginlestirilmis=%d  entity'ye bagli=%d  kaynak: %s" % (
+        sum(1 for s in sels if s["status"] == "IGNORED"),
+        sum(1 for s in sels if s["enrichment_count"]),
+        sum(1 for s in sels if s["entity_count"]),
+        dict(collections.Counter(s["origin"] for s in sels)),
+    ))
+    st = get("/enrichment/stats")
+    print("kosular: %s" % {f"{r['module']}:{r['status']}": r["count"] for r in st["runs"]})
+    print("KEV: %d CVE'nin %d'i somuruluyor · pivot kenari=%d" % (st["kev"]["checked"], st["kev"]["exploited"], st["pivots"]))
+    watched = [m for m in get("/monitors?active=true") if m["target_type"] == "Selector"]
+    print("izlenen secici=%d" % len(watched))
     return 0
 
 

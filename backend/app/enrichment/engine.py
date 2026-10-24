@@ -367,21 +367,38 @@ def bulk_status() -> dict:
     return dict(_job)
 
 
-def start_bulk(name: str, kind: str, *, only_missing: bool = True, limit: int = 1000) -> dict:
+def start_bulk(name: str, kind: str, *, only_missing: bool = True, limit: int = 1000, scope: str = "corpus") -> dict:
     """Bir türün bütün seçicilerine aynı modülü uygular (ör. 386 CVE'nin hepsine KEV). Arka
-    planda, tek iş parçacığında ve modülün kendi hız sınırıyla — aynı anda tek toplu iş."""
+    planda, tek iş parçacığında ve modülün kendi hız sınırıyla — aynı anda tek toplu iş.
+
+    `scope="corpus"` (varsayılan): yalnızca toplanan metinde/belgede görülen, elle eklenen ya da
+    bir entity'ye bağlanan seçiciler. Zenginleştirmenin kendisinin açtığı pivotlar (bir SPF
+    kaydındaki `*.hubspotemail.net`, bir CDN adı) toplu işe girmez — ilk denemede DNS'in açtığı
+    212 pivot alan adı RDAP kuyruğunu ikiye katlamıştı. `scope="all"` hepsini alır."""
     module = REGISTRY.get(name)
     if module is None:
         raise EnrichmentError(f"Bilinmeyen modül: {name}", 404)
-    if module.target != "selector" or kind not in module.kinds:
+    entity_bulk = module.target == "entity"
+    if entity_bulk and kind != "entity":
+        raise EnrichmentError(f"{module.label} kurum (entity) düzeyinde çalışır; tür olarak 'entity' ver.")
+    if not entity_bulk and kind not in module.kinds:
         raise EnrichmentError(f"{module.label} {KIND_LABELS.get(kind, kind)} türünü zenginleştirmez.")
     if module.opsec == ACTIVE:
         raise EnrichmentError("Aktif modüller toplu çalıştırılamaz — her hedef için ayrı onay gerekir.", 409)
     if not is_enabled(module):
         raise EnrichmentError(f"{module.label} kapalı.", 409)
-    ids = [r["id"] for r in fetch_all(get_connection().execute(
-        "MATCH (s:Selector) WHERE s.kind = $k AND s.status <> 'IGNORED' RETURN s.id AS id ORDER BY s.id", {"k": kind}
-    ))]
+    if entity_bulk:
+        # Kurum modülleri (OFAC taraması, Wikidata, GLEIF) bütün entity'lere: ad eşleşmesi aday
+        # üretir, hiçbir şeyi bağlamaz — toplu çalışması kararı kullanıcıdan almaz.
+        ids = [f"entity:{r['id']}" for r in fetch_all(get_connection().execute(
+            "MATCH (e:Entity) RETURN e.id AS id ORDER BY e.name"
+        ))]
+    else:
+        origin_clause = "" if scope == "all" else "AND (s.origin <> 'enrichment' OR EXISTS { MATCH (s)-[:SELECTOR_OF]->() }) "
+        ids = [r["id"] for r in fetch_all(get_connection().execute(
+            f"MATCH (s:Selector) WHERE s.kind = $k AND s.status <> 'IGNORED' {origin_clause}RETURN s.id AS id ORDER BY s.id",
+            {"k": kind},
+        ))]
     if only_missing:
         done = {r["t"] for r in fetch_all(get_connection().execute(
             "MATCH (r:EnrichmentRun) WHERE r.module = $m AND r.status = 'DONE' RETURN DISTINCT r.selector_id AS t", {"m": name}
@@ -421,3 +438,73 @@ def start_bulk(name: str, kind: str, *, only_missing: bool = True, limit: int = 
 def cancel_bulk() -> dict:
     _job["cancel"] = True
     return bulk_status()
+
+
+def stats() -> dict:
+    """Ölçüm turu için (scripts/olcum.py): modül başına koşu sayısı ve KEV kapsamı.
+    KEV sayımı seçici başına SON başarılı koşuya bakar — geçmiş koşular sayımı şişirmesin."""
+    conn = get_connection()
+    per_module = fetch_all(conn.execute(
+        "MATCH (r:EnrichmentRun) RETURN r.module AS module, r.status AS status, count(*) AS n ORDER BY module"
+    ))
+    latest_kev: dict[str, tuple] = {}
+    for row in fetch_all(conn.execute(
+        "MATCH (r:EnrichmentRun) WHERE r.module = 'kev' AND r.status = 'DONE' "
+        "RETURN r.selector_id AS sid, r.finished_at AS at, r.summary AS summary"
+    )):
+        prev = latest_kev.get(row["sid"])
+        if prev is None or row["at"] > prev[0]:
+            latest_kev[row["sid"]] = (row["at"], row["summary"])
+    exploited = sum(1 for _, s in latest_kev.values() if s and '"in_kev": true' in s)
+    return {
+        "runs": [{"module": r["module"], "status": r["status"], "count": r["n"]} for r in per_module],
+        "kev": {"checked": len(latest_kev), "exploited": exploited},
+        "pivots": fetch_one(conn.execute("MATCH ()-[p:PIVOT]->() RETURN count(p) AS n"))["n"],
+    }
+
+
+def exploited_cves(limit: int = 50) -> list[dict]:
+    """Korpusta geçen ve KEV'e göre gerçekte sömürülen CVE'ler; bilinen fidye yazılımı kullanımı
+    önce, sonra EPSS'e göre. Her seçici için SON başarılı KEV/EPSS koşusu esas alınır."""
+    conn = get_connection()
+
+    def latest(module: str) -> dict[str, dict]:
+        out: dict[str, tuple] = {}
+        for row in fetch_all(conn.execute(
+            "MATCH (r:EnrichmentRun) WHERE r.module = $m AND r.status = 'DONE' "
+            "RETURN r.selector_id AS sid, r.finished_at AS at, r.summary AS summary",
+            {"m": module},
+        )):
+            prev = out.get(row["sid"])
+            if prev is None or row["at"] > prev[0]:
+                out[row["sid"]] = (row["at"], row["summary"])
+        return {sid: json.loads(s) for sid, (_, s) in out.items() if s}
+
+    kev = {sid: s for sid, s in latest("kev").items() if s.get("in_kev")}
+    if not kev:
+        return []
+    epss = latest("epss")
+    counts = {r["sid"]: r for r in fetch_all(conn.execute(
+        "MATCH (s:Selector)-[:SEEN_IN]->(o:Observation) WHERE s.id IN $ids "
+        "RETURN s.id AS sid, count(o) AS n, max(o.observed_at) AS last_seen",
+        {"ids": list(kev)},
+    ))}
+    rows = []
+    for sid, s in kev.items():
+        e = epss.get(sid) or {}
+        c = counts.get(sid) or {}
+        rows.append({
+            "id": sid,
+            "cve": s.get("cve") or sid.split(":", 1)[1],
+            "vendor": s.get("vendor"),
+            "product": s.get("product"),
+            "name": s.get("name"),
+            "date_added": s.get("date_added"),
+            "known_ransomware": s.get("known_ransomware") == "Known",
+            "epss": e.get("epss"),
+            "epss_percentile": e.get("percentile"),
+            "sightings": c.get("n", 0),
+            "last_seen": c.get("last_seen"),
+        })
+    rows.sort(key=lambda r: (not r["known_ransomware"], -(r["epss"] or 0), r["cve"]))
+    return rows[:limit]

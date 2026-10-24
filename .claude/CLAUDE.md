@@ -249,3 +249,35 @@ yazarken bilinmesi gerekenler:
 - **Frontend `useApi`:** `loading` yalnız gösterilecek veri yokken; `reload()` ekranı yıkmaz
   (`refreshing`). Sayfalar iskeleti `loading`'e bağlar — tazelemede editör/sekme/kaydırma korunur.
   Binlerce satırlık listeler parça parça çizilir (`/observations`, 50'şer).
+
+### v6 — Pivot Katmanı (2026-10-24)
+
+Ayrıntı ve ölçümler: `docs/Roadmap.md` → "v6 Roadmap" ve Faz 29-36 detayları. Yeni kod yazarken:
+
+- **Seçici (`Selector`) entity değildir.** Makine-okunur pivot noktası (alan adı, IP, URL,
+  e-posta, hash, CVE, ATT&CK, ASN, BTC/ETH, koordinat); kimliği `tür:değer`. Çıkarma
+  deterministik (`app/selectorindex.py`), graf işlemleri `app/pivot.py`. Kişi seçicisi
+  (kullanıcı adı, telefon) YOK — kalıcı kapsam sınırı.
+- **Yeni gözlem/belge kendiliğinden indekslenir** (`create_observation_record`, `doc_worker`).
+  Kaynağın kendi alan adına referansı gösterge sayılmaz. `POST /selectors/reindex` görülme
+  kenarlarını YENİDEN KURAR (kural değiştiğinde), seçici notlarını/koşularını korur.
+- **Sürüm numarası IP değildir; defang'li yazım her zaman göstergedir.** IPv4 kuralları gerçek
+  CISA advisory'lerinden ölçülerek çıkarıldı (17/17 sürüm numarası). Kural eklerken
+  `tests/test_selectors.py`'daki gerçek örneklerle sına.
+- **Zenginleştirme modülü ağa yalnızca `Ctx` üzerinden çıkar** (`app/enrichment/base.py`):
+  `safe_fetch` + modülün sabit host listesi + host başına hız sınırı. Her koşu ham yanıtıyla
+  `data/enrichment/` altında SHA-256'lı değişmez kayıt bırakır. Yeni modül: `Module(...)` +
+  OPSEC sınıfı (PASSIVE/LOCAL/ACTIVE) + canlı istekle doğrulanmış uç.
+- **ACTIVE modüller varsayılan kapalı, iki adımlı onay ister, toplu/izlemeye girmez.**
+- **Yerel veri setleri** (`data/datasets/`: KEV, ATT&CK, OFAC) sorguyu dışarı göndermez; meta
+  dosyası indirme anının hash'ini tutar.
+- **Ad eşleşmesi kimlik değildir** (Wikidata, GLEIF, OFAC): sonuç aday olarak gösterilir, hiçbir
+  şey otomatik entity'ye bağlanmaz.
+- **Altyapı izleme** (`app/selectorwatch.py`) yalnızca kullanıcının izlemeye aldığı seçicilerde,
+  günde bir, pasif modüllerle; ilk koşu taban çizgisi.
+- **Görsel kanıt** (`app/mediaint.py`): orijinal dosya tarayıcıda açılmaz, önizleme Pillow'dan
+  geçirilip PNG olarak yeniden kodlanır. "AI üretimi" yalnızca dosyanın kendi beyanından okunur.
+- **Rapor deterministiktir** (`app/report.py`); HTML betiksiz CSP ile döner.
+- **Frontend:** seçici sayfası `/selectors/view?id=<url-kodlu kimlik>` (kimlikte `/` olabilir),
+  claim sayfası `/claims/view?id=`. Base UI `Select`'te Root'a `items` verilmezse ham değer
+  görünür — yeni her `Select`'e etiket haritası ver.

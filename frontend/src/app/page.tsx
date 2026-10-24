@@ -12,6 +12,7 @@ import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { PriorityBadge } from "@/components/provenance/priority";
 import { IconChip } from "@/components/ui/icon-chip";
 import { WireframeGlobe } from "@/components/ui/wireframe-globe";
+import { ExploitedPanel } from "@/components/pivot/exploited-panel";
 
 export default function MainWorkspace() {
   const { data: entities } = useApi(() => api.entities.list(), []);
@@ -164,6 +165,8 @@ export default function MainWorkspace() {
           </div>
         </section>
       </div>
+
+      <ExploitedPanel />
     </div>
   );
 }
