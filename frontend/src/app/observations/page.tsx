@@ -548,6 +548,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               <Label htmlFor="page-ilgili-entity-event-1">İlgili entity/event</Label>
               <Select
                 value={aboutType}
+                items={{ none: "Yok", entity: "Entity", event: "Event" }}
                 onValueChange={(v) => {
                   if (!v) return;
                   setAboutType(v as "none" | "entity" | "event");

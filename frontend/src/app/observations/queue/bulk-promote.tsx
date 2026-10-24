@@ -153,7 +153,11 @@ export function BulkPromoteDialog({
           <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="bulk-mode">Kaynak ve entity</Label>
-              <Select value={mode} onValueChange={(v) => v && setMode(v as Mode)}>
+              <Select
+                value={mode}
+                items={{ suggested: "Her kayıt kendi önerisini kullansın", uniform: "Hepsine aynısını uygula" }}
+                onValueChange={(v) => v && setMode(v as Mode)}
+              >
                 <SelectTrigger id="bulk-mode">
                   <SelectValue />
                 </SelectTrigger>

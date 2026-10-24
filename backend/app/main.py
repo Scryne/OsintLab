@@ -10,7 +10,11 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import doc_worker, docint, scheduler, vault as vault_module
 from app.db import bump_data_version, get_connection
-from app.routers import archive, claims, collectors, entities, evidence, events, investigations, monitors, observations, sources, vault
+from app.enrichment import engine as enrichment_engine
+from app.routers import (
+    archive, claims, collectors, enrichment, entities, evidence, events, investigations, monitors, observations,
+    selectors, sources, tools, vault,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +56,8 @@ def _quiet_connection_reset(loop, context: dict) -> None:
 async def lifespan(_app: FastAPI):
     asyncio.get_running_loop().set_exception_handler(_quiet_connection_reset)
     get_connection()  # KùzuDB bağlantısını açar, şemayı garanti eder
+    # Faz 30: önceki süreçten RUNNING kalmış zenginleştirme koşuları kapatılır.
+    enrichment_engine.recover_stale()
     # Faz 12: zamanlanmış tarama döngüsü. Backend ayakta olduğu sürece çalışır — ayrı bir
     # süreç değil, çünkü gömülü KùzuDB'yi aynı anda tek süreç açabiliyor (bkz. scheduler.py).
     scheduler.start()
@@ -112,6 +118,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 app.include_router(entities.same_as_router)
 app.include_router(entities.candidates_router)
 app.include_router(entities.relations_router)
+app.include_router(selectors.entity_router)
 app.include_router(entities.router)
 app.include_router(events.router)
 app.include_router(sources.router)
@@ -125,6 +132,9 @@ app.include_router(collectors.router)
 app.include_router(monitors.router)
 app.include_router(archive.router)
 app.include_router(vault.router)
+app.include_router(selectors.router)
+app.include_router(enrichment.router)
+app.include_router(tools.router)
 
 
 @app.get("/health")

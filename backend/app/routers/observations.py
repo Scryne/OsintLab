@@ -1,10 +1,11 @@
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
-from app import archive, docint, triage
+from app import archive, docint, pivot, triage
 from app.db import DATA_ROOT, bump_data_version, fetch_all, fetch_one, get_connection, graph_lock
 from app.models import (
     Claim,
@@ -26,6 +27,7 @@ from app.recall import why_matters as compute_why_matters
 from app.routers.claims import _claim_about, _gather_confidence_inputs, create_claim_record, get_claim
 from app.vault import safe_render_vault
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/observations", tags=["observations"])
 
 _FIELDS = (
@@ -146,6 +148,13 @@ def create_observation_record(
         },
     )
     _append_daily_log(observation_id, raw_content, observed_at, created_at, source_url, log_extra)
+    # Faz 29: seçiciler (CVE, alan adı, IP...) gözlem yaratılırken çıkarılır — geriye dönük tarama
+    # tek seferlik, bundan sonrası kendiliğinden. İndeksleme hatası gözlemi DÜŞÜRMEZ: gözlem ham
+    # kayıttır, indeks türetilmiş bir görünüm ve `/selectors/reindex` ile her an yeniden kurulur.
+    try:
+        pivot.index_observation(observation_id, raw_content, source_url)
+    except Exception:  # noqa: BLE001
+        logger.exception("Gözlem %s seçici indekslemesi başarısız", observation_id)
     # Zamanlanmış tarama HTTP dışından yazıyor; kuyruk önbelleği (triage) bunu da görmeli.
     bump_data_version()
     return Observation(

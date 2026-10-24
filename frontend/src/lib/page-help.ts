@@ -200,6 +200,55 @@ export const PAGE_HELP: Record<string, PageHelp> = {
       "Sonuçta analiz ve vargı yazılır — soruyu cevaplamadan kapatma.",
     ],
   },
+  "/selectors": {
+    title: "Seçiciler",
+    steps: [
+      "Üstteki Pivotla kutusuna herhangi bir değer yapıştır: alan adı, IP, hash, CVE, ATT&CK tekniği, kripto adresi ya da 'enlem, boylam'. Türü kendisi tanır.",
+      "Toplanan her gözlem ve yüklenen her belge kendiliğinden taranır; liste en çok görülenden başlar.",
+      "Bir türü seçince 'Bu türün hepsine uygula' çıkar: ör. bütün CVE'lere KEV ve EPSS'i tek seferde uygulamak için.",
+      "'Bir metinden seçici çıkar' grafa yazmadan önce ne bulunduğunu gösterir — bir advisory'yi yapıştırıp göstergelerini toplamanın yolu.",
+    ],
+    warnings: [
+      "Düz yazılmış dörtlü sayılar çoğu zaman sürüm numarasıdır; sürüm bağlamındakiler IP sayılmaz. Defang'li yazım (1.2.3[.]4) her zaman gösterge sayılır.",
+      "Yanlış pozitif silinmez, 'yanlış pozitif' olarak işaretlenir — yeniden taramada geri gelmesin diye.",
+    ],
+  },
+  "/selectors/view": {
+    title: "Seçici",
+    steps: [
+      "Zenginleştirme sekmesinde 'Pasif modüllerin hepsini çalıştır' hedefe dokunmadan bilinen her şeyi toplar.",
+      "Bir modülün bulduğu yeni seçiciler (IP, alt alan adı, ad sunucusu…) Pivotlar sekmesinde ve grafta belirir; tıklayıp devam et.",
+      "Görüldüğü yerler sekmesi bu değerin hangi kaynakta, hangi cümlede geçtiğini gösterir — bağımsız kaynak sayısı burada.",
+      "Dış araçlar sekmesi değeri 100'ü aşkın araçta ve arama operatörleriyle açar.",
+      "Bir sonucu iddiaya çevirmek istersen koşunun altındaki 'Gözleme çevir' onu Promote Kuyruğu'na sokar.",
+    ],
+    warnings: [
+      "Aktif modüller (HTTP parmak izi) hedefin sunucusuna istek atar ve iki adımlı onay ister.",
+      "Önbellekteki sonuç tekrar sorulmaz; 'Yeniden sor' bir OPSEC kararıdır — her sorgu ilgini o servise yeniden gösterir.",
+      "Entity bağı bir iddiadır: 'bu altyapı şu kuruma ait'. Zenginleştirme bunu kendisi kurmaz.",
+    ],
+  },
+  "/enrichment": {
+    title: "Zenginleştirme",
+    steps: [
+      "Modül tablosundan hangi kaynaklara sorulacağını seç; kapattığın modül hiçbir yerde çalışmaz.",
+      "Yerel veri setleri (KEV, ATT&CK, OFAC) bir kez indirilir ve bilgisayarında aranır — sorgu dışarı çıkmaz.",
+      "Son koşular listesi hangi değerin hangi servise ne zaman sorulduğunun kaydıdır.",
+    ],
+    warnings: [
+      "ATT&CK veri seti 55 MB; ilk indirme bir dakikayı bulabilir.",
+      "Yaptırım eşleşmesi ad eşleşmesidir, kimlik değildir.",
+    ],
+  },
+  "/tools": {
+    title: "Araç Rehberi",
+    steps: [
+      "Kategoriye göre süz ya da ada göre ara; kilit ikonu hesap gerektiren araçları gösterir.",
+      "Arama operatörü kurucu, alanlardan bir sorgu kurar ve dört motorda açar.",
+      "Bir seçiciyle çalışıyorsan buradan değil, seçicinin 'Dış araçlar' sekmesinden aç: bağlantılar değerle hazır gelir.",
+    ],
+    warnings: ["Bağlantılar tarayıcında açılır; giriş yapılmış bir hesapla yapılan arama o hesaba bağlanır."],
+  },
   "/inbox": {
     title: "Inbox",
     steps: [

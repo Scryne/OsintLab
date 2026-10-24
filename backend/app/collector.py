@@ -190,7 +190,15 @@ def _session() -> requests.Session:
     return session
 
 
-def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
+def safe_fetch(
+    url: str,
+    allowlist: set[str],
+    *,
+    headers: dict[str, str] | None = None,
+    max_bytes: int | None = None,
+    max_seconds: float | None = None,
+    timeout: float | None = None,
+) -> tuple[str, bytes, str]:
     """Allowlist + SSRF doğrulaması yapılmış GET isteği. Her redirect hop'u ayrıca doğrulanır
     (yönlendirme zinciriyle korumayı atlatmak mümkün olmasın diye). Dönen: (final_url, content, content_type).
 
@@ -199,8 +207,15 @@ def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
     her çağıran yalnızca iki collector hatasını yakaladığı için zamanlanmış tarama hatayı
     KAYDETMEDEN çöküyordu — `last_run_at` ilerlemiyor, tarama her dakika yeniden deneniyor,
     `consecutive_failures` hiç artmıyor ve SCAN_FAILED bildirimi hiç düşmüyordu (logda
-    "beklenmedik şekilde çöktü" olarak görülüyordu)."""
-    deadline = time.monotonic() + MAX_FETCH_SECONDS
+    "beklenmedik şekilde çöktü" olarak görülüyordu).
+
+    Faz 30: zenginleştirme modülleri aynı güvenlik katmanından geçiyor ama kendi başlıklarına
+    (DoH `Accept: application/dns-json`), boyut sınırına (ATT&CK veri seti 55 MB) ve süresine
+    ihtiyaç duyuyor. Verilmezse modül sabitleri geçerli — testlerin değiştirdiği değerler de
+    çağrı anında okunuyor."""
+    deadline = time.monotonic() + (MAX_FETCH_SECONDS if max_seconds is None else max_seconds)
+    request_headers = DEFAULT_HEADERS if headers is None else {**DEFAULT_HEADERS, **headers}
+    limit = MAX_BYTES if max_bytes is None else max_bytes
     with _session() as session:
         current_url = url
         for _ in range(MAX_REDIRECTS + 1):
@@ -209,10 +224,10 @@ def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
             try:
                 response = session.get(
                     current_url,
-                    timeout=DEFAULT_TIMEOUT,
+                    timeout=DEFAULT_TIMEOUT if timeout is None else timeout,
                     allow_redirects=False,
                     stream=True,
-                    headers=DEFAULT_HEADERS,
+                    headers=request_headers,
                 )
             except requests.RequestException as exc:
                 raise CollectorFetchError(
@@ -226,7 +241,7 @@ def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
                         raise CollectorSecurityError("Location header'sız redirect")
                     current_url = urljoin(current_url, location)
                     continue
-                content = _read_body(response, hostname, deadline)
+                content = _read_body(response, hostname, deadline, limit, max_seconds)
             finally:
                 response.close()
             return _finish(response, current_url, content)
@@ -234,7 +249,9 @@ def safe_fetch(url: str, allowlist: set[str]) -> tuple[str, bytes, str]:
     raise CollectorSecurityError("Çok fazla redirect")
 
 
-def _read_body(response: requests.Response, hostname: str, deadline: float) -> bytes:
+def _read_body(
+    response: requests.Response, hostname: str, deadline: float, limit: int | None = None, seconds: float | None = None
+) -> bytes:
     """Gövdeyi boyut ve TOPLAM süre sınırıyla okur.
 
     Süre yalnızca chunk'lar ARASINDA kontrol edilseydi yetmezdi: `read(65536)` 64 KiB dolana
@@ -255,8 +272,8 @@ def _read_body(response: requests.Response, hostname: str, deadline: float) -> b
     try:
         for chunk in response.iter_content(chunk_size=65536):
             content.extend(chunk)
-            if len(content) > MAX_BYTES:
-                raise CollectorSecurityError(f"Yanıt çok büyük (> {MAX_BYTES} byte)")
+            if len(content) > (MAX_BYTES if limit is None else limit):
+                raise CollectorSecurityError(f"Yanıt çok büyük (> {MAX_BYTES if limit is None else limit} byte)")
             if timed_out.is_set():
                 break
     except (requests.RequestException, OSError, AttributeError, ValueError) as exc:
@@ -268,7 +285,7 @@ def _read_body(response: requests.Response, hostname: str, deadline: float) -> b
         watchdog.cancel()
     if timed_out.is_set():
         raise CollectorFetchError(
-            f"{hostname} yanıtı {MAX_FETCH_SECONDS} saniyede bitmedi — sunucu içeriği çok "
+            f"{hostname} yanıtı {MAX_FETCH_SECONDS if seconds is None else seconds} saniyede bitmedi — sunucu içeriği çok "
             "yavaş gönderiyor, istek bırakıldı."
         )
     return bytes(content)

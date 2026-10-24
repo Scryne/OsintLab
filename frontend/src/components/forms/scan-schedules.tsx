@@ -327,7 +327,7 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="scan-schedules-mod-1">Mod</Label>
-          <Select value={mode} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
+          <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası" }} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
             <SelectTrigger id="scan-schedules-mod-1">
               <SelectValue />
             </SelectTrigger>
@@ -339,7 +339,7 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="scan-schedules-siklik-2">Sıklık</Label>
-          <Select value={interval} onValueChange={(v) => v && setInterval(v)}>
+          <Select value={interval} items={INTERVALS} onValueChange={(v) => v && setInterval(v)}>
             <SelectTrigger id="scan-schedules-siklik-2">
               <SelectValue />
             </SelectTrigger>

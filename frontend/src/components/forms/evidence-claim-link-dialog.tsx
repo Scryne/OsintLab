@@ -89,7 +89,7 @@ export function EvidenceClaimLinkDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="evidence-claim-link-dialog-durus-1">Duruş</Label>
-            <Select value={stance} onValueChange={(v) => v && setStance(v as "SUPPORTS" | "CONTRADICTS")}>
+            <Select value={stance} items={{ SUPPORTS: "Destekliyor", CONTRADICTS: "Çürütüyor" }} onValueChange={(v) => v && setStance(v as "SUPPORTS" | "CONTRADICTS")}>
               <SelectTrigger id="evidence-claim-link-dialog-durus-1">
                 <SelectValue />
               </SelectTrigger>

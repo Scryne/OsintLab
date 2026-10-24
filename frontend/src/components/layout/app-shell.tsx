@@ -7,6 +7,8 @@ import {
   Archive,
   CalendarClock,
   Compass,
+  Crosshair,
+  FlaskConical,
   Database,
   Eye,
   FileCheck,
@@ -23,6 +25,7 @@ import {
   UserPlus,
   Users,
   Waypoints,
+  Wrench,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,6 +41,11 @@ const NAV = [
   // Faz 18: event katmanı Faz 1'den beri şemada vardı ve arayüzden ERİŞİLEMİYORDU — nav'da
   // girişi, listesi, oluşturma formu yoktu. Grafta sıfır event olmasının sebebi buydu.
   { href: "/events", label: "Olaylar", icon: CalendarClock },
+  // Faz 29-32: seçiciler (CVE, alan adı, IP, hash...) ve onların zenginleştirilmesi. Entity'lerin
+  // hemen altında, çünkü ikisi aynı soruyu iki düzeyde soruyor: "kim" ve "hangi altyapı/gösterge".
+  { href: "/selectors", label: "Seçiciler", icon: Crosshair },
+  { href: "/enrichment", label: "Zenginleştirme", icon: FlaskConical },
+  { href: "/tools", label: "Araç Rehberi", icon: Wrench },
   { href: "/sources", label: "Kaynaklar", icon: Database },
   { href: "/investigations", label: "Investigation'lar", icon: FolderSearch },
   { href: "/observations", label: "Gözlemler", icon: Eye },

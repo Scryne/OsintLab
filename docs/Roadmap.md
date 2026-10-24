@@ -571,6 +571,44 @@ aday kuyruklari: entity=582 event=5 iliski=0 bag=100 dogrulama=358
   çoğu). `POST /archive/verify` turu ağ gerektirdiği için bu turda çalıştırılmadı.
 - Doğrulayanı olmayan claim oranı %60 → **%87**; domain kapısı daha da uzaklaştı.
 
+## v6 Roadmap — Pivot Katmanı (planlama: 2026-10-24)
+
+**Kapı kararı kullanıcınındır.** "v5 bittikten sonra nasıl ilerlenecek" bölümü domain açmayı
+üç ölçülmüş koşula bağlamıştı ve v5 sonunda biri sağlanıyordu. 2026-10-24'te Scryne projeyi
+"kullanılabilir, profesyonel, kapsamlı" bir OSINT çalışma istasyonuna genişletmeyi açıkça
+istedi (OSINT araç hesaplarının — @osintnewsletter, @0xtechrock, @techniquesOsint — paylaştığı
+araç ve tekniklerden beslenerek). Bu, bölüm 5'teki ikinci koşulun ("kapsam sınırı bir karar")
+tersi yönde verilmiş bir karar: kapı ölçümle değil, insanın kararıyla açıldı (Design
+Principle #7). Ölçüm disiplini korunuyor — her faz yine gerçek veride sınanıyor.
+
+**Ölçümden çıkan dayanak (2026-10-24).** 4.408 gözlemde 1.365 CVE geçişi (386 farklı), 38
+farklı MITRE ATT&CK tekniği, 13 dosya hash'i, 7 e-posta, 17 IP-benzeri dizi — ve sistem
+bunların **hiçbirini** tanımıyor. Bir CISA advisory'sindeki CVE, bugün yalnızca bir metin
+parçası; "bu açık KEV kataloğunda mı, sömürülme olasılığı ne, aynı CVE'yi başka hangi kaynak
+söyledi" soruları cevapsız. Entity katmanı (kişi/kurum) vardı; **makine-okunur seçici
+(selector) katmanı** yoktu. Profesyonel OSINT pratiğinin çekirdeği olan pivot — bir seçiciden
+ötekine, kaynağıyla birlikte geçmek — bu yüzden yapılamıyordu.
+
+**Kalıcı sınır v6'da da değişmiyor:** kitlesel toplama ve hedef bazlı (kişi) gözetim kapsam
+dışı. Bu yüzden seçici türleri altyapı, içerik ve kurum düzeyinde: alan adı, IP, ASN, URL,
+hash, CVE, ATT&CK tekniği, e-posta (yalnızca alan adı düzeyinde zenginleştirme), kripto adresi,
+koordinat. Kullanıcı adı taraması ve kişi arama servisleri bilinçli olarak yok.
+
+**OPSEC ilkesi (yeni).** Her zenginleştirme modülü ya **pasif** (üçüncü taraf bir veritabanına
+sorar, hedefin kendi altyapısına dokunmaz) ya da **aktif** (hedefe doğrudan istek atar) diye
+etiketlenir; aktif modüller açık onay ister. Bir sorgu, araştırma ilgisini o servise
+sızdırır — bu yüzden her modül ayrı ayrı kapatılabilir.
+
+| Faz | Adı | Durum | Bitti Kriteri |
+| --- | --- | --- | --- |
+| 29 | Seçici Katmanı (deterministik IOC çıkarma) | 🔄 Devam Ediyor | Gözlem ve belge metinlerinden alan adı/IP/URL/e-posta/hash/CVE/ATT&CK/kripto adresi seçicileri (defang'li yazımlar dahil) çıkarılıp grafta `Selector` olarak duruyor, her biri nerede görüldüğüne (`SEEN_IN`) bağlı; mevcut 4.408 gözlem geriye dönük tarandı; sürüm numarası gibi yanlış pozitifler ölçülüp elendi; yeni gözlemler otomatik taranıyor. |
+| 30 | Zenginleştirme Motoru (anahtarsız, pasif öncelikli) | ⏳ Bekliyor | En az 10 anahtarsız modül (DNS, RDAP, sertifika şeffaflığı, Wayback, InternetDB, RIPEstat, CVE/KEV/EPSS, GLEIF, Wikidata, GDELT…) çalışıyor; her koşu ham yanıtıyla (SHA-256) değişmez bir kayıt bırakıyor; modüller OPSEC sınıfıyla etiketli ve tek tek kapatılabiliyor; gerçek veride CVE'ler KEV/EPSS ile zenginleşti. |
+| 31 | Pivot Grafı + Seçici Çalışma Ekranı | ⏳ Bekliyor | Bir seçicinin sayfasında tüm zenginleştirme sonuçları yapılandırılmış görünüyor; sonuçlardan türeyen yeni seçiciler (`PIVOT` kenarı, hangi koşudan geldiğiyle) tek tıkla açılıyor; seçici bir entity'ye bağlanabiliyor; bir zenginleştirme sonucu gözleme çevrilip mevcut promote hattına girebiliyor. |
+| 32 | Araç Rehberi (Launchpad) + Arama Operatörü Kurucu | ⏳ Bekliyor | Kürasyonlu dış araç kataloğu (kategori, kabul ettiği seçici türü, anahtar gereksinimi, OPSEC notu) seçici sayfasında "dış araçta aç" bağlantıları üretiyor; arama motoru operatörleriyle (dork) sorgu kurucu çalışıyor. |
+| 33 | Hızlı Pivot (Komut Paleti) | ⏳ Bekliyor | Her sayfadan Ctrl+K ile herhangi bir değer yapıştırılınca türü tanınıyor ve seçici sayfasına gidiliyor; entity/claim/seçici araması aynı yerden yapılabiliyor. |
+| 34 | Medya Doğrulama (MEDIAINT/GEOINT temel) | ⏳ Bekliyor | Kanıt Kasası'na yüklenen bir görselin EXIF/GPS/kamera/zaman verisi ve algısal hash'i çıkıyor; GPS koordinat seçicisine dönüşüyor; ters görsel arama bağlantıları ve güneş konumu (kronolokasyon) hesaplayıcısı çalışıyor. |
+| 35 | Rapor Dışa Aktarımı | ⏳ Bekliyor | Bir investigation, claim'leri confidence ve kaynaklarıyla, kanıt hash'leriyle, seçici ve zenginleştirme kayıtlarıyla birlikte tek bir Markdown/HTML rapor olarak dışa aktarılabiliyor. |
+
 ## v5 bittikten sonra nasıl ilerlenecek
 
 v3, v4 ve v5'in kapsamı aynı yöntemle çıkarıldı ve üçü de doğru çıktı: **bir versiyonun son

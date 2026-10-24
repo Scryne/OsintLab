@@ -28,6 +28,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
+import { EntityIntel } from "@/components/pivot/entity-intel";
 import { NewClaimDialog } from "@/components/forms/claim-form";
 import { ClaimLinkDialog } from "@/components/forms/claim-link-dialog";
 import { ClaimContradictDialog } from "@/components/forms/claim-contradict-dialog";
@@ -216,6 +217,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             {(relationCandidates?.length ?? 0) > 0 && ` · ${relationCandidates?.length} aday`}
           </TabsTrigger>
             <TabsTrigger value="same-as">Olası Eşleşmeler ({sameAsCandidates?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="intel">Altyapı ve zenginleştirme</TabsTrigger>
           </TabsList>
         </div>
 
@@ -491,6 +493,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
               reloadRelationCandidates();
             }}
           />
+        </TabsContent>
+
+        <TabsContent value="intel" className="mt-4">
+          <EntityIntel entityId={entityId} name={entity.name} />
         </TabsContent>
 
         <TabsContent value="same-as" className="mt-4">

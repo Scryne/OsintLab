@@ -150,7 +150,7 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="page-mod-1">Mod</Label>
-        <Select value={mode} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
+        <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası" }} onValueChange={(v) => v && setMode(v as "rss" | "web")}>
           <SelectTrigger id="page-mod-1">
             <SelectValue />
           </SelectTrigger>

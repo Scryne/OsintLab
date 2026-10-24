@@ -28,7 +28,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from app import docint
+from app import docint, pivot
 from app.db import fetch_all, fetch_one, get_connection
 
 logger = logging.getLogger(__name__)
@@ -165,6 +165,12 @@ def process_evidence(evidence_id: str, mode: str = "extract") -> str:
         result["page_count"],
         len(result["text"]),
     )
+    # Faz 29: belgedeki seçiciler (advisory PDF'indeki hash'ler, IP'ler) kanıta bağlanır.
+    if result["status"] == docint.DONE and result["text"]:
+        try:
+            pivot.index_evidence(evidence_id, result["text"])
+        except Exception:  # noqa: BLE001
+            logger.exception("DOCINT (%s): seçici indekslemesi başarısız", evidence_id[:8])
     return result["status"]
 
 

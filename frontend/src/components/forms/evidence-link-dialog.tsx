@@ -163,7 +163,7 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="evidence-link-dialog-durus-stance-1">Duruş (stance)</Label>
-            <Select value={stance} onValueChange={(v) => v && setStance(v as "SUPPORTS" | "CONTRADICTS")}>
+            <Select value={stance} items={{ SUPPORTS: "SUPPORTS — destekliyor", CONTRADICTS: "CONTRADICTS — çelişiyor" }} onValueChange={(v) => v && setStance(v as "SUPPORTS" | "CONTRADICTS")}>
               <SelectTrigger id="evidence-link-dialog-durus-stance-1">
                 <SelectValue />
               </SelectTrigger>

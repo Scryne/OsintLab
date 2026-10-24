@@ -167,7 +167,8 @@ export default function QueuePage() {
 
           <Select value={host} onValueChange={(v) => v && setHost(v)}>
             <SelectTrigger className="w-[15rem]" aria-label="Kaynak adresine göre filtrele">
-              <SelectValue />
+              {/* Base UI ham değeri gösterir; "all" yerine okunur etiket. */}
+              <SelectValue>{(v: string) => (v === "all" ? "Tüm adresler" : v)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tüm adresler</SelectItem>

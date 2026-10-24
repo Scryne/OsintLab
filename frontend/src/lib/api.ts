@@ -47,6 +47,22 @@ import type {
   Source,
   WhyMattersReason,
 } from "./types";
+import type {
+  BulkJob,
+  DatasetStatus,
+  DorkRecipe,
+  EnrichmentModule,
+  EnrichmentRun,
+  ExtractedSelector,
+  PivotGraph,
+  Selector,
+  SelectorDetail,
+  SelectorDetect,
+  SelectorKindCount,
+  SelectorList,
+  ToolCatalog,
+  ToolLink,
+} from "./types-pivot";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8420";
 
@@ -545,6 +561,62 @@ export const api = {
     updateStatus: (id: string, status: string) => patch<InboxItem>(`/inbox/${id}`, { status }),
     getSettings: () => get<{ min_priority: string }>("/inbox/settings"),
     updateSettings: (min_priority: string) => put<{ min_priority: string }>("/inbox/settings", { min_priority }),
+  },
+
+  // Faz 29 — seçici katmanı. Kimlik `tür:değer` ve değer `/` içerebilir (URL): yol parçası
+  // olarak her zaman tamamen kodlanır.
+  selectors: {
+    list: (params?: { kind?: string; q?: string; sort?: string; limit?: number; offset?: number; include_ignored?: boolean }) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined && v !== "") qs.set(k, String(v));
+      return get<SelectorList>(`/selectors${qs.toString() ? `?${qs}` : ""}`);
+    },
+    kinds: () => get<SelectorKindCount[]>("/selectors/kinds"),
+    detect: (value: string) => post<SelectorDetect>("/selectors/detect", { value }),
+    extract: (text: string) => post<ExtractedSelector[]>("/selectors/extract", { text }),
+    create: (value: string, note = "") => post<Selector>("/selectors", { value, note }),
+    detail: (id: string) => get<SelectorDetail>(`/selectors/${encodeURIComponent(id)}/detail`),
+    graph: (id: string, depth = 2) => get<PivotGraph>(`/selectors/${encodeURIComponent(id)}/graph?depth=${depth}`),
+    update: (id: string, payload: { status?: "ACTIVE" | "IGNORED"; note?: string }) =>
+      patch<Selector>(`/selectors/${encodeURIComponent(id)}`, payload),
+    linkEntity: (id: string, entityId: string, note = "") =>
+      post<void>(`/selectors/${encodeURIComponent(id)}/entities`, { entity_id: entityId, note }),
+    unlinkEntity: (id: string, entityId: string) =>
+      del(`/selectors/${encodeURIComponent(id)}/entities/${entityId}`),
+    forEntity: (entityId: string) => get<(Selector & { link_note: string | null })[]>(`/entities/${entityId}/selectors`),
+    reindex: () =>
+      post<{ observations_scanned: number; evidence_scanned: number; new_sightings: number; selectors_total: number; duration_seconds: number }>(
+        "/selectors/reindex"
+      ),
+  },
+
+  // Faz 30 — zenginleştirme. Arayüz koşuyu `wait: false` ile başlatır ve yoklar: Wayback ve
+  // crt.sh gibi kaynaklar ölçümde dakikaları buldu.
+  enrichment: {
+    modules: () => get<EnrichmentModule[]>("/enrichment/modules"),
+    toggle: (name: string, enabled: boolean) => patch<EnrichmentModule>(`/enrichment/modules/${name}`, { enabled }),
+    forTarget: (targetId: string) => get<EnrichmentModule[]>(`/enrichment/targets/${encodeURIComponent(targetId)}/modules`),
+    runsFor: (targetId: string) => get<EnrichmentRun[]>(`/enrichment/targets/${encodeURIComponent(targetId)}/runs`),
+    run: (module: string, targetId: string, opts?: { force?: boolean; confirm_active?: boolean }) =>
+      post<EnrichmentRun>("/enrichment/run", { module, target_id: targetId, wait: false, ...opts }),
+    getRun: (id: string) => get<EnrichmentRun>(`/enrichment/runs/${id}`),
+    raw: (id: string) => get<{ integrity_ok: boolean; record: Record<string, unknown> }>(`/enrichment/runs/${id}/raw`),
+    recent: (limit = 100) => get<EnrichmentRun[]>(`/enrichment/runs?limit=${limit}`),
+    toObservation: (id: string) => post<Observation>(`/enrichment/runs/${id}/observation`),
+    datasets: () => get<DatasetStatus[]>("/enrichment/datasets"),
+    downloadDataset: (name: string) => post<{ name: string; started: boolean }>(`/enrichment/datasets/${name}/download`),
+    bulkStatus: () => get<BulkJob>("/enrichment/bulk"),
+    bulk: (module: string, kind: string, only_missing = true) => post<BulkJob>("/enrichment/bulk", { module, kind, only_missing }),
+    cancelBulk: () => post<BulkJob>("/enrichment/bulk/cancel"),
+  },
+
+  // Faz 32 — dış araç kataloğu. Backend bu araçlara istek ATMAZ; bağlantılar tarayıcıda açılır.
+  tools: {
+    catalog: () => get<ToolCatalog>("/tools"),
+    links: (kind: string, value: string) =>
+      get<ToolLink[]>(`/tools/links?kind=${kind}&value=${encodeURIComponent(value)}`),
+    dorks: (kind: string, value: string) =>
+      get<DorkRecipe[]>(`/tools/dorks?kind=${kind}&value=${encodeURIComponent(value)}`),
   },
 
   intelligence: {

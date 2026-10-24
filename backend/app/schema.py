@@ -212,6 +212,44 @@ NODE_TABLES = [
         PRIMARY KEY(key)
     )
     """,
+    # Faz 29 — seçici (selector): makine-okunur pivot noktası (alan adı, IP, CVE, hash...).
+    # Anahtar `tür:değer` (ör. `cve:CVE-2024-3400`), uuid değil: aynı gösterge hangi metinden
+    # çıkarılırsa çıkarılsın aynı düğüme düşmeli — yeniden tarama idempotent olsun diye.
+    # `status` IGNORED olabilir: yanlış pozitif SİLİNMEZ, işaretlenir (Faz 20'nin aday kararı).
+    # `origin`: extracted (metinden) | manual (elle) | enrichment (bir zenginleştirme sonucundan).
+    """
+    CREATE NODE TABLE IF NOT EXISTS Selector(
+        id STRING,
+        kind STRING,
+        value STRING,
+        status STRING,
+        origin STRING,
+        note STRING,
+        created_at TIMESTAMP,
+        PRIMARY KEY(id)
+    )
+    """,
+    # Faz 30 — bir zenginleştirme koşusu. DEĞİŞMEZ kayıt: ham yanıt `raw_path`te diskte, bütünlüğü
+    # `raw_sha256` ile (Evidence First). `summary` modülün yapılandırılmış çıktısı (JSON).
+    # `opsec`: PASSIVE (üçüncü taraf veritabanı) | ACTIVE (hedefin kendi altyapısına istek).
+    """
+    CREATE NODE TABLE IF NOT EXISTS EnrichmentRun(
+        id STRING,
+        module STRING,
+        selector_id STRING,
+        target_type STRING,
+        status STRING,
+        opsec STRING,
+        request_url STRING,
+        raw_path STRING,
+        raw_sha256 STRING,
+        summary STRING,
+        error STRING,
+        started_at TIMESTAMP,
+        finished_at TIMESTAMP,
+        PRIMARY KEY(id)
+    )
+    """,
 ]
 
 REL_TABLES = [
@@ -277,6 +315,21 @@ REL_TABLES = [
     "CREATE REL TABLE IF NOT EXISTS DERIVED_FROM(FROM Source TO Source, method STRING, similarity DOUBLE, shared_agencies STRING, detected_at TIMESTAMP)",
     # Faz 12 — bir zamanlanmış taramanın hangi Source adına içerik topladığı.
     "CREATE REL TABLE IF NOT EXISTS SCANS_SOURCE(FROM ScanSchedule TO Source)",
+    # Faz 29 — seçicinin görüldüğü yer. `context` ilk geçtiği yerin çevresi (Auditability: "neden
+    # bu seçici" sorusunun cevabı metindeki fiili geçiş), `defanged` yazarın onu bilerek
+    # gösterge olarak yazıp yazmadığı.
+    "CREATE REL TABLE IF NOT EXISTS SEEN_IN(FROM Selector TO Observation, context STRING, defanged BOOLEAN, occurrences INT64, created_at TIMESTAMP)",
+    "CREATE REL TABLE IF NOT EXISTS SEEN_IN_EVIDENCE(FROM Selector TO Evidence, context STRING, defanged BOOLEAN, occurrences INT64, created_at TIMESTAMP)",
+    # Faz 31 — seçici bir entity'nin altyapısıdır ("bu alan adı X kurumuna ait"). Kullanıcı kararı.
+    "CREATE REL TABLE IF NOT EXISTS SELECTOR_OF(FROM Selector TO Entity, note STRING, created_at TIMESTAMP)",
+    # Faz 30/31 — bir zenginleştirmenin iki seçici arasında bulduğu bağ (`resolves_to`,
+    # `subdomain_of`, `announced_by`...). Hangi koşudan geldiği kenarın üzerinde: pivotun kaynağı
+    # kaybolursa "bu IP o alan adına ait" iddiası denetlenemez hale gelir.
+    "CREATE REL TABLE IF NOT EXISTS PIVOT(FROM Selector TO Selector, relation STRING, module STRING, run_id STRING, first_seen TIMESTAMP, last_seen TIMESTAMP)",
+    "CREATE REL TABLE IF NOT EXISTS RAN_ON(FROM EnrichmentRun TO Selector)",
+    # Kurum düzeyindeki modüller (GLEIF, Wikidata, yaptırım listeleri) bir seçiciye değil
+    # entity'ye bakar; koşu yine aynı değişmez kayıttır, yalnızca hedefi farklıdır.
+    "CREATE REL TABLE IF NOT EXISTS RAN_ON_ENTITY(FROM EnrichmentRun TO Entity)",
 ]
 
 

@@ -190,7 +190,11 @@ export function HypothesisEvidenceDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="hypothesis-evidence-dialog-durus-1">Duruş</Label>
-            <Select value={stance} onValueChange={(v) => v && setStance(v as Stance)}>
+            <Select
+              value={stance}
+              items={{ SUPPORTS: "SUPPORTS — hipotezi destekliyor", WEAKENS: "WEAKENS — zayıflatıyor", REFUTES: "REFUTES — çürütüyor" }}
+              onValueChange={(v) => v && setStance(v as Stance)}
+            >
               <SelectTrigger id="hypothesis-evidence-dialog-durus-1">
                 <SelectValue />
               </SelectTrigger>

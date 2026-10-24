@@ -112,7 +112,11 @@ export default function InboxPage() {
             <LiveIndicator updatedAt={updatedAt} />
           </p>
         </div>
-        <Select value={minPriority} onValueChange={(value) => value && setMinPriority(value)}>
+        <Select
+          value={minPriority}
+          items={Object.fromEntries(PRIORITY_ORDER.map((p) => [p, `${PRIORITY_LABEL_TR[p]}+`]))}
+          onValueChange={(value) => value && setMinPriority(value)}
+        >
           <SelectTrigger className="w-40" aria-label="En düşük öncelik">
             <SelectValue />
           </SelectTrigger>
