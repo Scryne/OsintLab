@@ -203,8 +203,9 @@ function Detail({ data, reload }: { data: SelectorDetail; reload: () => void }) 
                 <p className="mt-1 font-mono text-xs leading-relaxed text-text-secondary">…{d.context}…</p>
               </li>
             ))}
-            {data.sightings.map((s) => (
-              <li key={s.observation_id} className="rounded-lg border border-border bg-surface p-3">
+            {/* Bir gözlem birden çok claim üretmişse aynı gözlem birden çok satır döner. */}
+            {data.sightings.map((s, i) => (
+              <li key={`${s.observation_id}-${s.claim_id ?? i}`} className="rounded-lg border border-border bg-surface p-3">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-tertiary">
                   <span className="font-mono">{s.observed_at ? new Date(s.observed_at).toLocaleString("tr-TR") : "—"}</span>
                   {s.source_url && (

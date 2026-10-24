@@ -49,8 +49,8 @@ function Chips({ items, mono = true }: { items: (string | number)[]; mono?: bool
   if (!items?.length) return <span className="text-text-tertiary">—</span>;
   return (
     <span className="flex flex-wrap gap-1">
-      {items.map((it) => (
-        <span key={String(it)} className={cn("rounded border border-border bg-surface px-1.5 py-0.5 text-xs", mono && "font-mono")}>
+      {items.map((it, i) => (
+        <span key={`${i}-${it}`} className={cn("rounded border border-border bg-surface px-1.5 py-0.5 text-xs", mono && "font-mono")}>
           {it}
         </span>
       ))}
@@ -85,8 +85,8 @@ function ScrollList({ items, max = "max-h-48" }: { items: string[]; max?: string
   if (!items?.length) return <span className="text-sm text-text-tertiary">—</span>;
   return (
     <ul className={cn("overflow-y-auto rounded-md border border-border bg-black/20 p-2 font-mono text-xs leading-relaxed", max)}>
-      {items.map((it) => (
-        <li key={it} className="truncate" title={it}>
+      {items.map((it, i) => (
+        <li key={`${i}-${it}`} className="truncate" title={it}>
           {it}
         </li>
       ))}
@@ -403,8 +403,8 @@ function Nvd({ s }: { s: S }) {
       {s.references?.length > 0 && (
         <Section title="Referanslar">
           <ul className="flex flex-col gap-1 text-xs">
-            {s.references.slice(0, 15).map((r: any) => (
-              <li key={r.url} className="truncate">
+            {s.references.slice(0, 15).map((r: any, i: number) => (
+              <li key={`${i}-${r.url}`} className="truncate">
                 <ExtLink href={r.url}>{r.url}</ExtLink> {r.tags?.length ? <span className="text-text-tertiary">· {r.tags.join(", ")}</span> : null}
               </li>
             ))}
@@ -471,8 +471,8 @@ function Gdelt({ s }: { s: S }) {
         {s.count} haber · {s.distinct_sources} farklı kaynak · {s.window}. Bir haberi gözleme çevirmek onu doğrulama hattına sokar.
       </p>
       <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
-        {s.articles.slice(0, 40).map((a: any) => (
-          <li key={a.url} className="flex items-start justify-between gap-3 px-2.5 py-2">
+        {s.articles.slice(0, 40).map((a: any, i: number) => (
+          <li key={`${i}-${a.url}`} className="flex items-start justify-between gap-3 px-2.5 py-2">
             <div className="min-w-0">
               <a href={a.url} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-foreground hover:underline">
                 {a.title}
@@ -519,8 +519,8 @@ function Wikidata({ s, onSuggest }: { s: S; onSuggest?: (kind: string, value: st
       {s.suggested_selectors?.length > 0 && (
         <Section title="Önerilen seçiciler">
           <div className="flex flex-wrap gap-2">
-            {s.suggested_selectors.map((sg: any) => (
-              <Button key={sg.value} size="sm" variant="outline" onClick={() => onSuggest?.(sg.kind, sg.value)} disabled={!onSuggest}>
+            {s.suggested_selectors.map((sg: any, i: number) => (
+              <Button key={`${i}-${sg.value}`} size="sm" variant="outline" onClick={() => onSuggest?.(sg.kind, sg.value)} disabled={!onSuggest}>
                 <Plus aria-hidden className="h-3.5 w-3.5" />
                 <Mono>{sg.value}</Mono> bağla
               </Button>
