@@ -36,6 +36,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npx tsc --noEmit
       - run: npm run lint
+      # next build PageProps/LayoutProps tiplerini .next/types altına üretir; tip denetimi ondan sonra
       - run: npm run build
+      - run: npx tsc --noEmit
