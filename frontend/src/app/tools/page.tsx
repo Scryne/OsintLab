@@ -11,25 +11,32 @@ import { ErrorState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { SunTool } from "@/components/pivot/sun-tool";
+import { Button } from "@/components/ui/button";
 
 const COST = { free: "ücretsiz", freemium: "kısmen ücretsiz", paid: "ücretli" } as const;
+const PAGE_SIZE = 60;
 
-/** Faz 32 — Araç Rehberi. Kaynak: @osintnewsletter'ın OSINT Tools Library dizini ve Tool Tuesday
- * sayıları, buna altyapı/tehdit istihbaratı pratiğinin standart araçları eklendi. Kişi arama,
- * kullanıcı adı ve yüz tanıma araçları kalıcı kapsam sınırı yüzünden yok. */
+/** Faz 32 — Araç Rehberi. Kaynak: @osintnewsletter, @0xtechrock, @techniquesOsint'in paylaştıkları ve
+ * Scryne'ın derlemesi (2026-10-24 taraması, `app/toolcatalog.py`). Q25 sınırı katalog için kaldırıldı;
+ * kişi ve kimlik araçları kendi kategorilerinde. 700+ satır olduğu için liste parça parça çizilir. */
 export default function ToolsPage() {
   const { data, error, loading, reload } = useApi(() => api.tools.catalog(), []);
   const [category, setCategory] = useState("");
+  const [source, setSource] = useState("");
   const [q, setQ] = useState("");
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const sourceLabel = useMemo(() => new Map((data?.sources ?? []).map((s) => [s.id, s.label])), [data]);
 
   const tools = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return (data?.tools ?? []).filter(
       (t) =>
         (!category || t.category === category) &&
+        (!source || (t.via ?? []).includes(source)) &&
         (!needle || t.name.toLowerCase().includes(needle) || (t.note ?? "").toLowerCase().includes(needle))
     );
-  }, [data, category, q]);
+  }, [data, category, source, q]);
+  const visible = tools.slice(0, limit);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
@@ -49,16 +56,30 @@ export default function ToolsPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Katalog</h2>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Kategori">
-          <Chip active={!category} onClick={() => setCategory("")} label="Hepsi" count={data?.tools.length ?? 0} />
+          <Chip active={!category} onClick={() => { setCategory(""); setLimit(PAGE_SIZE); }} label="Hepsi" count={data?.tools.length ?? 0} />
           {data?.categories.map((c) => (
-            <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)} label={c.label} count={c.count} />
+            <Chip key={c.id} active={category === c.id} onClick={() => { setCategory(c.id); setLimit(PAGE_SIZE); }} label={c.label} count={c.count} />
           ))}
         </div>
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Araç ara…" aria-label="Araç ara" className="max-w-xs" />
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Paylaşan kaynak">
+          <span className="mr-1 text-xs text-text-tertiary">Paylaşan</span>
+          <Chip active={!source} onClick={() => { setSource(""); setLimit(PAGE_SIZE); }} label="Hepsi" count={data?.tools.length ?? 0} />
+          {data?.sources?.map((s) => (
+            <Chip key={s.id} active={source === s.id} onClick={() => { setSource(s.id); setLimit(PAGE_SIZE); }} label={s.label} count={s.count} />
+          ))}
+        </div>
+        <Input
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setLimit(PAGE_SIZE); }}
+          placeholder="Araç ara…"
+          aria-label="Araç ara"
+          className="max-w-xs"
+        />
+        {data && <p className="text-xs text-text-tertiary" aria-live="polite">{tools.length} araç</p>}
         {loading && <SkeletonRows count={6} />}
         {error && <ErrorState error={error} onRetry={reload} />}
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {tools.map((t) => (
+          {visible.map((t) => (
             <li key={t.id}>
               <a
                 href={t.url}
@@ -78,10 +99,20 @@ export default function ToolsPage() {
                   {t.kinds.length > 0 && ` · ${t.kinds.length} türle bağlantılı`}
                 </span>
                 {t.note && <span className="text-xs text-pretty text-text-secondary">{t.note}</span>}
+                {(t.via?.length ?? 0) > 0 && (
+                  <span className="mt-auto pt-1 text-[11px] text-text-tertiary">
+                    Paylaşan: {(t.via ?? []).map((v) => sourceLabel.get(v) ?? v).join(", ")}
+                  </span>
+                )}
               </a>
             </li>
           ))}
         </ul>
+        {tools.length > visible.length && (
+          <Button variant="outline" className="self-start" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
+            Daha fazla göster ({tools.length - visible.length} kaldı)
+          </Button>
+        )}
       </section>
     </div>
   );

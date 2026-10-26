@@ -257,7 +257,11 @@ Ayrıntı ve ölçümler: `docs/Roadmap.md` → "v6 Roadmap" ve Faz 29-36 detayl
 - **Seçici (`Selector`) entity değildir.** Makine-okunur pivot noktası (alan adı, IP, URL,
   e-posta, hash, CVE, ATT&CK, ASN, BTC/ETH, koordinat); kimliği `tür:değer`. Çıkarma
   deterministik (`app/selectorindex.py`), graf işlemleri `app/pivot.py`. Kişi seçicisi
-  (kullanıcı adı, telefon) YOK — kalıcı kapsam sınırı.
+  (kullanıcı adı, telefon) YOK. Q25 2026-10-24'te yalnız **Araç Rehberi kataloğu** için kaldırıldı
+  (kişi/kimlik araçları `people`/`identity` kategorilerinde); seçici katmanını genişletmek ayrı karar.
+- **Araç kataloğu** (`app/toolcatalog.py`, 713 araç) üç X hesabından ve Scryne'ın derlemesinden;
+  her aracın kaynağı `SHARED_BY`'da. Araç eklerken adresi canlı yokla ve kaynağını yaz;
+  `test_tool_catalog_integrity` kimlik, kategori, kaynak ve kalıpları denetler.
 - **Yeni gözlem/belge kendiliğinden indekslenir** (`create_observation_record`, `doc_worker`).
   Kaynağın kendi alan adına referansı gösterge sayılmaz. `POST /selectors/reindex` görülme
   kenarlarını YENİDEN KURAR (kural değiştiğinde), seçici notlarını/koşularını korur.

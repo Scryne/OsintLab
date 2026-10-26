@@ -3677,4 +3677,22 @@ gözlem** (1.144'ü yüksek sinyalli) — zamanlanmış tarama girdiyi değerlen
   sinyalli gözlem insan kararına bırakıldı. Kuyruk 3.871 → 1.943.
 - **9 CVE izlemeye alındı:** KEV'de olmayan ama EPSS yüzdelik dilimi ≥ %90 olanlar
   (ör. CVE-2018-19518, EPSS %96). KEV'e girdiklerinde Inbox'a HIGH düşer; KEV yerel, EPSS FIRST'e günde bir.
-- Kişi araması / kullanıcı adı taraması kapsam dışı kaldı (Q25 kalıcı sınırı; açık bir karar gerektirir).
+- Kişi araması / kullanıcı adı taraması bu sabah kapsam dışıydı; aynı gün katalog için kaldırıldı (aşağıda).
+
+**2026-10-24 öğleden sonra — Araç Rehberi kaynak taraması ve Q25 kararı.**
+- Üç hesabın zaman akışı X'in kendi yanıtlarından (tam metin, açılmış bağlantılar) baştan sona
+  okundu: @osintnewsletter 1.257, @0xtechrock 1.422, @techniquesOsint 257 gönderi; ayrıca
+  @osintnewsletter'ın OSINT Tools Library'sinin 334 araç sayfası ayrıştırıldı ve Scryne'ın kendi
+  derlediği bağlantılar işlendi. Faz 30'daki "diğer iki hesaba ulaşılamadı" boşluğu kapandı.
+- **Scryne Q25 sınırını katalog için kaldırdı.** Kişi arama, kullanıcı adı, e-posta/telefon ve yüz
+  arama araçları artık `people` / `identity` kategorilerinde. Karar katalogla sınırlı: seçici katmanı
+  kişi seçicisi çıkarmıyor, toplanan metinden kullanıcı adı/telefon indekslenmiyor — bu ayrı bir karar.
+  Bilinçli dışarıda kalanlar: düz metin şifre gösteren dökümler, doxing siteleri, tarayıcıdan kimlik
+  bilgisi çalan araçlar, Wi-Fi şifre veritabanı, oyun kimliğinden IP çözen servis.
+- Katalog **102 → 713 araç, 12 → 21 kategori.** Her aday canlı yoklandı: 24'ü düştü (çözülmeyen alan
+  adı: Nuwber, FilePursuit, ScamDB, qdorks...; kalıcı 5xx: ThreatMiner, RSECloud, BF Database Search;
+  silinmiş depo: DarkGPT, OSINTUI). Bot korumalı (403) siteler canlı sayıldı; doğrulanamayan iki
+  bağlantı kalıbı (DNSlytics, SpyFu) çıkarıldı. Anna's Archive yeni adrese taşındı.
+- Her aracın kaynağı `toolcatalog.SHARED_BY`'da; Araç Rehberi "Paylaşan" filtresi ve kart satırıyla
+  gösteriyor, 700+ satır 60'arlık parçalarla çiziliyor.
+- Bütünlük testi: `tests/test_enrichment.py::test_tool_catalog_integrity`.

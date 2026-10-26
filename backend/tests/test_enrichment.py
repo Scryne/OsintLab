@@ -190,6 +190,27 @@ def test_tool_links_and_dorks(client):
     assert len(cat["tools"]) >= 90 and all(t["category_label"] for t in cat["tools"])
 
 
+def test_tool_catalog_integrity():
+    """Katalog elle derlenen 700+ satır: kimlik tekil, kategori ve kaynak tanımlı, her kalıp çözülüyor."""
+    from app import toolcatalog
+
+    ids = [t["id"] for t in toolcatalog.TOOLS]
+    assert len(ids) == len(set(ids))
+    assert {t["category"] for t in toolcatalog.TOOLS} <= set(toolcatalog.CATEGORIES)
+    assert set(toolcatalog.SHARED_BY) <= set(ids)
+    assert {s for v in toolcatalog.SHARED_BY.values() for s in v} <= set(toolcatalog.SOURCES)
+    samples = {"domain": "evil.example", "ip": "192.0.2.1", "cve": "CVE-2024-3400", "md5": "0" * 32, "sha1": "0" * 40,
+               "sha256": "0" * 64, "btc": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", "eth": "0x" + "0" * 40, "coord": "41.0,29.0",
+               "attack": "T1059.001", "asn": "AS13335", "url": "https://evil.example/x", "email": "a@evil.example",
+               "entity": "Siemens AG", "image_url": "https://evil.example/a.jpg"}
+    for tool in toolcatalog.TOOLS:
+        assert tool["url"].startswith(("https://", "http://")), tool["id"]
+        for kind, template in tool["templates"].items():
+            assert toolcatalog.render(template, kind, samples[kind]).startswith("http"), tool["id"]
+    cat = toolcatalog.catalog()
+    assert all(s["count"] > 0 for s in cat["sources"])
+
+
 def test_queue_signals_from_selectors(client, make_entity):
     entity = make_entity(name="Quiet Infra Owner")
     sid = _selector(client, "c2-signal.example")

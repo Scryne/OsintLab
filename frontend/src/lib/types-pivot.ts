@@ -197,6 +197,7 @@ export interface ToolLink {
 
 export interface ToolCatalog {
   categories: { id: string; label: string; count: number }[];
+  sources: { id: string; label: string; count: number }[];
   tools: {
     id: string;
     name: string;
@@ -207,6 +208,7 @@ export interface ToolCatalog {
     account: boolean;
     note?: string;
     kinds: string[];
+    via: string[];
   }[];
 }
 
