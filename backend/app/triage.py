@@ -592,6 +592,23 @@ def _pending_observations(conn) -> list:
     return [_observation_from_row(row) for row in rows if not row.get("produced_claim_id")]
 
 
+def pending_count(conn) -> int:
+    """Bekleyen gözlem sayısı, `_pending_observations` ile aynı tanımla ama veritabanında sayılarak.
+
+    Nav rozeti yalnız bu sayıyı istiyor. `build_queue` her bekleyen gözlemi Python'da puanlıyor ve
+    önbelleği `data_version`'a bağlı: otomatik tarama her yazışta sürümü artırdığı için tarama
+    sürerken rozetin her sorusu baştan skorlama demekti (09-26: 1.377 bekleyen, ~80 sn'lik istek)."""
+    row = fetch_one(
+        conn.execute(
+            f"MATCH (o:Observation) WHERE {_PENDING_WHERE} "
+            "OPTIONAL MATCH (o)-[:PRODUCED]->(c:Claim) "
+            "WITH o, count(c) AS claims WHERE claims = 0 "
+            "RETURN count(o) AS n"
+        )
+    )
+    return int(row["n"]) if row else 0
+
+
 def _counts(conn) -> dict:
     """Kuyruk sağlığı sayaçları. Roadmap: '221 rakamı ancak API'ye elle sorulunca çıktı.'"""
     total = fetch_one(conn.execute("MATCH (o:Observation) RETURN count(o) AS n"))["n"]

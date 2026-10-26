@@ -4,4 +4,4 @@
 # Testler kendi geçici veri kökünde çalışır (OSINTLAB_DATA_DIR), gerçek data/'ya dokunmaz.
 -r requirements.txt
 pytest==8.4.2
-httpx==0.28.1
+httpx2==2.16.0  # Starlette 1.x TestClient httpx2 ister

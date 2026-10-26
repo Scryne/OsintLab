@@ -471,6 +471,8 @@ export const api = {
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return get<ObservationQueue>(`/observations/queue${suffix}`);
     },
+    // Nav rozeti: yalnız bekleyen sayısı, skorlamasız (tarama sürerken /queue her soruda baştan skorluyordu).
+    queueCount: () => get<{ pending: number }>("/observations/queue/count"),
     dismiss: (observationIds: string[], reason?: string | null) =>
       post<ObservationDismissResult>("/observations/dismiss", {
         observation_ids: observationIds,

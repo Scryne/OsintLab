@@ -20,6 +20,7 @@ from app.models import (
     ObservationPromoteBatchItem,
     ObservationPromoteBatchResult,
     ObservationQueue,
+    QueueCount,
 )
 from app.monitoring import claim_headline
 from app.recall import entity_recall, event_recall
@@ -223,6 +224,13 @@ def observation_queue(
         get_connection(), limit=limit, offset=offset, host=host,
         max_score=max_score, min_score=min_score,
     )
+
+
+@router.get("/queue/count", response_model=QueueCount)
+def observation_queue_count() -> QueueCount:
+    """Nav rozeti: bekleyen gözlem sayısı, skorlamadan. `/queue` ile aynı tanım
+    (`/observations/{observation_id}`'den önce tanımlı, bkz. yukarıdaki not)."""
+    return QueueCount(pending=triage.pending_count(get_connection()))
 
 
 @router.post("/dismiss", response_model=ObservationDismissResult)

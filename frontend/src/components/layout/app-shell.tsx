@@ -88,12 +88,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   });
   const inboxCount = newItems?.length ?? null;
   // Kuyruk derinliği de canlı: biriken gözlem, kullanıcı o sayfaya gitmeyi akıl edene kadar
-  // görünmezse Faz 16'dan önceki duruma geri dönerdi. Sadece sayaç için `limit: 1` — 223
-  // satırlık gövdeyi her 60 saniyede bir taşımanın anlamı yok.
-  const { data: queue } = useApi(() => api.observations.queue({ limit: 1 }), [pathname], {
+  // görünmezse Faz 16'dan önceki duruma geri dönerdi. Ayrı sayaç ucu: `/queue?limit=1` bile her
+  // bekleyen gözlemi puanlıyordu ve otomatik tarama sürerken önbellek her soruda düşüyordu.
+  const { data: queue } = useApi(() => api.observations.queueCount(), [pathname], {
     pollMs: 60_000,
   });
-  const queueCount = queue?.stats.pending ?? null;
+  const queueCount = queue?.pending ?? null;
 
   const navList = (
     <nav className="flex flex-col gap-1">

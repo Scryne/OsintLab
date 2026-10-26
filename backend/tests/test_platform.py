@@ -43,6 +43,21 @@ def test_queue_cache_is_invalidated_by_new_observations(client):
     assert after == before + 1
 
 
+def test_queue_count_matches_scored_queue_without_scoring(client, monkeypatch):
+    from app import triage
+
+    client.post("/observations", json={"raw_content": "Rozet sayacı için gözlem"})
+    pending = client.get("/observations/queue?limit=1").json()["stats"]["pending"]
+
+    def skorlama_yok(*_a, **_k):
+        raise AssertionError("rozet sayacı skorlamaya girmemeli")
+
+    monkeypatch.setattr(triage, "_score_all", skorlama_yok)
+    assert client.get("/observations/queue/count").json() == {"pending": pending}
+    client.post("/observations", json={"raw_content": "Bir tane daha"})
+    assert client.get("/observations/queue/count").json() == {"pending": pending + 1}
+
+
 def test_word_matching_respects_boundaries():
     assert scanning.contains_word("meta's new model", "meta")
     assert not scanning.contains_word("metadata leak", "meta")

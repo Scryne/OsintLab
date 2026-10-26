@@ -593,6 +593,12 @@ class ObservationQueue(BaseModel):
     high_signal_threshold: float
 
 
+class QueueCount(BaseModel):
+    """Nav rozeti için yalnız sayı (skorlama yok)."""
+
+    pending: int
+
+
 class ObservationDismiss(BaseModel):
     """Toplu eleme. Tekil bir uç değil, çünkü darboğazın kendisi tekillikti."""
 
