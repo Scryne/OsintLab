@@ -1,0 +1,12 @@
+{
+  "surum": 1,
+  "aciklama": "Kokpit nöbeti (durum.py --nobet): bu projede kendiliğinden çalışan işler. Yalnız okunur; bkz. ScryneOS/.claude/scripts/nobet.py",
+  "isler": [
+    {
+      "ad": "Backend servisi",
+      "tur": "gorev",
+      "gorev": "\\OsintLab Backend",
+      "servis": true
+    }
+  ]
+}
