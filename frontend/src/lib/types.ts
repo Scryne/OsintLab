@@ -505,6 +505,12 @@ export interface QueueStats {
   oldest_pending_at: string | null;
   oldest_pending_age_days: number | null;
   hosts: QueueHostBucket[];
+  /** Tazelik kuralı: bu kadar gün değerlendirilmeyen gözlem otomatik elenir (geri alınabilir). */
+  aging_enabled: boolean;
+  aging_low_signal_days: number | null;
+  aging_high_signal_days: number | null;
+  aging_last_run_at: string | null;
+  aging_last_dismissed: number;
 }
 
 export interface ObservationQueue {

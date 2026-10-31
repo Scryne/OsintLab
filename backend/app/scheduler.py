@@ -24,6 +24,8 @@ import asyncio
 import logging
 import os
 
+from app import aging
+from app.db import get_connection
 from app.scanning import run_due_schedules
 from app.selectorwatch import run_due_watches
 
@@ -50,6 +52,20 @@ WATCH_EVERY_TICKS = 10
 
 _watch_task: asyncio.Task | None = None
 
+# Kuyruk yaşlanması (app/aging.py) gün ölçeğinde bir kural; altı saatte bir bakmak yeter. İlk
+# tur açılışta: bilgisayar günlerce kapalı kaldıysa birikmiş süre hemen kapanır.
+AGING_EVERY_TICKS = 6 * 60
+_aging_task: asyncio.Task | None = None
+
+
+async def _aging_round() -> None:
+    try:
+        await asyncio.to_thread(lambda: aging.age_out(get_connection()))
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001 — yaşlanma taramayı durdurmamalı
+        logger.exception("Kuyruk yaşlanma turu beklenmedik şekilde çöktü")
+
 
 async def _watch_round() -> None:
     try:
@@ -63,9 +79,11 @@ async def _watch_round() -> None:
 
 
 async def _loop() -> None:
-    global _watch_task
+    global _watch_task, _aging_task
     tick = 0
     while True:
+        if aging.enabled() and tick % AGING_EVERY_TICKS == 0 and (_aging_task is None or _aging_task.done()):
+            _aging_task = asyncio.create_task(_aging_round(), name="osintlab-queue-aging")
         # İzleme turu AYRI bir görevde: onlarca izlenen alan adının DNS + crt.sh (12 sn aralık) +
         # RDAP turu dakikalar sürebilir ve zamanlanmış taramayı o süre boyunca bekletmemeli. Önceki
         # tur bitmediyse yenisi başlamaz.
@@ -101,10 +119,12 @@ def start() -> bool:
 
 
 async def stop() -> None:
-    global _task, _watch_task
-    if _watch_task is not None and not _watch_task.done():
-        _watch_task.cancel()
+    global _task, _watch_task, _aging_task
+    for side in (_watch_task, _aging_task):
+        if side is not None and not side.done():
+            side.cancel()
     _watch_task = None
+    _aging_task = None
     if _task is None:
         return
     _task.cancel()

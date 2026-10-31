@@ -582,6 +582,12 @@ class QueueStats(BaseModel):
     oldest_pending_at: datetime | None = None
     oldest_pending_age_days: int | None = None
     hosts: list[QueueHostBucket] = Field(default_factory=list)
+    # Tazelik kuralı (app/aging.py): değerlendirilmeden bu kadar gün bekleyen gözlem otomatik elenir.
+    aging_enabled: bool = True
+    aging_low_signal_days: int | None = None
+    aging_high_signal_days: int | None = None
+    aging_last_run_at: datetime | None = None
+    aging_last_dismissed: int = 0
 
 
 class ObservationQueue(BaseModel):

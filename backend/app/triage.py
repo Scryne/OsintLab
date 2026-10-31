@@ -719,7 +719,15 @@ def _score_all(conn) -> tuple[list[QueueItem], QueueStats]:
             bucket["high_signal"] += 1
     oldest = min((item.created_at for item in scored), default=None)
 
+    from app import aging  # geç import: aging bu modülü import ediyor
+
+    last = aging.last_run()
     stats = QueueStats(
+        aging_enabled=aging.enabled(),
+        aging_low_signal_days=aging.LOW_SIGNAL_DAYS,
+        aging_high_signal_days=aging.HIGH_SIGNAL_DAYS,
+        aging_last_run_at=last["at"],
+        aging_last_dismissed=last["dismissed"],
         pending=len(scored),
         dismissed=counts["dismissed"],
         # "Değerlendirilmiş" = kuyruktan çıkmış her şey: promote edilmiş, eşik altı claim

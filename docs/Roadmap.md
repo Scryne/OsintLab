@@ -3696,3 +3696,29 @@ gözlem** (1.144'ü yüksek sinyalli) — zamanlanmış tarama girdiyi değerlen
 - Her aracın kaynağı `toolcatalog.SHARED_BY`'da; Araç Rehberi "Paylaşan" filtresi ve kart satırıyla
   gösteriyor, 700+ satır 60'arlık parçalarla çiziliyor.
 - Bütünlük testi: `tests/test_enrichment.py::test_tool_catalog_integrity`.
+
+---
+
+## v6.1 — Kuyruk tazeliği (2026-10-31, ✅)
+
+**Sorun (ölçüm, 2026-10-31):** 2.611 bekleyen gözlem, 1.323'ü yüksek sinyalli, en eskisi 50 günlük. Otomatik tarama
+günde ~94 gözlem getiriyor; kuyruk hiç küçülmüyordu.
+
+**Elenen iki teşhis (ölçüldü):**
+- *Sıralama yanlış* — değil. Promote edilen 261 gözlemin 119'u yalnız OpenAI, Google gibi yaygın entity'lere değiyor;
+  yaygın entity'yi zayıflatmak ilgiyi kaçırırdı.
+- *Aynı haber tekrar ediyor* — kısmen. Başlık benzerliğiyle gruplama 1.323'ü yalnız ~1.170 hikâyeye indiriyor (%12).
+- Not: 2.222 elemenin 1.928'i 10-24'teki kural tabanlı toplu eleme; etiket olarak döngüsel, ölçüte alınmadı.
+
+**Karar:** tazelik kuralı (`backend/app/aging.py`). Değerlendirilmeden 7 gün (düşük sinyal) / 21 gün (yüksek sinyal)
+bekleyen gözlem otomatik elenir; silinmez (Q17), gerekçesi yazılır, Gözlemler sayfasından geri alınır. Promote yine
+yalnız insanda (#7). Elle girilen, belgeden gelen, izlenen entity'ye ya da açık investigation'a değen gözlem yaşlanmaz.
+Zamanlayıcı açılışta ve 6 saatte bir koşar (`OSINTLAB_QUEUE_AGING=0` kapatır; süreler `OSINTLAB_AGE_LOW_DAYS`,
+`OSINTLAB_AGE_HIGH_DAYS`).
+
+**Ölçüm (gerçek grafın kopyasında):** ilk tur 1.575 gözlem eledi (812 düşük, 763 yüksek), 35 muaf; kuyruk 2.611 → 1.036.
+Kararlı durum ≈ 330 + 990.
+
+**Arayüz:** kuyruk kuralı ve son turun sayısı kuyruk sayfasında yazılı. Sayfa 1.000 kartı birden çiziyordu (tam sayfa
+~115.000 px); artık 100'erli dilim + "daha göster" (~12.000 px), "tümünü seç" yalnız çizilen dilimi kapsar.
+Mobilde açıklama notlarının sütunlara bölünmesi düzeltildi. Testler: 126 (+5).

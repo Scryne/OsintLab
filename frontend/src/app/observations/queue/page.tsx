@@ -45,6 +45,8 @@ const DEFAULT_HIGH_BAND = 0.4;
  *
  * Bu sayfa kararı insandan almıyor; kararı ucuzlatıyor — sinyale göre sıralanmış tek ekran,
  * toplu eleme, ve önerilerle doldurulmuş kısa yol. */
+const PAGE_SIZE = 100;
+
 export default function QueuePage() {
   const toast = useToast();
   const [band, setBand] = useState<Band>("all");
@@ -70,7 +72,7 @@ export default function QueuePage() {
 
   const threshold = data?.high_signal_threshold ?? DEFAULT_HIGH_BAND;
 
-  const items = useMemo(() => {
+  const matching = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
     if (!q) return data.items;
@@ -78,6 +80,18 @@ export default function QueuePage() {
       (i) => i.raw_content.toLowerCase().includes(q) || (i.source_url ?? "").toLowerCase().includes(q)
     );
   }, [data, query]);
+
+  // Kuyruk 1.000 kayda kadar geliyor; hepsini bir kerede çizmek sayfayı 100 bin piksele ve
+  // saniyelerce donmaya çıkarıyordu. Satırlar dilim dilim çizilir; "görünen" = çizilen dilimdir,
+  // yani "tümünü seç" ekranda olmayan bir satırı asla kapsamaz. Filtre değişince başa dönülür.
+  const [shownCount, setShownCount] = useState(PAGE_SIZE);
+  const [shownFor, setShownFor] = useState(`${band}|${host}|${query}`);
+  if (shownFor !== `${band}|${host}|${query}`) {
+    setShownFor(`${band}|${host}|${query}`);
+    setShownCount(PAGE_SIZE);
+  }
+  const items = useMemo(() => matching.slice(0, shownCount), [matching, shownCount]);
+  const hiddenCount = matching.length - items.length;
 
   // Görünürlükten çıkan bir satır seçili SAYILMAZ: kullanıcı filtreyi değiştirdikten sonra
   // "Ele" dediğinde ekranda görmediği kayıtların elenmesi, geri alınabilir olsa bile bir
@@ -214,6 +228,11 @@ export default function QueuePage() {
             ) : (
               <>
                 <span className="tabular-nums text-foreground">{items.length}</span> gözlem görünüyor
+                {hiddenCount > 0 && (
+                  <span className="text-text-tertiary">
+                    {" "}· {query.trim() ? matching.length : (data?.matched ?? matching.length)} eşleşen
+                  </span>
+                )}
               </>
             )}
           </span>
@@ -249,15 +268,38 @@ export default function QueuePage() {
             söylemek şart — yoksa kullanıcı 180 kaydı seçmeye cesaret edemez. */}
         <p className="flex items-start gap-1.5 text-xs leading-relaxed text-text-tertiary">
           <Filter aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
-          Elenen gözlem <span className="font-medium text-text-secondary">silinmez</span> —
-          &quot;değerlendirildi, bilgiye dönüştürülmedi&quot; olarak işaretlenir ve Gözlemler
-          sayfasının &quot;Elendi&quot; sekmesinde durmaya devam eder.
+          {/* Metin tek bir öğe: flex kapsayıcıda çıplak metin parçaları ayrı sütunlara bölünüyordu. */}
+          <span>
+            Elenen gözlem <span className="font-medium text-text-secondary">silinmez</span> —
+            &quot;değerlendirildi, bilgiye dönüştürülmedi&quot; olarak işaretlenir ve Gözlemler
+            sayfasının &quot;Elendi&quot; sekmesinde durmaya devam eder.
+          </span>
         </p>
+        {data?.stats.aging_enabled && data.stats.aging_low_signal_days !== null && (
+          // Tazelik kuralı görünür olmalı: kuyruktan kendiliğinden çıkan bir kaydın nereye
+          // gittiğini bilmeyen kullanıcı ona kaybolmuş gözüyle bakar.
+          <p className="flex items-start gap-1.5 text-xs leading-relaxed text-text-tertiary">
+            <Clock aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>
+              Değerlendirilmeden {data.stats.aging_low_signal_days} gün (yüksek sinyalde{" "}
+              {data.stats.aging_high_signal_days} gün) bekleyen gözlem otomatik elenir; gerekçesi yazılır ve
+              Gözlemler sayfasından geri alınabilir. Elle girilen, belgeden gelen, izlenen ya da açık bir
+              investigation&apos;a değen gözlem yaşlanmaz.
+              {data.stats.aging_last_dismissed > 0 && (
+                <>
+                  {" "}Son turda{" "}
+                  <span className="tabular-nums text-text-secondary">{data.stats.aging_last_dismissed}</span>{" "}
+                  gözlem yaşlandı.
+                </>
+              )}
+            </span>
+          </p>
+        )}
       </div>
 
       {loading && <SkeletonRows />}
       {error && <ErrorState error={error} onRetry={reload} />}
-      {!loading && !error && data && items.length === 0 && (
+      {!loading && !error && data && matching.length === 0 && (
         <EmptyState
           title={data.stats.pending === 0 ? "Kuyruk boş" : "Bu filtrede gözlem yok"}
           description={
@@ -282,6 +324,14 @@ export default function QueuePage() {
             </li>
           ))}
         </ol>
+      )}
+      {!loading && hiddenCount > 0 && (
+        <div className="flex justify-center">
+          <Button variant="outline" size="sm" onClick={() => setShownCount((n) => n + PAGE_SIZE)}>
+            {Math.min(PAGE_SIZE, hiddenCount)} gözlem daha göster
+            <span className="tabular-nums text-text-tertiary">· {hiddenCount} kaldı</span>
+          </Button>
+        </div>
       )}
     </div>
   );
