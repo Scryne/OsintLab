@@ -28,6 +28,7 @@ from functools import lru_cache
 
 from app.collector import (
     CollectorFetchError,
+    FEED_MAX_BYTES,
     CollectorSecurityError,
     extract_content_from_html,
     load_allowlist,
@@ -128,7 +129,9 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
         if preview is None:
             raise CollectorFetchError(f"Telegram kanal adı tanınamadı: {url!r} (ör. @kanal ya da https://t.me/s/kanal)")
         url = preview
-    final_url, content, content_type = safe_fetch(url, allowlist)
+    final_url, content, content_type = safe_fetch(
+        url, allowlist, max_bytes=FEED_MAX_BYTES if mode == "rss" else None
+    )
 
     if mode == "rss":
         parsed_items = parse_rss(content, final_url)

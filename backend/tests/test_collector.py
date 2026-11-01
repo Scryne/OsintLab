@@ -205,3 +205,25 @@ def test_dns_rebinding_peer_check_blocks_private_peer(no_dns, monkeypatch):
     monkeypatch.setattr(collector, "_session", lambda: _FakeSession(resp))
     with pytest.raises(CollectorSecurityError, match="rebinding"):
         safe_fetch("https://example.com/x", {"example.com"})
+
+
+@pytest.mark.parametrize("mode, beklenen", [("rss", collector.FEED_MAX_BYTES), ("web", None)])
+def test_feed_modu_genis_boyut_sinirini_kullanir(monkeypatch, mode, beklenen):
+    """cisa.gov `all.xml` 5,9 MB: 5 MB genel sınır RSS taramasını kalıcı olarak düşürüyordu."""
+    from app import scanning
+
+    goruldu = {}
+
+    class Dur(Exception):
+        pass
+
+    def sahte_fetch(url, allowlist, **kw):
+        goruldu.update(kw)
+        raise Dur
+
+    monkeypatch.setattr(scanning, "load_allowlist", lambda: {"www.cisa.gov"})
+    monkeypatch.setattr(scanning, "safe_fetch", sahte_fetch)
+    with pytest.raises(Dur):
+        scanning.collect_from_url("https://www.cisa.gov/x.xml", mode, limit=5, since_days=None)
+    assert goruldu.get("max_bytes") == beklenen
+    assert collector.FEED_MAX_BYTES > 6_000_000 > collector.MAX_BYTES

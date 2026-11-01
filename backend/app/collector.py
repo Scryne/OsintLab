@@ -37,6 +37,10 @@ ALLOWED_SCHEMES = {"http", "https"}
 MAX_REDIRECTS = 3
 DEFAULT_TIMEOUT = 10
 MAX_BYTES = 5_000_000
+# RSS/Atom arşiv beslemeleri tek dosyada büyür: cisa.gov `all.xml` 2026-11-01'de 5,9 MB'tı ve
+# 5 MB sınırı yüzünden CISA taraması 6 kez üst üste düştü. Ayrıştırıcı (feedparser) yalnızca
+# `item_limit` kadar öğe alır; sınır burada bellek/zaman güvenliği içindir, içerik seçimi değil.
+FEED_MAX_BYTES = 25_000_000
 # Bir isteğin TOPLAM süresi. `requests`in `timeout`u yalnızca bağlanma ve TEK BİR okuma
 # arasındaki boşluğu sınırlar; veriyi damla damla gönderen bir sunucu her chunk'ta sayacı
 # sıfırlar ve istek sonsuza kadar sürebilir. Faz 26'nın ilk toplu doğrulamasında ölçüldü:
