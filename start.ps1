@@ -7,9 +7,14 @@
     keyfi değil, sabit:
       - frontend/.env.local        -> NEXT_PUBLIC_API_BASE=http://127.0.0.1:8420
       - .claude/hooks/vault-session-end.ps1 -> $apiBase = 'http://127.0.0.1:8420'
-      - backend/app/main.py CORS   -> sadece localhost:3000 / 127.0.0.1:3000
+      - backend/app/main.py CORS   -> varsayılan localhost:3000 / 127.0.0.1:3000
     Yani backend varsayılan 8000'de başlatılırsa hem arayüz hem oturum-sonu vault
     senkronu sessizce kırılır. Script portu her zaman açıkça verir.
+
+    3000'i başka bir uygulama tutuyorsa arayüz -WebPort ile başka bir portta açılır.
+    Backend o portu tanımazsa tarayıcı veri alamaz (CORS); bu yüzden script aynı portu
+    backend'e OSINTLAB_FRONTEND_PORT olarak verir — yalnızca localhost/127.0.0.1 origin'i
+    eklenir, başka bir site için izin açılmaz.
 
     Her servis kendi penceresinde açılır — dogfooding sırasında bir şey patlarsa
     logu orada görürsün.
@@ -20,6 +25,12 @@
 .PARAMETER Reload
     Backend'i --reload ile başlatır. Varsayılan KAPALI: reload, gömülü KùzuDB
     bağlantısını oturum ortasında yeniden açar. Kod düzeltirken aç, kullanırken açma.
+
+.PARAMETER WebPort
+    Arayüzün portu (varsayılan 3000). 3000 doluysa örn. -WebPort 3001. Backend'i bu script
+    başlatıyorsa porta izin otomatik verilir; backend zaten ayaktaysa (ör. autostart) izin
+    yoksa script uyarır. Autostart görevini de bu portla kurmak için:
+    .\start.ps1 -InstallAutostart -WebPort 3001
 
 .PARAMETER NoBrowser
     Tarayıcıyı otomatik açma.
@@ -39,12 +50,15 @@
     .\start.ps1 -Reload      # Faz 11'de bulunan bir bug'ı düzeltirken
     .\start.ps1 -Stop
     .\start.ps1 -InstallAutostart   # backend oturum açılışında kendiliğinden kalksın
+    .\start.ps1 -WebPort 3001       # 3000'i başka bir uygulama tutuyorsa
 #>
 [CmdletBinding()]
 param(
     [switch]$Stop,
     [switch]$Reload,
     [switch]$NoBrowser,
+    [ValidateRange(1, 65535)]
+    [int]$WebPort = 3000,
     [switch]$InstallAutostart,
     [switch]$RemoveAutostart
 )
@@ -60,7 +74,17 @@ $pythonw   = Join-Path $backendDir '.venv\Scripts\pythonw.exe'
 $service   = Join-Path $backendDir 'run_service.py'
 
 $API_PORT  = 8420
-$WEB_PORT  = 3000
+$WEB_PORT  = $WebPort
+$DEFAULT_WEB_PORT = 3000
+
+# Arayüz varsayılan dışı bir porttaysa backend'in o portun yerel origin'ini tanıması gerekir
+# (backend/app/main.py `frontend_origins`). Bu süreçten başlatılan backend ortam değişkenini
+# devralır. Kullanıcı değişkeni zaten başka portlarla tanımlamışsa onlar korunur, port eklenir.
+if ($WEB_PORT -ne $DEFAULT_WEB_PORT) {
+    $known = @(($env:OSINTLAB_FRONTEND_PORT -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($known -notcontains "$WEB_PORT") { $known += "$WEB_PORT" }
+    $env:OSINTLAB_FRONTEND_PORT = ($known -join ',')
+}
 $TASK_NAME = 'OsintLab Backend'
 
 function Get-PortOwner {
@@ -103,6 +127,19 @@ function Show-AutostartHint {
     }
 }
 
+function Test-BackendAllowsOrigin {
+    # Backend zaten ayaktaysa (autostart) bu script ona ortam değişkeni veremez. Arayüzün
+    # origin'ine CORS izni var mı, backend'in kendisine soruluyor: izin yoksa arayüz açılır ama
+    # hiçbir veri gelmez — hata da vermeden. Bunu kullanıcıya önceden söylemek gerekiyor.
+    param([int]$Port)
+    $origin = "http://localhost:$Port"
+    try {
+        $r = Invoke-WebRequest -Uri "http://127.0.0.1:$API_PORT/health" -Headers @{ Origin = $origin } `
+                 -TimeoutSec 3 -UseBasicParsing
+        return ($r.Headers['Access-Control-Allow-Origin'] -eq $origin)
+    } catch { return $null }
+}
+
 function Wait-Endpoint {
     param([string]$Url, [int]$TimeoutSec = 45, [string]$Label)
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
@@ -136,8 +173,11 @@ if ($InstallAutostart) {
 
     # pythonw = konsolsuz yorumlayici: oturum acilisinda ekranda hicbir pencere belirmez.
     # Log kaybolmasin diye run_service.py logu data\logs\backend.log'a bagliyor.
+    $taskArgs = "`"$service`" --port $API_PORT"
+    # Zamanlanmış görev bu oturumun ortam değişkenlerini taşımaz; ek arayüz portu argümanla gider.
+    if ($env:OSINTLAB_FRONTEND_PORT) { $taskArgs += " --frontend-port $($env:OSINTLAB_FRONTEND_PORT)" }
     $action  = New-ScheduledTaskAction -Execute $pythonw `
-                   -Argument "`"$service`" --port $API_PORT" -WorkingDirectory $backendDir
+                   -Argument $taskArgs -WorkingDirectory $backendDir
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
     # Oturum acilisinin en yogun anina denk gelmesin; 1 dk sonra kalksin.
     $trigger.Delay = 'PT1M'
@@ -155,7 +195,7 @@ if ($InstallAutostart) {
 
     Write-Host "  Autostart gorevi kuruldu: '$TASK_NAME'" -ForegroundColor Green
     Write-Host "    tetikleyici : oturum acilisi + 1 dk"
-    Write-Host "    komut       : pythonw run_service.py --port $API_PORT  (pencere acmaz)"
+    Write-Host "    komut       : pythonw $taskArgs  (pencere acmaz)"
     Write-Host "    log         : data\logs\backend.log"
     Write-Host "    kaldirmak   : .\start.ps1 -RemoveAutostart"
     Write-Host ""
@@ -256,7 +296,11 @@ $webOwner = Get-PortOwner -Port $WEB_PORT
 foreach ($p in @(@{Owner=$apiOwner; Port=$API_PORT; Ad='backend'}, @{Owner=$webOwner; Port=$WEB_PORT; Ad='frontend'})) {
     if ($p.Owner -and $p.Owner.ProcessName -notmatch $ownName) {
         Write-Host "  ! port $($p.Port) ($($p.Ad)) OsintLab'a benzemeyen bir process'te: $($p.Owner.ProcessName) PID $($p.Owner.Id)" -ForegroundColor Yellow
-        Write-Host "    Once onu kapat, sonra tekrar dene." -ForegroundColor Yellow
+        if ($p.Ad -eq 'frontend') {
+            Write-Host "    Once onu kapat ya da arayuzu baska bir portta ac:  .\start.ps1 -WebPort $($WEB_PORT + 1)" -ForegroundColor Yellow
+        } else {
+            Write-Host "    Once onu kapat, sonra tekrar dene." -ForegroundColor Yellow
+        }
         return
     }
 }
@@ -269,6 +313,11 @@ if ($apiOwner) {
         Write-Host "    Reload ile acmak icin:  .\start.ps1 -Stop; .\start.ps1 -Reload" -ForegroundColor DarkGray
     }
     $apiUp = $true
+    if ($WEB_PORT -ne $DEFAULT_WEB_PORT -and (Test-BackendAllowsOrigin -Port $WEB_PORT) -eq $false) {
+        Write-Host "  ! Calisan backend localhost:$WEB_PORT origin'ini tanimiyor - arayuz veri alamaz." -ForegroundColor Yellow
+        Write-Host "    Backend'i bu portla yeniden baslat:  .\start.ps1 -Stop; .\start.ps1 -WebPort $WEB_PORT" -ForegroundColor DarkGray
+        Write-Host "    Autostart kullaniyorsan gorevi de yeniden kur:  .\start.ps1 -InstallAutostart -WebPort $WEB_PORT" -ForegroundColor DarkGray
+    }
 } else {
     $uvArgs = "app.main:app --host 127.0.0.1 --port $API_PORT"
     if ($Reload) { $uvArgs += ' --reload' }
@@ -279,6 +328,9 @@ if ($apiOwner) {
     ) | Out-Null
 
     Write-Host "  backend  -> http://127.0.0.1:$API_PORT $(if ($Reload) { '(--reload ACIK)' })"
+    if ($env:OSINTLAB_FRONTEND_PORT) {
+        Write-Host "           ek arayuz portu: $($env:OSINTLAB_FRONTEND_PORT) (OSINTLAB_FRONTEND_PORT)" -ForegroundColor DarkGray
+    }
     $apiUp = Wait-Endpoint -Url "http://127.0.0.1:$API_PORT/health" -Label 'Backend'
     if ($apiUp) { Write-Host "           /health ok" -ForegroundColor Green }
 }
@@ -290,7 +342,7 @@ if ($webOwner) {
 } else {
     Start-Process pwsh -ArgumentList @(
         '-NoExit', '-NoProfile', '-Command',
-        "`$Host.UI.RawUI.WindowTitle = 'OsintLab Web :$WEB_PORT'; Set-Location '$frontendDir'; npm run dev"
+        "`$Host.UI.RawUI.WindowTitle = 'OsintLab Web :$WEB_PORT'; Set-Location '$frontendDir'; npm run dev -- --port $WEB_PORT"
     ) | Out-Null
 
     Write-Host "  frontend -> http://localhost:$WEB_PORT"

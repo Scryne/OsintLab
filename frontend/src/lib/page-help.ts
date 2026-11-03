@@ -30,38 +30,38 @@ export const PAGE_HELP: Record<string, PageHelp> = {
   "/": {
     title: "Ana Çalışma Alanı",
     steps: [
-      "Üstteki sayaçlar sistemin nabzı: bekleyen gözlem, açık aday kuyrukları ve claim durumları.",
+      "Üstteki sayaçlar sistemin nabzı: bekleyen gözlem, açık aday kuyrukları ve iddia durumları.",
       "Bir sayı beklenmedik biçimde büyüdüyse o kuyruğun sayfasına git — kuyruklar birikince kararlar pahalılaşır.",
-      "Günlük akış genelde şu: Promote Kuyruğu → Doğrulama → Entity Adayları.",
+      "Günlük akış genelde şu: Terfi Kuyruğu → Doğrulama → Varlık Adayları.",
     ],
   },
   "/entities": {
-    title: "Entity'ler",
+    title: "Varlıklar",
     steps: [
-      "Bir entity'ye tıklayınca hakkındaki claim'ler, ilişkiler, olaylar ve zaman çizgisi açılır.",
-      "Alias eklemek önemlidir: gözlem eşleştirmesi ad VE alias üzerinden çalışır, eksik alias sinyali kaybettirir.",
-      "Yeni entity'yi elle yaratmak yerine Entity Adayları sayfasından onaylamak daha iyi — orası sistemin kendi çıkardığı adları taşır.",
+      "Bir varlığa tıklayınca hakkındaki iddialar, ilişkiler, olaylar ve zaman çizelgesi açılır.",
+      "Diğer ad eklemek önemlidir: gözlem eşleştirmesi ad VE diğer adlar üzerinden çalışır, eksik diğer ad sinyali kaybettirir.",
+      "Yeni varlığı elle yaratmak yerine Varlık Adayları sayfasından onaylamak daha iyi — orası sistemin kendi çıkardığı adları taşır.",
     ],
     warnings: [
-      "Aynı şeyin iki kaydı varsa silme; Olası Eşleşmeler sayfasından birleştir. Silmek geçmişi yok eder (History Is Immutable).",
+      "Aynı şeyin iki kaydı varsa silme; Olası Eşleşmeler sayfasından birleştir. Silmek geçmişi yok eder (geçmiş değişmez ilkesi).",
     ],
   },
   "/entities/candidates": {
-    title: "Entity Adayları",
+    title: "Varlık Adayları",
     steps: [
-      "Liste, claim metinlerinden çıkarılmış özel isim adaylarıdır — kaç claim ve kaç FARKLI kaynakta geçtiğine göre sıralı.",
-      "Gerçek bir kurum/kişi/ürün olanları seç, türünü ver ve entity'ye çevir.",
+      "Liste, iddia metinlerinden çıkarılmış özel isim adaylarıdır — kaç iddiada ve kaç FARKLI kaynakta geçtiğine göre sıralı.",
+      "Gerçek bir kurum/kişi/ürün olanları seç, türünü ver ve varlığa çevir.",
       "Geri kalanı toplu ele. Elenen aday bir daha önerilmez ama silinmez — ikinci sekmeden geri alınabilir.",
     ],
     warnings: [
-      "Bu sayfa bir 'temizlik işi' değil, kuyruk sinyalinin GİRDİSİ. Bir ad entity olmadan, o addan bahseden gözlemler Promote Kuyruğu'nda sinyalsiz görünür — 2026-09-09'da 14 aday onaylanınca kuyruğun yüksek sinyalli öğe sayısı 5'ten 21'e çıktı.",
-      "Kısaltma ve bülten kalıpları (KEV, FCEB, CVE ID) ile abonelik katmanları (Pro, Plus, Edu) entity değildir; ele.",
+      "Bu sayfa bir 'temizlik işi' değil, kuyruk sinyalinin GİRDİSİ. Bir ad varlık olmadan, o addan bahseden gözlemler Terfi Kuyruğu'nda sinyalsiz görünür — 2026-09-09'da 14 aday onaylanınca kuyruğun yüksek sinyalli öğe sayısı 5'ten 21'e çıktı.",
+      "Kısaltma ve bülten kalıpları (KEV, FCEB, CVE ID) ile abonelik katmanları (Pro, Plus, Edu) varlık değildir; ele.",
     ],
   },
   "/entities/relations": {
     title: "İlişki Adayları",
     steps: [
-      "Aynı claim'de birlikte geçen entity çiftleri önerilir. Öneri, ilişkinin VAR olduğunu söylemez — birlikte anıldıklarını söyler.",
+      "Aynı iddiada birlikte geçen varlık çiftleri önerilir. Öneri, ilişkinin VAR olduğunu söylemez — birlikte anıldıklarını söyler.",
       "İlişkinin TÜRÜNÜ sen verirsin (satın aldı, ortak, rakip…); sistem tür tahmin etmez.",
       "İlişkisiz olduğuna karar verdiklerini ele — o çift bir daha önerilmez.",
     ],
@@ -69,100 +69,100 @@ export const PAGE_HELP: Record<string, PageHelp> = {
   "/entities/same-as": {
     title: "Olası Eşleşmeler",
     steps: [
-      "Aynı şeyin iki ayrı kaydı olabilecek entity çiftleri gösterilir (ad benzerliği + ortak bağlam).",
+      "Aynı şeyin iki ayrı kaydı olabilecek varlık çiftleri gösterilir (ad benzerliği + ortak bağlam).",
       "Gerçekten aynıysa birleştir; değilse ele.",
     ],
     warnings: [
-      "Birleştirme kayıt silmez, bir SAME_AS bağı kurar. İki kaydın geçmişi de durmaya devam eder.",
+      "Birleştirme kayıt silmez, bir aynılık bağı kurar. İki kaydın geçmişi de durmaya devam eder.",
     ],
   },
   "/events": {
     title: "Olaylar",
     steps: [
-      "Olaylar, birden çok claim'in anlattığı tek bir gerçek dünya olayıdır (bir sızıntı, bir duyuru, bir dava).",
-      "\"Olay adayı\" sekmesi, birbirini doğrulayan claim kümelerinden türetilir — hazır bir olay önerisidir.",
-      "Bir olaya claim bağlamak, o claim'in confidence'ını olaya taşır.",
+      "Olaylar, birden çok iddianın anlattığı tek bir gerçek dünya olayıdır (bir sızıntı, bir duyuru, bir dava).",
+      "\"Olay adayı\" sekmesi, birbirini doğrulayan iddia kümelerinden türetilir — hazır bir olay önerisidir.",
+      "Bir olaya iddia bağlamak, o iddianın güven skorunu olaya taşır.",
     ],
     warnings: [
-      "Bir claim ya bir entity ya bir olay hakkındadır, ikisi birden değil. Claim'i olaya bağlamak entity bağını siler; sistem entity'yi olaya INVOLVED_IN ile taşıyarak bunu telafi eder.",
-      "Olayın confidence'ı elle girilmez — en iyi desteklenen claim'inden türetilir.",
+      "Bir iddia ya bir varlık ya bir olay hakkındadır, ikisi birden değil. İddiayı olaya bağlamak varlık bağını siler; sistem varlığı olaya katılımcı olarak bağlayarak bunu telafi eder.",
+      "Olayın güven skoru elle girilmez — en iyi desteklenen iddiasından türetilir.",
     ],
   },
   "/sources": {
     title: "Kaynaklar",
     steps: [
-      "Her kaynağın bir güvenilirlik değeri var ve confidence'ın %40'ı doğrudan buradan gelir.",
-      "Bir kaynak başka bir kaynaktan türüyorsa (syndication, ajans) bunu lineage olarak işaretle.",
+      "Her kaynağın bir güvenilirlik değeri var ve güven skorunun %40'ı doğrudan buradan gelir.",
+      "Bir kaynak başka bir kaynaktan türüyorsa (içerik paylaşımı, ajans) bunu köken olarak işaretle.",
     ],
     warnings: [
-      "Lineage kozmetik değil: aynı köke inen iki kaynak bağımsız doğrulama SAYILMAZ. İşaretlenmemiş bir türetme confidence'ı sahte yükseltir.",
+      "Köken kozmetik değil: aynı köke inen iki kaynak bağımsız doğrulama SAYILMAZ. İşaretlenmemiş bir türetme güven skorunu sahte yükseltir.",
     ],
   },
   "/observations": {
     title: "Gözlemler",
     steps: [
       "Ham veri katmanı: toplayıcıların getirdiği ve belgelerden çıkarılan her şey burada, hiçbir yorum katılmadan.",
-      "Bir gözlemi bilgiye çevirmek için promote et; toplu iş için Promote Kuyruğu'nu kullan.",
+      "Bir gözlemi bilgiye çevirmek için terfi ettir; toplu iş için Terfi Kuyruğu'nu kullan.",
     ],
     warnings: [
       "Gözlem metni GÜVENİLMEYEN veridir. İçinde talimat gibi görünen ifadeler olabilir; sistem bunları işaretler ama puanı yükseltmez.",
     ],
   },
   "/observations/queue": {
-    title: "Promote Kuyruğu",
+    title: "Terfi Kuyruğu",
     steps: [
       "Bekleyen gözlemler sinyale göre sıralıdır. Sinyal bir olasılık değil, 'insan bakışını ne kadar hak ediyor' sıralamasıdır.",
       "Önce bandı ve kaynağı daralt (üstteki filtreler), sonra görünenleri toplu seç.",
-      "İlgisizleri gerekçesiyle toplu ele; kalanları promote et — öneriler (kaynak, entity) hazır gelir.",
+      "İlgisizleri gerekçesiyle toplu ele; kalanları terfi ettir — öneriler (kaynak, varlık) hazır gelir.",
       "\"Neden bu sırada?\" satırını aç: her puan gerekçesini ve ağırlığını taşır.",
     ],
     warnings: [
-      "Önerilen entity, metinde İLK geçen addır ve yanlış olabilir. Yanlış 'hakkında' bağı kalıcı bir yanlış atıftır — promote etmeden önce kontrol et.",
+      "Önerilen varlık, metinde İLK geçen addır ve yanlış olabilir. Yanlış 'hakkında' bağı kalıcı bir yanlış atıftır — terfi ettirmeden önce kontrol et.",
       "Eleme silme değildir: 'değerlendirildi, bilgiye dönüştürülmedi' işaretidir ve 'Geri al' ile dönülebilir.",
     ],
   },
   "/corroboration": {
     title: "Doğrulama",
     steps: [
-      "\"Doğrulama adayları\": bağımsız iki kaynağın aynı olayı anlattığı claim çiftleri. Bağlarsan ikisinin de confidence'ı yükselir.",
-      "\"Gözlemden doğrulama\": doğrulayan henüz claim değil, hâlâ ham gözlem. Promote + bağlama tek adımda yapılır.",
+      "\"Doğrulama adayları\": bağımsız iki kaynağın aynı olayı anlattığı iddia çiftleri. Bağlarsan ikisinin de güven skoru yükselir.",
+      "\"Gözlemden doğrulama\": doğrulayan henüz iddia değil, hâlâ ham gözlem. Terfi + bağlama tek adımda yapılır.",
       "\"Uyarılar\": bağlanmaması gereken çiftler — aynı kaynak, ortak kök, türetme şüphesi.",
     ],
     warnings: [
       "Skor tek başına karar vermez. Ölçüldü: 0.12–0.13 bandında hem gerçek hem yanlış çiftler var — başlıkları okumadan bağlama.",
-      "Uyarı kategorilerini 'iki kaynak' sanıp bağlamak confidence'ı sahte yükseltir; API zaten reddeder.",
-      "Gözlemden doğrulama, grafta YENİ BİR CLAIM doğurur ve claim silinemez. Onay düğmesi bu yüzden var.",
+      "Uyarı kategorilerini 'iki kaynak' sanıp bağlamak güven skorunu sahte yükseltir; sunucu zaten reddeder.",
+      "Gözlemden doğrulama, grafta YENİ BİR İDDİA doğurur ve iddia silinemez. Onay düğmesi bu yüzden var.",
     ],
   },
   "/claims/mentions": {
     title: "Bağ Adayları",
     steps: [
-      "Bir claim birden çok entity'ye 'değebilir' — özne bağı (hakkında) tekil kalır, değme bağları çoğul.",
-      "Adaylar claim metninden deterministik olarak çıkarılır; toplu onaylanır.",
+      "Bir iddia birden çok varlığa 'değebilir' — özne bağı (hakkında) tekil kalır, değme bağları çoğul.",
+      "Adaylar iddia metninden kurala dayalı (deterministik) olarak çıkarılır; toplu onaylanır.",
     ],
   },
   "/evidence": {
     title: "Kanıt Kasası",
     steps: [
       "Elle yüklediğin belgeler burada: PDF, görsel, veri seti.",
-      "Yüklenen belgeden metin ve metadata çıkarılır; taranmış belgeler OCR'a düşer.",
-      "Belgenin bir sayfa aralığından Observation üretip promote edebilirsin.",
-      "Belge parmak izi (yazar, üretici yazılım, şirket) OSINT sinyalidir — oradan bir entity'ye bağ kurabilirsin.",
+      "Yüklenen belgeden metin ve üst veri çıkarılır; taranmış belgeler OCR'a düşer.",
+      "Belgenin bir sayfa aralığından gözlem üretip terfi ettirebilirsin.",
+      "Belge parmak izi (yazar, üretici yazılım, şirket) OSINT sinyalidir — oradan bir varlığa bağ kurabilirsin.",
     ],
     warnings: [
-      "Kaynak arşivleri bu listede GÖRÜNMEZ. Kasa senin eklediğin kanıtın yeri; arşivler her promote'ta kendiliğinden oluşur ve Kaynak Arşivi sayfasında durur.",
+      "Kaynak arşivleri bu listede GÖRÜNMEZ. Kasa senin eklediğin kanıtın yeri; arşivler her terfide kendiliğinden oluşur ve Kaynak Arşivi sayfasında durur.",
       "OCR metni tahmindir, belgenin kendi metin katmanıyla aynı güvenilirlikte değildir; sistem bunu işaretler.",
     ],
   },
   "/archive": {
     title: "Kaynak Arşivi",
     steps: [
-      "Her claim promote edilirken dayandığı metnin kopyası (hash + URL + zaman) otomatik saklanır. Bu ağ kullanmaz.",
+      "Her iddia terfi ettirilirken dayandığı metnin kopyası (hash + URL + zaman) otomatik saklanır. Bu ağ kullanmaz.",
       "\"Doğrula\" düğmesi kaynak sayfayı yeniden indirir ve arşivin başlığının hâlâ orada olup olmadığına bakar.",
       "Durum filtreleriyle hangi kaynakların ayakta, hangilerinin değiştiğini gör.",
     ],
     warnings: [
-      "Arşiv bir KAYIT, doğrulama bir KANITTIR. Arşivin varlığı confidence'a dokunmaz; skora ancak canlı sayfaya karşı doğrulanınca girer.",
+      "Arşiv bir KAYIT, doğrulama bir KANITTIR. Arşivin varlığı güven skoruna dokunmaz; skora ancak canlı sayfaya karşı doğrulanınca girer.",
       "\"Değişmiş\" bir arıza değil, bulgudur: kaynak yazıyı düzenlemiş ya da geri çekmiş demektir ve orijinal metnin tek kaydı artık senin arşivin.",
       "Doğrulama her kayıt için bir dış istek atar; onlarca kayıt dakikalar sürer.",
     ],
@@ -170,19 +170,19 @@ export const PAGE_HELP: Record<string, PageHelp> = {
   "/collectors": {
     title: "Toplayıcılar",
     steps: [
-      "Önce hostname'i allowlist'e ekle — allowlist dışı hiçbir adrese istek atılmaz.",
+      "Önce sunucu adını izin listesine ekle — izin listesi dışındaki hiçbir adrese istek atılmaz.",
       "Tek seferlik toplama için adres + mod (rss/web) ver; sürekli izleme için zamanlanmış tarama kur.",
       "Tarama durumunu (son çalışma, hata, yeni içerik) buradan izle.",
     ],
     warnings: [
-      "'rss' feed getirir, 'web' tek bir sayfayı okur. Bir feed adresine 'web' demek sayfanın tamamını tek bir gözleme çevirir.",
+      "'rss' besleme getirir, 'web' tek bir sayfayı okur. Bir besleme adresine 'web' demek sayfanın tamamını tek bir gözleme çevirir.",
       "Zamanlanmış tarama yalnızca backend ayaktayken çalışır.",
     ],
   },
   "/graph": {
     title: "Graf",
     steps: [
-      "Daireler entity, kareler olay. Boyut bağ sayısıyla, renk olayın durumuyla değişir.",
+      "Daireler varlık, kareler olay. Boyut bağ sayısıyla, renk olayın durumuyla değişir.",
       "Bir düğümün üzerine gel: komşuları vurgulanır, ilişki etiketleri görünür.",
       "Düğümleri sürükleyerek ayırabilirsin; boş alanı sürüklemek grafı kaydırır, sağ üstteki düğmeler yakınlaştırır.",
       "Bir düğüme tıklamak onun sayfasına götürür.",
@@ -193,12 +193,12 @@ export const PAGE_HELP: Record<string, PageHelp> = {
     ],
   },
   "/investigations": {
-    title: "Investigation'lar",
+    title: "Soruşturmalar",
     steps: [
-      "Bir araştırma sorusuyla başlar, kapsam (entity/olay) seçilir, hipotezler kurulur.",
-      "Bulgular claim olarak eklenir, kanıtlar hipotezleri destekler ya da çürütür.",
+      "Bir araştırma sorusuyla başlar, kapsam (varlık/olay) seçilir, hipotezler kurulur.",
+      "Bulgular iddia olarak eklenir, kanıtlar hipotezleri destekler ya da çürütür.",
       "Sonuçta analiz ve vargı yazılır — soruyu cevaplamadan kapatma.",
-      "İki ya da daha fazla hipotez ve kanıt olunca ACH matrisi açılır: en olası hipotez en az tutarsız olandır; boş hücreleri doldur.",
+      "İki ya da daha fazla hipotez ve kanıt olunca ACH (rakip hipotezler analizi) matrisi açılır: en olası hipotez en az tutarsız olandır; boş hücreleri doldur.",
       "Rapor: TLP etiketini seç, yazdırılabilir raporu aç (tarayıcıdan PDF'e) ya da Markdown indir.",
     ],
     warnings: ["Rapor deterministiktir; yorum yalnızca senin Analiz ve Sonuç metnindir — orada kaynağın söylediğiyle kendi çıkarımını ayır."],
@@ -206,13 +206,13 @@ export const PAGE_HELP: Record<string, PageHelp> = {
   "/selectors": {
     title: "Seçiciler",
     steps: [
-      "Üstteki Pivotla kutusuna herhangi bir değer yapıştır: alan adı, IP, hash, CVE, ATT&CK tekniği, kripto adresi ya da 'enlem, boylam'. Türü kendisi tanır.",
+      "Üstteki Çapraz sorgula kutusuna herhangi bir değer yapıştır: alan adı, IP, hash, CVE, ATT&CK tekniği, kripto adresi ya da 'enlem, boylam'. Türü kendisi tanır.",
       "Toplanan her gözlem ve yüklenen her belge kendiliğinden taranır; liste en çok görülenden başlar.",
       "Bir türü seçince 'Bu türün hepsine uygula' çıkar: ör. bütün CVE'lere KEV ve EPSS'i tek seferde uygulamak için.",
-      "'Bir metinden seçici çıkar' grafa yazmadan önce ne bulunduğunu gösterir — bir advisory'yi yapıştırıp göstergelerini toplamanın yolu.",
+      "'Bir metinden seçici çıkar' grafa yazmadan önce ne bulunduğunu gösterir — bir güvenlik bültenini yapıştırıp göstergelerini toplamanın yolu.",
     ],
     warnings: [
-      "Düz yazılmış dörtlü sayılar çoğu zaman sürüm numarasıdır; sürüm bağlamındakiler IP sayılmaz. Defang'li yazım (1.2.3[.]4) her zaman gösterge sayılır.",
+      "Düz yazılmış dörtlü sayılar çoğu zaman sürüm numarasıdır; sürüm bağlamındakiler IP sayılmaz. Zararsızlaştırılmış yazım (1.2.3[.]4) her zaman gösterge sayılır.",
       "Yanlış pozitif silinmez, 'yanlış pozitif' olarak işaretlenir — yeniden taramada geri gelmesin diye.",
     ],
   },
@@ -220,15 +220,15 @@ export const PAGE_HELP: Record<string, PageHelp> = {
     title: "Seçici",
     steps: [
       "Zenginleştirme sekmesinde 'Pasif modüllerin hepsini çalıştır' hedefe dokunmadan bilinen her şeyi toplar.",
-      "Bir modülün bulduğu yeni seçiciler (IP, alt alan adı, ad sunucusu…) Pivotlar sekmesinde ve grafta belirir; tıklayıp devam et.",
+      "Bir modülün bulduğu yeni seçiciler (IP, alt alan adı, ad sunucusu…) Bağlantılar sekmesinde ve grafta belirir; tıklayıp devam et.",
       "Görüldüğü yerler sekmesi bu değerin hangi kaynakta, hangi cümlede geçtiğini gösterir — bağımsız kaynak sayısı burada.",
       "Dış araçlar sekmesi değeri 100'ü aşkın araçta ve arama operatörleriyle açar.",
-      "Bir sonucu iddiaya çevirmek istersen koşunun altındaki 'Gözleme çevir' onu Promote Kuyruğu'na sokar.",
+      "Bir sonucu iddiaya çevirmek istersen koşunun altındaki 'Gözleme çevir' onu Terfi Kuyruğu'na sokar.",
     ],
     warnings: [
       "Aktif modüller (HTTP parmak izi) hedefin sunucusuna istek atar ve iki adımlı onay ister.",
       "Önbellekteki sonuç tekrar sorulmaz; 'Yeniden sor' bir OPSEC kararıdır — her sorgu ilgini o servise yeniden gösterir.",
-      "Entity bağı bir iddiadır: 'bu altyapı şu kuruma ait'. Zenginleştirme bunu kendisi kurmaz.",
+      "Varlık bağı bir iddiadır: 'bu altyapı şu kuruma ait'. Zenginleştirme bunu kendisi kurmaz.",
     ],
   },
   "/enrichment": {
@@ -253,22 +253,22 @@ export const PAGE_HELP: Record<string, PageHelp> = {
     warnings: ["Bağlantılar tarayıcında açılır; giriş yapılmış bir hesapla yapılan arama o hesaba bağlanır."],
   },
   "/claims/view": {
-    title: "Claim",
+    title: "İddia",
     steps: [
       "Üstteki rozetler: doğrulama durumu ve NATO/Admiralty kodu (harf kaynağın güvenilirliği, rakam bilginin teyit düzeyi).",
-      "\"Bu skor nereden geliyor?\" confidence'ın dört bileşenini açar.",
-      "\"Bu iddiayı başka kim söylüyor?\" haber araması yapar; bağımsız bir yayıncının haberini Gözlem düğmesiyle ekle — Doğrulama ekranı onu bu claim'e önerir.",
+      "\"Bu skor nereden geliyor?\" güven skorunun dört bileşenini açar.",
+      "\"Bu iddiayı başka kim söylüyor?\" haber araması yapar; bağımsız bir yayıncının haberini Gözlem düğmesiyle ekle — Doğrulama ekranı onu bu iddiaya önerir.",
     ],
-    warnings: ["Claim metni toplanan kaynaktan gelir ve güvenilmeyen veridir; içindeki talimat-benzeri ifadeler uygulanmaz."],
+    warnings: ["İddia metni toplanan kaynaktan gelir ve güvenilmeyen veridir; içindeki talimat-benzeri ifadeler uygulanmaz."],
   },
   "/inbox": {
-    title: "Inbox",
+    title: "Gelen Kutusu",
     steps: [
-      "İzlediğin entity/olay/kaynakla ilgili bir şey değiştiğinde buraya bildirim düşer.",
+      "İzlediğin varlık/olay/kaynakla ilgili bir şey değiştiğinde buraya bildirim düşer.",
       "Her öğeyi bir karara bağla: takip et, araştır, yoksay.",
     ],
     warnings: [
-      "Verdiğin kararlar loglanır. Kaynak bazında eleme oranın Promote Kuyruğu'nun sıralamasına girer — ama yalnızca pozitif yönde ve gerekçesi açık yazılarak.",
+      "Verdiğin kararlar loglanır. Kaynak bazında eleme oranın Terfi Kuyruğu'nun sıralamasına girer — ama yalnızca pozitif yönde ve gerekçesi açık yazılarak.",
     ],
   },
 };

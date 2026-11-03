@@ -36,7 +36,7 @@ type Band = "all" | "high" | "noise";
  * kapsayıcı, `max_score` dışlayıcı. */
 const DEFAULT_HIGH_BAND = 0.4;
 
-/** Faz 16 — Promote Kuyruğu.
+/** Faz 16 — Terfi Kuyruğu.
  *
  * Ölçüm (2026-09-05): 224 gözlemin 223'ü promote edilmemişti. Sebep "insan karar veriyor"
  * değil, kararın PAHALI olması: Faz 10'un promote diyaloğu tek gözlem üzerinden tam form
@@ -119,7 +119,7 @@ export default function QueuePage() {
       setRawSelected([]);
       toast(
         res.skipped.length
-          ? `${res.dismissed} gözlem elendi · ${res.skipped.length} atlandı (zaten claim üretmiş)`
+          ? `${res.dismissed} gözlem elendi · ${res.skipped.length} atlandı (zaten iddia üretmiş)`
           : `${res.dismissed} gözlem elendi — silinmedi, "değerlendirildi" olarak işaretlendi`,
         "success"
       );
@@ -151,7 +151,7 @@ export default function QueuePage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">
-            Promote Kuyruğu
+            Terfi Kuyruğu
           </h1>
           <p className="max-w-2xl text-sm text-text-secondary">
             Otomatik tarama gözlem biriktiriyor; bilgiye dönüşmesi hâlâ senin kararın. Bu ekran
@@ -242,7 +242,7 @@ export default function QueuePage() {
               <Input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Eleme gerekçesi (opsiyonel)"
+                placeholder="Eleme gerekçesi (isteğe bağlı)"
                 aria-label="Eleme gerekçesi"
                 className="w-[16rem]"
               />
@@ -283,8 +283,7 @@ export default function QueuePage() {
             <span>
               Değerlendirilmeden {data.stats.aging_low_signal_days} gün (yüksek sinyalde{" "}
               {data.stats.aging_high_signal_days} gün) bekleyen gözlem otomatik elenir; gerekçesi yazılır ve
-              Gözlemler sayfasından geri alınabilir. Elle girilen, belgeden gelen, izlenen ya da açık bir
-              investigation&apos;a değen gözlem yaşlanmaz.
+              Gözlemler sayfasından geri alınabilir. Elle girilen, belgeden gelen, izlenen ya da açık bir soruşturmaya değen gözlem yaşlanmaz.
               {data.stats.aging_last_dismissed > 0 && (
                 <>
                   {" "}Son turda{" "}
@@ -484,7 +483,7 @@ function QueueRow({
             <ul className="flex flex-col gap-1.5">
               {item.signal_reasons.length === 0 && (
                 <li className="text-xs text-text-tertiary">
-                  Hiçbir sinyal yok — bildiğimiz bir entity&apos;ye değmiyor, tanınan bir kaynaktan
+                  Hiçbir sinyal yok — bildiğimiz bir varlığa değmiyor, tanınan bir kaynaktan
                   gelmiyor, elle girilmemiş.
                 </li>
               )}

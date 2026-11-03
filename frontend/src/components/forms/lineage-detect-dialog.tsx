@@ -60,7 +60,7 @@ export function LineageDetectDialog({ onDetected }: { onDetected: () => void }) 
       const res = await api.sources.detectLineage(aId, bId);
       setResult(res);
       toast(
-        res.edge_created ? "Türetme tespit edildi, lineage kuruldu" : "Türetme sinyali bulunamadı",
+        res.edge_created ? "Türetme tespit edildi, köken bağı kuruldu" : "Türetme sinyali bulunamadı",
         res.edge_created ? "success" : "default"
       );
       if (res.edge_created) onDetected();
@@ -89,17 +89,17 @@ export function LineageDetectDialog({ onDetected }: { onDetected: () => void }) 
       />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>İki claim arasında türetme sına</DialogTitle>
-          <DialogDescription>İki claim&apos;in metnini karşılaştırıp birinin diğerinden türetilmiş olup olmadığını sınar.</DialogDescription>
+          <DialogTitle>İki iddia arasında türetme sına</DialogTitle>
+          <DialogDescription>İki iddianın metnini karşılaştırıp birinin diğerinden türetilmiş olup olmadığını sınar.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="lineage-detect-dialog-claim-a-1">Claim A</Label>
-            <SearchablePicker id="lineage-detect-dialog-claim-a-1" items={items} value={aId} onChange={setAId} placeholder="Claim ara…" />
+            <Label htmlFor="lineage-detect-dialog-claim-a-1">İddia A</Label>
+            <SearchablePicker id="lineage-detect-dialog-claim-a-1" items={items} value={aId} onChange={setAId} placeholder="İddia ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="lineage-detect-dialog-claim-b-2">Claim B</Label>
-            <SearchablePicker id="lineage-detect-dialog-claim-b-2" items={bItems} value={bId} onChange={setBId} placeholder="Claim ara…" />
+            <Label htmlFor="lineage-detect-dialog-claim-b-2">İddia B</Label>
+            <SearchablePicker id="lineage-detect-dialog-claim-b-2" items={bItems} value={bId} onChange={setBId} placeholder="İddia ara…" />
           </div>
           {result && (
             <div className="rounded-lg border border-border bg-surface p-3 text-xs leading-relaxed text-text-secondary">
@@ -113,7 +113,7 @@ export function LineageDetectDialog({ onDetected }: { onDetected: () => void }) 
               )}
               <p className="mt-1">
                 {result.edge_created
-                  ? "Türetilmiş sayıldı — kaynaklar arasına DERIVED_FROM kuruldu."
+                  ? "Türetilmiş sayıldı — kaynaklar arasına türetme bağı kuruldu."
                   : "Türetme sinyali yok. Metinler birbirini kopyalamıyorsa skor düşük çıkar; aynı olayı bağımsız yazan iki haber böyle görünür. Emin olduğun bir türetme varsa kaynak sayfasından elle kurabilirsin."}
               </p>
             </div>

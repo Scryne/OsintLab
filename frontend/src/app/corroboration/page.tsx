@@ -20,6 +20,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmButton } from "@/components/ui/confirm-button";
+import { statusLabel } from "@/lib/labels";
 
 /** `SUPPORTED` eşiği — `confidence.py`'nin `SUPPORTED_THRESHOLD`'u. */
 const SUPPORTED_THRESHOLD = 0.45;
@@ -132,12 +133,12 @@ export default function CorroborationPage() {
         about_event_id: candidate.claim_about_event_id,
         corroborates: [candidate.claim_id],
       });
-      toast("Gözlem promote edildi ve doğrulayan olarak bağlandı", "success");
+      toast("Gözlem terfi ettirildi ve doğrulayan olarak bağlandı", "success");
       reload();
       reloadObs();
       reloadClaims();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Promote başarısız", "error");
+      toast(err instanceof Error ? err.message : "Terfi başarısız", "error");
     } finally {
       setBusy(false);
     }
@@ -172,9 +173,7 @@ export default function CorroborationPage() {
           Doğrulama
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Aynı olayı anlatan claim&apos;ler önerilir; bağımsız iki kaynak birbirini
-          doğruladığında confidence yükselir. Tek kaynaklı bir iddia eşiği tek başına geçemez —
-          confidence&apos;ın %40&apos;ı kaynaktan gelir, kalan %60 ancak burada açılır.
+          Aynı olayı anlatan iddialar önerilir; bağımsız iki kaynak birbirini doğruladığında güven skoru yükselir. Tek kaynaklı bir iddia eşiği tek başına geçemez — güven skorunun %40&apos;ı kaynaktan gelir, kalan %60 ancak burada açılır.
         </p>
       </header>
 
@@ -253,7 +252,7 @@ export default function CorroborationPage() {
           title={tab === "corroboration" ? "Doğrulama adayı yok" : "Uyarı yok"}
           description={
             tab === "corroboration"
-              ? "Aynı olayı anlatan, bağımsız kaynaklardan gelen bir claim çifti bulunamadı. Yeni içerik toplandıkça burası dolar."
+              ? "Aynı olayı anlatan, bağımsız kaynaklardan gelen bir iddia çifti bulunamadı. Yeni içerik toplandıkça burası dolar."
               : "Türetilmiş kaynak ya da yinelenen kayıt tespit edilmedi."
           }
         />
@@ -266,7 +265,7 @@ export default function CorroborationPage() {
           {!obsLoading && !obsError && obsCorroboration.length === 0 && (
             <EmptyState
               title="Gözlemlerden doğrulama adayı yok"
-              description="Doğrulayanı olmayan claim'leri, sistemde bekleyen ham gözlemler arasında arıyoruz. Aday çıkmaması kaynakların aynı olayı bağımsız olarak raporlamadığı anlamına gelir — yeni içerik toplandıkça burası dolar."
+              description="Doğrulayanı olmayan iddiaları, sistemde bekleyen ham gözlemler arasında arıyoruz. Aday çıkmaması kaynakların aynı olayı bağımsız olarak raporlamadığı anlamına gelir — yeni içerik toplandıkça burası dolar."
             />
           )}
           {obsCorroboration.map((candidate) => (
@@ -385,11 +384,11 @@ function ObservationPairCard({
             <ConfirmButton
               size="sm"
               onConfirm={busy ? () => {} : onPromote}
-              confirmLabel="Promote edilsin ve bağlansın mı?"
-              confirmAction="Promote et ve bağla"
+              confirmLabel="Terfi ettirilsin ve bağlansın mı?"
+              confirmAction="Terfi ettir ve bağla"
             >
               <Zap aria-hidden className="h-4 w-4" />
-              Promote et ve doğrulayan olarak bağla
+              Terfi ettir ve doğrulayan olarak bağla
             </ConfirmButton>
           ) : (
             <span className="text-xs text-priority-high-text">
@@ -523,7 +522,7 @@ function PairCard({
             değerli bir sinyaldir — bağımsızlık kısıtı yalnızca DOĞRULAMA için geçerli. */}
         <ConfirmButton
           onConfirm={() => onLink("CONTRADICTS")}
-          confirmLabel="İki claim de çelişkili işaretlenecek"
+          confirmLabel="İki iddia da çelişkili işaretlenecek"
           confirmAction="Çelişki kur"
         >
           <GitMerge aria-hidden className="h-4 w-4" />
@@ -659,7 +658,7 @@ function LinkResult({
               <span className={change.after > change.before ? "text-confidence-supported-text" : ""}>
                 {change.after.toFixed(2)}
               </span>
-              <span className="text-text-tertiary">{change.state}</span>
+              <span className="text-text-tertiary">{statusLabel("knowledge", change.state)}</span>
               {change.pairCount > 1 && (
                 <span className="text-text-tertiary">· {change.pairCount} bağdan</span>
               )}
@@ -689,5 +688,5 @@ function firstLine(text: string): string {
     const trimmed = line.trim();
     if (trimmed) return trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
   }
-  return "(boş claim)";
+  return "(boş iddia)";
 }

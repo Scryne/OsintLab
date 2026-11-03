@@ -213,9 +213,9 @@ def upload_evidence(
         raise HTTPException(
             status_code=409,
             detail=(
-                f"Bu dosya zaten kayıtlı: Evidence {existing['id'][:8]}… "
+                f"Bu dosya zaten kayıtlı: kanıt {existing['id'][:8]}… "
                 f"({existing['evidence_type']}). Yeniden yüklemek yerine mevcut kanıtı "
-                "ilgili claim'e bağlayabilirsin."
+                "ilgili iddiaya bağlayabilirsin."
             ),
         )
 
@@ -281,7 +281,7 @@ def get_evidence_extraction(evidence_id: str) -> EvidenceExtraction:
         )
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     text = row["text"] or ""
     return EvidenceExtraction(
         evidence_id=evidence_id,
@@ -317,7 +317,7 @@ def get_evidence_text(evidence_id: str) -> PlainTextResponse:
         )
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     if not row["text"]:
         label = docint.STATUS_LABELS.get(row["status"], "Henüz işlenmedi")
         raise HTTPException(
@@ -360,7 +360,7 @@ def get_evidence_fingerprint(evidence_id: str) -> EvidenceFingerprint:
         )
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     metadata = docint.metadata_from_json(row["doc_metadata"])
     hits = [h for h in docint.hits_from_json(row["injection_hits"])
             if str(h.get("where", "")).startswith("metadata")]
@@ -387,9 +387,9 @@ def link_fingerprint_entity(
     disiplininin küçük bir karşılığı)."""
     conn = get_connection()
     if not _node_exists(conn, "Evidence", evidence_id):
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     if not _node_exists(conn, "Entity", entity_id):
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
 
     row = fetch_one(
         conn.execute(
@@ -401,7 +401,7 @@ def link_fingerprint_entity(
     if payload.field not in metadata:
         raise HTTPException(
             status_code=422,
-            detail=f"Bu belgenin metadata'sında '{payload.field}' alanı yok.",
+            detail=f"Bu belgenin üst verisinde '{payload.field}' alanı yok.",
         )
     if payload.field not in docint.LINKABLE_FIELDS:
         # Yazılım adı taşıyan alanları (Creator/Producer) Entity'ye bağlamak graf'ı
@@ -559,7 +559,7 @@ def ocr_evidence(evidence_id: str) -> dict:
         raise HTTPException(status_code=503, detail=durum["error"])
     conn = get_connection()
     if not _node_exists(conn, "Evidence", evidence_id):
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     if _resolve_stored_file(get_evidence(evidence_id).file_path) is None:
         raise HTTPException(
             status_code=422,
@@ -586,7 +586,7 @@ def reextract_evidence(evidence_id: str) -> dict:
     denemek. Çıkarma idempotent: sonucu baştan yazıyor, tekrar çalıştırmak güvenli."""
     conn = get_connection()
     if not _node_exists(conn, "Evidence", evidence_id):
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     if _resolve_stored_file(get_evidence(evidence_id).file_path) is None:
         raise HTTPException(
             status_code=422,
@@ -687,7 +687,7 @@ def list_evidence_claims(evidence_id: str) -> list[dict]:
     sorusunun cevabı yalnızca dolaylı olarak (claim'in confidence'ı üzerinden) görülebiliyordu."""
     conn = get_connection()
     if not _node_exists(conn, "Evidence", evidence_id):
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     rows = []
     for stance, rel in _STANCE_TO_REL.items():
         rows += [
@@ -721,9 +721,9 @@ def unlink_evidence_from_claim(evidence_id: str, claim_id: str) -> None:
     yanlış kurulmuş ilişki kaldırılıyor ve confidence yeniden hesaplanıyor."""
     conn = get_connection()
     if not _node_exists(conn, "Evidence", evidence_id):
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     removed = False
     for rel in _STANCE_TO_REL.values():
         existing = fetch_one(
@@ -739,7 +739,7 @@ def unlink_evidence_from_claim(evidence_id: str, claim_id: str) -> None:
             )
             removed = True
     if not removed:
-        raise HTTPException(status_code=404, detail="Bu kanıt ile claim arasında bir bağ yok")
+        raise HTTPException(status_code=404, detail="Bu kanıt ile iddia arasında bir bağ yok")
     _recompute_and_store(conn, claim_id)
     safe_render_vault(conn)
 
@@ -779,7 +779,7 @@ def get_evidence(evidence_id: str) -> Evidence:
     result = conn.execute(f"MATCH (ev:Evidence {{id: $id}}) RETURN {_FIELDS}", {"id": evidence_id})
     row = fetch_one(result)
     if row is None:
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     return Evidence(**_with_status_label(row))
 
 
@@ -790,11 +790,11 @@ def link_evidence_to_claim(evidence_id: str, claim_id: str, payload: EvidenceCla
     kenarları yaratır, sadece Claim oluşturulduktan SONRA çağrılabilir)."""
     conn = get_connection()
     if payload.stance not in _STANCE_TO_REL:
-        raise HTTPException(status_code=422, detail="stance must be SUPPORTS or CONTRADICTS")
+        raise HTTPException(status_code=422, detail="Duruş SUPPORTS (destekliyor) ya da CONTRADICTS (çürütüyor) olmalı")
     if not _node_exists(conn, "Evidence", evidence_id):
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     rel = _STANCE_TO_REL[payload.stance]
     conn.execute(
         f"MATCH (ev:Evidence {{id: $eid}}), (c:Claim {{id: $cid}}) CREATE (ev)-[:{rel}]->(c)",
@@ -808,7 +808,7 @@ def link_evidence_to_claim(evidence_id: str, claim_id: str, payload: EvidenceCla
         about_entity_id=about_entity_id,
         about_event_id=about_event_id,
         result=result,
-        title=f"Bir claim'e yeni kanıt bağlandı ({payload.stance})",
+        title=f"Bir iddiaya yeni kanıt bağlandı ({payload.stance})",
     )
     safe_render_vault(conn)
     return {

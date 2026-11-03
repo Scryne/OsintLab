@@ -53,7 +53,7 @@ rounded:
 ## Overview
 
 OsintLab tek kullanıcılı, local-first bir intelligence workstation. Arayüzün işi maksimum
-veri görünürlüğü: Search/Ask, Priority Intelligence, graf ve timeline aynı ekranda, dar
+veri görünürlüğü: arama, Öncelikli İstihbarat, graf ve zaman çizelgesi aynı ekranda, dar
 padding'le. Görsel dil koyu, cam yüzeyli ve indigo/violet ağırlıklı bir SaaS-workstation
 hissi taşıyor.
 
@@ -71,7 +71,7 @@ sıcağa bir "epistemik sıcaklık" rampası. Sıra anlamlıdır ve luminans ola
 `confidence-contradicted` bu rampanın **dışındadır**: mor-gül tonu, rampaya ait değilmiş gibi
 durmalıdır, çünkü çelişki bir güven seviyesi değil bir kırılmadır.
 
-**Priority Scale** (`priority-*`) yalnızca Intelligence Inbox'a aittir ve mor-kırmızı
+**Priority Scale** (`priority-*`) yalnızca Gelen Kutusu'na aittir ve mor-kırmızı
 ailesindedir. Confidence'ın mavi-yeşil-altın ailesiyle **karıştırılmamalıdır**: ikisi farklı
 soruları cevaplıyor — "ne kadar eminiz" ile "ne kadar acil".
 
@@ -107,7 +107,7 @@ maksimum veri görünürlüğü.
 
 ## Elevation & Depth
 
-Gerçek `backdrop-filter` camı **yalnızca anahtar yüzeylerde** kullanılır: nav, Inbox paneli,
+Gerçek `backdrop-filter` camı **yalnızca anahtar yüzeylerde** kullanılır: nav, Gelen Kutusu paneli,
 modal'lar ve birincil CTA. Tablo satırı, kart ve graph canvas cam değildir — okunabilirlik ve
 performans için yarı saydam opak yüzey kullanır. Her elemente cam sürmek hem camı
 sıradanlaştırır hem GPU'yu yorar.
@@ -119,10 +119,10 @@ Panellerin kenarında düz tek renk border yerine üstten parlayıp alta sönüm
 
 ## Components
 
-Q15 provenance ayrımı (SOURCE FACT / SYSTEM INFERENCE / AI ANALYSIS / USER INTERPRETATION)
+Q15 menşe ayrımı (KAYNAK OLGUSU / SİSTEM ÇIKARIMI / YZ ANALİZİ / KULLANICI YORUMU)
 **renkle değil**, sol kenarlık stili ve ikonla yapılır: düz / kesikli / noktalı çizgi.
 Üçüncü bir renk sistemi eklemek confidence ve priority'yi sulandırırdı. Tek istisna
-USER INTERPRETATION'dır ve `brand-accent` kullanır, çünkü o kategori kullanıcının kendi sesi.
+KULLANICI YORUMU'dur ve `brand-accent` kullanır, çünkü o kategori kullanıcının kendi sesi.
 
 Yıkıcı ya da geri dönüşü olmayan aksiyonlar iki adımlıdır ve onay düğmesi eylemi tekrar eder
 ("İlişkiyi kaldır", "Evet" değil). Zaman sınırı yoktur; Escape ve dışarı tıklama ile geri
@@ -134,6 +134,8 @@ rahatlatır.
 Hata mesajları ne→neden→nasıl sırasını izler; ham hata metni atılmaz ama ikincil kalır.
 
 ## Do's and Don'ts
+
+- Arayüz metni `docs/Terim-Sozlugu.md`'ye bağlıdır; yeni terim önce oraya eklenir.
 
 - Confidence ve priority renklerini birbirinin yerine kullanma; farklı soruları cevaplıyorlar.
 - Durum rengini yüzey ölçeğine (kart kenarı, zemin şeridi) çıkarma. 2026-09-06'da denendi ve

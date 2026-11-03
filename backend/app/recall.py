@@ -193,7 +193,7 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
     if confidence_result.corroboration > 0:
         reasons.append({
             "code": "CORROBORATED",
-            "text": "Başka claim'ler tarafından bağımsız olarak doğrulanıyor.",
+            "text": "Başka iddialar tarafından bağımsız olarak doğrulanıyor.",
             "detail": {"corroboration_score": confidence_result.corroboration},
         })
 
@@ -225,9 +225,9 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
         excerpts = [o["text"].splitlines()[0][:80] if o["text"] else "" for o in others]
         if excerpts:
             liste = "; ".join(f"«{e}»" for e in excerpts)
-            text = f"Bu bilgi {len(excerpts)} claim ile çelişiyor, çözülmemiş: {liste}"
+            text = f"Bu bilgi {len(excerpts)} iddiayla çelişiyor, çözülmemiş: {liste}"
         else:
-            text = "Bu bilgi başka bir claim ile çelişiyor, çözülmemiş."
+            text = "Bu bilgi başka bir iddiayla çelişiyor, çözülmemiş."
         reasons.append({
             "code": "CONTRADICTED",
             "text": text,
@@ -253,7 +253,7 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
             titles = ", ".join(f"\"{i['title']}\" ({i['status']})" for i in active_investigations)
             reasons.append({
                 "code": "ACTIVE_INVESTIGATION",
-                "text": f"İlgili entity/event aktif bir investigation'da yer alıyor: {titles}.",
+                "text": f"İlgili varlık/olay sürmekte olan bir soruşturmada yer alıyor: {titles}.",
                 "detail": {"investigation_ids": [i["id"] for i in active_investigations]},
             })
 
@@ -264,7 +264,7 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
             titles = ", ".join(f"\"{i['title']}\"" for i in resolved_investigations)
             reasons.append({
                 "code": "PAST_INVESTIGATION_RELEVANCE",
-                "text": f"Bu gelişme daha önce yürütülen bir investigation ile ilişkili olabilir: {titles}.",
+                "text": f"Bu gelişme daha önce yürütülen bir soruşturmayla ilişkili olabilir: {titles}.",
                 "detail": {"investigation_ids": [i["id"] for i in resolved_investigations]},
             })
 
@@ -285,13 +285,13 @@ def why_matters(conn, claim_id: str, claim_row: dict, confidence_result, about_e
         if not prior_claims:
             reasons.append({
                 "code": "NEWLY_DISCOVERED",
-                "text": "Bu entity/event hakkında daha önce bilgi yoktu — yeni keşfedildi.",
+                "text": "Bu varlık/olay hakkında daha önce bilgi yoktu — yeni keşfedildi.",
                 "detail": {},
             })
         else:
             reasons.append({
                 "code": "PRIOR_KNOWLEDGE_EXISTS",
-                "text": f"Bu entity/event hakkında zaten {len(prior_claims)} bilinen claim var.",
+                "text": f"Bu varlık/olay hakkında zaten {len(prior_claims)} bilinen claim var.",
                 "detail": {"prior_claim_ids": [c["id"] for c in prior_claims]},
             })
 

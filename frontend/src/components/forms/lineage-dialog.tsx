@@ -62,7 +62,7 @@ export function LineageDialog({
         upstream_source_id: upstreamId,
         note: note.trim() || null,
       });
-      toast(`Lineage kuruldu · ${res.recomputed_claims} claim yeniden hesaplandı`, "success");
+      toast(`Köken bağı kuruldu · ${res.recomputed_claims} iddia yeniden hesaplandı`, "success");
       setUpstreamId(null);
       setNote("");
       reload();
@@ -79,7 +79,7 @@ export function LineageDialog({
   async function unlink(upstream: { id: string; name: string }) {
     try {
       await api.sources.unlinkDerivedFrom(source.id, upstream.id);
-      toast("Lineage bağı kaldırıldı", "default");
+      toast("Köken bağı kaldırıldı", "default");
       reload();
       onChanged?.();
     } catch (err) {
@@ -95,7 +95,7 @@ export function LineageDialog({
         render={
           <Button size="sm" variant="outline" className="self-start">
             <GitBranch aria-hidden className="h-4 w-4" />
-            Lineage
+            Köken
           </Button>
         }
       />
@@ -116,8 +116,7 @@ export function LineageDialog({
               </p>
             ) : (
               <p className="text-foreground">
-                Bu kaynak başka bir kaynaktan türetilmiş; confidence hesabında bağımsız tanık
-                sayılmaz.
+                Bu kaynak başka bir kaynaktan türetilmiş; güven hesabında bağımsız tanık sayılmaz.
               </p>
             )}
           </div>
@@ -126,7 +125,7 @@ export function LineageDialog({
             {/* Bunlar bir form kontrolünü değil bir listeyi başlıklıyor; `<Label>`
                 buraya ait değil (hiçbir zaman bir alana bağlanamaz, ekran okuyucuya
                 yanlış vaatte bulunur). Düz başlık metni doğru eleman. */}
-            <p className="text-sm font-medium leading-none">Türetildiği kaynaklar (upstream)</p>
+            <p className="text-sm font-medium leading-none">Türetildiği kaynaklar (üst kaynaklar)</p>
             {!lineage || lineage.ancestors.length === 0 ? (
               <p className="text-xs text-text-tertiary">Yok.</p>
             ) : (
@@ -152,7 +151,7 @@ export function LineageDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-sm font-medium leading-none">Bu kaynaktan türeyenler (downstream)</p>
+            <p className="text-sm font-medium leading-none">Bu kaynaktan türeyenler (alt kaynaklar)</p>
             {!lineage || lineage.descendants.length === 0 ? (
               <p className="text-xs text-text-tertiary">Yok.</p>
             ) : (
@@ -179,7 +178,7 @@ export function LineageDialog({
               placeholder="Kaynak ara…"
             />
             <Label htmlFor="lineage-note" className="mt-1">
-              Gerekçe (opsiyonel)
+              Gerekçe (isteğe bağlı)
             </Label>
             <Input
               id="lineage-note"
@@ -188,7 +187,7 @@ export function LineageDialog({
               placeholder="ör. aynı duyuruyu aktarıyor, orijinal kaynağa atıf var"
             />
             <p className="text-xs text-text-tertiary">
-              Elle kurulan bağ graf&apos;ta <span className="font-mono">MANUAL</span> olarak
+              Elle kurulan bağ grafta <span className="font-mono">MANUAL</span> olarak
               işaretlenir — kararı sistemin mi insanın mı verdiği ayırt edilebilir kalır.
             </p>
           </div>

@@ -160,7 +160,7 @@ function ModuleCard({
                 {run.status === "DONE" && <ShieldCheck aria-hidden className="h-3 w-3 text-confidence-supported-text" />}
                 {run.status === "FAILED" && <ShieldX aria-hidden className="h-3 w-3 text-priority-critical-text" />}
                 {running ? "çalışıyor…" : run.status === "FAILED" ? `başarısız · ${ago(run.finished_at)}` : `${ago(run.finished_at)}`}
-                {run.pivots && run.pivots.length > 0 && ` · ${run.pivots.length} pivot`}
+                {run.pivots && run.pivots.length > 0 && ` · ${run.pivots.length} bağlantı`}
               </span>
             )}
           </span>
@@ -200,7 +200,7 @@ function ModuleCard({
           <RunSummary run={run} onSuggest={onSuggest} />
           {run.pivots && run.pivots.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <h4 className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Bu koşunun açtığı pivotlar</h4>
+              <h4 className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Bu koşunun açtığı bağlantılar</h4>
               <div className="flex flex-wrap gap-1.5">
                 {run.pivots.slice(0, 40).map((p) => {
                   const otherId = p.to_id === run.target_id ? p.from_id : p.to_id;
@@ -241,7 +241,7 @@ function RunFooter({ run, onConverted }: { run: EnrichmentRun; onConverted?: () 
     setBusy(true);
     try {
       await api.enrichment.toObservation(run.id);
-      toast("Gözlem oluşturuldu — Promote Kuyruğu'nda değerlendirilebilir", "success");
+      toast("Gözlem oluşturuldu — Terfi Kuyruğu'nda değerlendirilebilir", "success");
       onConverted?.();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Gözleme çevrilemedi", "error");

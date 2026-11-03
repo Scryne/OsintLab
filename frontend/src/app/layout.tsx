@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "OsintLab",
-  description: "Kişisel intelligence workstation — OSINT Brain",
+  description: "Kişisel istihbarat çalışma istasyonu — OSINT Beyni",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

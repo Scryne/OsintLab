@@ -23,6 +23,95 @@ def test_allowed_origin_and_headerless_clients_can_write(client):
     assert client.post("/entities", json={"name": "curl", "entity_type": "x"}).status_code == 201
 
 
+def test_default_origins_are_only_local_3000():
+    from app.main import frontend_origins
+
+    assert frontend_origins(None) == ("http://localhost:3000", "http://127.0.0.1:3000")
+    assert frontend_origins("") == frontend_origins(" , ")
+    # Varsayılan port tekrar verilirse liste şişmez.
+    assert frontend_origins("3000") == frontend_origins(None)
+
+
+def test_frontend_port_adds_only_local_origins():
+    from app.main import frontend_origins
+
+    assert frontend_origins("3001, 4000") == (
+        "http://localhost:3000", "http://127.0.0.1:3000",
+        "http://localhost:3001", "http://127.0.0.1:3001",
+        "http://localhost:4000", "http://127.0.0.1:4000",
+    )
+
+
+@pytest.mark.parametrize("bad", [
+    "*", "evil.example", "http://evil.example:3001", "localhost:3001", "3001/x", "0", "65536", "-1", "3e3", "٣٠٠١",
+])
+def test_frontend_port_rejects_anything_but_a_port(bad):
+    from app.main import frontend_origins
+
+    with pytest.raises(ValueError):
+        frontend_origins(bad)
+
+
+def test_frontend_port_env_feeds_both_cors_and_csrf(tmp_path):
+    """Uçtan uca: ortam değişkeni ayrı bir süreçte, uygulama import edilmeden ÖNCE veriliyor —
+    tıpkı start.ps1'in yaptığı gibi. Ek port hem CORS'ta hem CSRF'te açılır; yabancı origin ve
+    ek portun yerel olmayan hâli yine reddedilir."""
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = """
+import json
+from fastapi.testclient import TestClient
+from app.main import app, ALLOWED_ORIGINS
+c = TestClient(app)
+def write(origin):
+    h = {"Origin": origin} if origin else {}
+    return c.post("/entities", json={"name": "cors-" + str(origin), "entity_type": "x"}, headers=h).status_code
+def preflight(origin):
+    r = c.options("/entities", headers={"Origin": origin, "Access-Control-Request-Method": "POST"})
+    return r.headers.get("access-control-allow-origin")
+print(json.dumps({
+    "origins": list(ALLOWED_ORIGINS),
+    "write_3001": write("http://localhost:3001"),
+    "write_3001_ip": write("http://127.0.0.1:3001"),
+    "write_3000": write("http://localhost:3000"),
+    "write_evil_3001": write("http://evil.example:3001"),
+    "write_3002": write("http://localhost:3002"),
+    "write_headerless": write(None),
+    "cors_3001": preflight("http://localhost:3001"),
+    "cors_evil": preflight("http://evil.example:3001"),
+}))
+"""
+    env = {**os.environ, "OSINTLAB_FRONTEND_PORT": "3001", "OSINTLAB_DATA_DIR": str(tmp_path),
+           "OSINTLAB_SCHEDULER": "0", "OSINTLAB_ALLOWED_HOSTS": "testserver", "PYTHONUTF8": "1"}
+    backend_dir = Path(__file__).resolve().parent.parent
+    out = subprocess.run([sys.executable, "-c", script], cwd=backend_dir, env=env,
+                         capture_output=True, text=True, timeout=180)
+    assert out.returncode == 0, out.stderr
+    r = json.loads(out.stdout.strip().splitlines()[-1])
+    assert r["origins"] == ["http://localhost:3000", "http://127.0.0.1:3000",
+                            "http://localhost:3001", "http://127.0.0.1:3001"]
+    assert r["write_3001"] == r["write_3001_ip"] == r["write_3000"] == r["write_headerless"] == 201
+    assert r["write_evil_3001"] == 403 and r["write_3002"] == 403
+    assert r["cors_3001"] == "http://localhost:3001"
+    assert r["cors_evil"] is None
+
+
+def test_invalid_frontend_port_stops_startup(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    env = {**os.environ, "OSINTLAB_FRONTEND_PORT": "*", "OSINTLAB_DATA_DIR": str(tmp_path), "OSINTLAB_SCHEDULER": "0"}
+    out = subprocess.run([sys.executable, "-c", "import app.main"], cwd=Path(__file__).resolve().parent.parent,
+                         env=env, capture_output=True, text=True, timeout=180)
+    assert out.returncode != 0 and "OSINTLAB_FRONTEND_PORT" in out.stderr
+
+
 def test_foreign_host_header_is_rejected(client):
     # DNS rebinding: saldırganın alan adı 127.0.0.1'e çözülse bile Host başlığı onu ele verir.
     assert client.get("/health", headers={"Host": "attacker.example"}).status_code == 400

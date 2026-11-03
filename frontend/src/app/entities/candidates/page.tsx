@@ -1,5 +1,6 @@
 "use client";
 
+import { entityTypeLabel, entityTypeSuggestions, entityTypeValue } from "@/lib/labels";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Undo2 } from "lucide-react";
@@ -17,10 +18,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TypeCombo } from "@/components/forms/type-combo";
 import { useToast } from "@/components/ui/toast";
 
-const ENTITY_TYPE_SUGGESTIONS = [
+const ENTITY_TYPE_SUGGESTIONS = entityTypeSuggestions([
   "Organization", "Person", "Company", "Location",
   "AI Model", "Product", "Domain", "Malware", "Tehdit Aktörü",
-];
+]);
 
 type Tab = "pending" | "dismissed";
 
@@ -95,12 +96,11 @@ export default function EntityCandidatesPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <header>
         <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">
-          Entity Adayları
+          Varlık Adayları
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Claim metinlerinde özel isim gibi duran öbekler, kaç farklı kaynakta geçtiğine göre
-          sıralanır. Bu bir öneri listesi: sistem &quot;burada bir ad var&quot; der, bunun bir entity
-          olup olmadığına ve türüne sen karar verirsin. Elediğin aday bir daha önerilmez —
+          İddia metinlerinde özel isim gibi duran öbekler, kaç farklı kaynakta geçtiğine göre
+          sıralanır. Bu bir öneri listesi: sistem &quot;burada bir ad var&quot; der, bunun bir varlık olup olmadığına ve türüne sen karar verirsin. Elediğin aday bir daha önerilmez —
           ama silinmez, ikinci sekmeden geri alabilirsin.
         </p>
       </header>
@@ -110,7 +110,7 @@ export default function EntityCandidatesPage() {
           <strong className="tabular-nums text-foreground">{shown.length}</strong> bekleyen aday
         </span>
         <span className="text-text-secondary">
-          <strong className="tabular-nums text-foreground">{promoted.length}</strong> entity&apos;ye çevrildi
+          <strong className="tabular-nums text-foreground">{promoted.length}</strong> varlığa çevrildi
         </span>
         <span className="text-text-secondary">
           <strong className="tabular-nums text-foreground">{dismissed.length}</strong> elendi
@@ -148,7 +148,7 @@ export default function EntityCandidatesPage() {
                     <strong className="tabular-nums text-foreground">{activeSelection.length}</strong> aday seçili
                   </>
                 ) : (
-                  <>Gürültüyü toplu ele, kalanları tek tek entity&apos;ye çevir.</>
+                  <>Gürültüyü toplu ele, kalanları tek tek varlığa çevir.</>
                 )}
               </span>
               <div className="ml-auto">
@@ -164,7 +164,7 @@ export default function EntityCandidatesPage() {
           {!loading && !error && shown.length === 0 && (
             <EmptyState
               title="Bekleyen aday yok"
-              description="Liste eritilmiş. Yeni gözlemler promote edildikçe yeni adaylar burada belirir."
+              description="Liste eritilmiş. Yeni gözlemler terfi ettirildikçe yeni adaylar burada belirir."
             />
           )}
 
@@ -210,7 +210,7 @@ export default function EntityCandidatesPage() {
           {promoted.length > 0 && (
             <section>
               <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">
-                Entity&apos;ye çevrilenler ({promoted.length})
+                Varlığa çevrilenler ({promoted.length})
               </h2>
               <div className="flex flex-wrap gap-1.5">
                 {promoted.map((candidate) =>
@@ -248,7 +248,7 @@ function CandidateRow({
   const [open, setOpen] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
   const [name, setName] = useState(candidate.name);
-  const [entityType, setEntityType] = useState("Organization");
+  const [entityType, setEntityType] = useState(entityTypeLabel("Organization"));
   const [busy, setBusy] = useState(false);
 
   async function promote() {
@@ -256,9 +256,9 @@ function CandidateRow({
     setBusy(true);
     try {
       await api.entities.promoteCandidates([
-        { key: candidate.key, name: name.trim(), entity_type: entityType.trim() },
+        { key: candidate.key, name: name.trim(), entity_type: entityTypeValue(entityType) },
       ]);
-      toast(`"${name.trim()}" entity olarak eklendi`, "success");
+      toast(`"${name.trim()}" varlık olarak eklendi`, "success");
       setOpen(false);
       onPromoted();
     } catch (err) {
@@ -278,7 +278,7 @@ function CandidateRow({
         <Badge variant="outline">{candidate.source_count} kaynak</Badge>
         <Badge variant="outline">{candidate.claim_count} claim</Badge>
         <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          {open ? "Vazgeç" : "Entity yap"}
+          {open ? "Vazgeç" : "Varlık yap"}
         </Button>
       </div>
 
@@ -323,7 +323,7 @@ function CandidateRow({
               value={entityType}
               onChange={setEntityType}
               suggestions={ENTITY_TYPE_SUGGESTIONS}
-              placeholder="ör. Company"
+              placeholder="ör. Şirket"
             />
           </div>
           <Button onClick={promote} disabled={busy || !name.trim() || !entityType.trim()}>

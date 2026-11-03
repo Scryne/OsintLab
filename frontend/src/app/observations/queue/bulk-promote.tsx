@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { useToast } from "@/components/ui/toast";
 import { SingleSourceNote } from "@/components/provenance/single-source-note";
+import { entityTypeLabel } from "@/lib/labels";
 
 type Mode = "suggested" | "uniform";
 
@@ -77,7 +78,7 @@ export function BulkPromoteDialog({
         continue;
       }
       if (requireEntity && !entity) {
-        blocked.push({ headline: head, reason: "entity bağı çözülemedi" });
+        blocked.push({ headline: head, reason: "varlık bağı çözülemedi" });
         continue;
       }
       // Ayrac NUL: veride gecemeyecegi icin cakismasiz bir birlestirme anahtari verir.
@@ -106,13 +107,13 @@ export function BulkPromoteDialog({
       });
       setResult(res);
       toast(
-        `${res.promoted + res.below_threshold} claim üretildi` +
+        `${res.promoted + res.below_threshold} iddia üretildi` +
           (res.skipped ? ` · ${res.skipped} atlandı` : ""),
         res.promoted + res.below_threshold > 0 ? "success" : "default"
       );
       onDone();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Toplu promote başarısız", "error");
+      toast(err instanceof Error ? err.message : "Toplu terfi başarısız", "error");
     } finally {
       setBusy(false);
     }
@@ -135,16 +136,16 @@ export function BulkPromoteDialog({
         render={
           <Button size="sm" disabled={items.length === 0}>
             <Zap aria-hidden className="h-4 w-4" />
-            Promote et
+            Terfi ettir
           </Button>
         }
       />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {result ? "Toplu promote sonucu" : `${items.length} gözlemi promote et`}
+            {result ? "Toplu terfi sonucu" : `${items.length} gözlemi terfi ettir`}
           </DialogTitle>
-          <DialogDescription>Seçili gözlemleri tek seferde claim&apos;e yükseltir. Kaynak ve entity tüm kümeye birlikte uygulanır.</DialogDescription>
+          <DialogDescription>Seçili gözlemleri tek seferde iddiaya terfi ettirir. Kaynak ve varlık tüm kümeye birlikte uygulanır.</DialogDescription>
         </DialogHeader>
 
         {result ? (
@@ -152,7 +153,7 @@ export function BulkPromoteDialog({
         ) : (
           <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="bulk-mode">Kaynak ve entity</Label>
+              <Label htmlFor="bulk-mode">Kaynak ve varlık</Label>
               <Select
                 value={mode}
                 items={{ suggested: "Her kayıt kendi önerisini kullansın", uniform: "Hepsine aynısını uygula" }}
@@ -181,13 +182,13 @@ export function BulkPromoteDialog({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="bulk-promote-entity-tu-m-ku-me-2">Entity (tüm küme)</Label>
+                  <Label htmlFor="bulk-promote-entity-tu-m-ku-me-2">Varlık (tüm küme)</Label>
                   <SearchablePicker
                     id="bulk-promote-entity-tu-m-ku-me-2"
-                    items={(entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }))}
+                    items={(entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: entityTypeLabel(e.entity_type) }))}
                     value={entityId}
                     onChange={setEntityId}
-                    placeholder="Entity ara…"
+                    placeholder="Varlık ara…"
                   />
                 </div>
               </>
@@ -200,7 +201,7 @@ export function BulkPromoteDialog({
               <p className="text-[11px] uppercase tracking-wide text-text-tertiary">Ne olacak</p>
               {preview.groups.length === 0 && (
                 <p className="text-sm text-text-secondary">
-                  Bu ayarlarla promote edilecek kayıt yok.
+                  Bu ayarlarla terfi ettirilecek kayıt yok.
                 </p>
               )}
               <ul className="flex flex-col gap-1">
@@ -222,13 +223,12 @@ export function BulkPromoteDialog({
                 <Checkbox
                   checked={requireEntity}
                   onCheckedChange={setRequireEntity}
-                  aria-label="Entity bağı olmayan kayıtları atla"
+                  aria-label="Varlık bağı olmayan kayıtları atla"
                 />
               </span>
               <span>
-                <span className="font-medium text-foreground">Entity bağı olmayan kaydı atla.</span>{" "}
-                Bağsız claim yalıtık kalır — Memory Recall onu bulamaz, entity sayfasında ve
-                Obsidian notunda görünmez. Toplu bir işlemde bu, onlarca kayda birden ve sessizce
+                <span className="font-medium text-foreground">Varlık bağı olmayan kaydı atla.</span>{" "}
+                Bağsız iddia yalıtık kalır — hafıza sorgusu onu bulamaz, varlık sayfasında ve Obsidian notunda görünmez. Toplu bir işlemde bu, onlarca kayda birden ve sessizce
                 olur; o yüzden varsayılan açık.
               </span>
             </label>
@@ -250,7 +250,7 @@ export function BulkPromoteDialog({
                   )}
                 </ul>
                 <p className="text-xs leading-relaxed text-text-tertiary">
-                  Atlanan kayıt kuyrukta kalır; tek tek &quot;Hızlı promote&quot; ile eksik bağı
+                  Atlanan kayıt kuyrukta kalır; tek tek &quot;Hızlı terfi&quot; ile eksik bağı
                   orada kurabilirsin.
                 </p>
               </div>
@@ -263,7 +263,7 @@ export function BulkPromoteDialog({
             <Button onClick={() => setOpen(false)}>Kapat</Button>
           ) : (
             <Button onClick={run} disabled={busy || !canRun}>
-              {busy ? "Yükseltiliyor…" : `${willPromote} kaydı promote et`}
+              {busy ? "Terfi ettiriliyor…" : `${willPromote} kaydı terfi ettir`}
             </Button>
           )}
         </DialogFooter>

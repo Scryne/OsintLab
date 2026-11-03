@@ -63,7 +63,7 @@ export function ClaimContradictDialog({
     setSubmitting(true);
     try {
       await api.claims.addContradiction(claimId, otherId);
-      toast("Çelişki kaydedildi — iki claim de CONTRADICTED", "success");
+      toast("Çelişki kaydedildi — iki iddia da Çelişkili", "success");
       setClaimId(null);
       setOtherId(null);
       setOpen(false);
@@ -96,22 +96,22 @@ export function ClaimContradictDialog({
       />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>İki claim arasında çelişki kur</DialogTitle>
-          <DialogDescription>İki claim&apos;in birbiriyle çeliştiğini beyan eder. Çelişki otomatik saptanmaz — bu senin kararın.</DialogDescription>
+          <DialogTitle>İki iddia arasında çelişki kur</DialogTitle>
+          <DialogDescription>İki iddianın birbiriyle çeliştiğini beyan eder. Çelişki otomatik saptanmaz — bu senin kararın.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="claim-contradict-dialog-claim-1">Claim</Label>
-            <SearchablePicker id="claim-contradict-dialog-claim-1" items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-contradict-dialog-claim-1">İddia</Label>
+            <SearchablePicker id="claim-contradict-dialog-claim-1" items={items} value={claimId} onChange={setClaimId} placeholder="İddia ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="claim-contradict-dialog-c-elis-tig-i-claim-2">Çeliştiği claim</Label>
-            <SearchablePicker id="claim-contradict-dialog-c-elis-tig-i-claim-2" items={otherItems} value={otherId} onChange={setOtherId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-contradict-dialog-c-elis-tig-i-claim-2">Çeliştiği iddia</Label>
+            <SearchablePicker id="claim-contradict-dialog-c-elis-tig-i-claim-2" items={otherItems} value={otherId} onChange={setOtherId} placeholder="İddia ara…" />
           </div>
           <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
             İkisi de <span className="font-medium text-foreground">CONTRADICTED</span> durumuna geçer, çelişki{" "}
             <span className="font-medium text-foreground">UNRESOLVED</span> kaydedilir.{" "}
-            <span className="font-medium text-foreground">Hiçbir claim silinmez</span> — metinler
+            <span className="font-medium text-foreground">Hiçbir iddia silinmez</span> — metinler
             değişmez, aralarına yalnızca bir ilişki eklenir.
           </p>
         </div>

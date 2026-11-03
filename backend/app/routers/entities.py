@@ -77,7 +77,7 @@ def get_entity(entity_id: str) -> Entity:
     result = conn.execute(f"MATCH (e:Entity {{id: $id}}) RETURN {_FIELDS}", {"id": entity_id})
     row = fetch_one(result)
     if row is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     return Entity(**row)
 
 
@@ -86,7 +86,7 @@ def recall_entity(entity_id: str) -> dict:
     """OSINT Brain — Memory Recall: bu entity hakkında sistemin şu an ne bildiği."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     return {"entity_id": entity_id, **entity_recall(conn, entity_id)}
 
 
@@ -94,7 +94,7 @@ def recall_entity(entity_id: str) -> dict:
 def update_entity(entity_id: str, payload: EntityCreate) -> Entity:
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     conn.execute(
         "MATCH (e:Entity {id: $id}) SET e.entity_type = $entity_type, "
         "e.name = $name, e.aliases = $aliases",
@@ -113,11 +113,11 @@ def update_entity(entity_id: str, payload: EntityCreate) -> Entity:
 # siliyordu: History Is Immutable'a aykırı (ilişki silme ucu kenarı SUPERSEDED'a çekerken entity
 # silme aynı kenarı yok ediyordu) ve claim'leri öznesiz bırakıyordu (2026-10-18 denetimi).
 _ENTITY_USAGE = (
-    ("claim öznesi", "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity {id: $id}) RETURN count(c) AS n"),
-    ("claim değmesi", "MATCH (c:Claim)-[m:MENTIONS]->(e:Entity {id: $id}) WHERE m.status = 'CONFIRMED' RETURN count(c) AS n"),
+    ("iddia öznesi", "MATCH (c:Claim)-[:ABOUT_ENTITY]->(e:Entity {id: $id}) RETURN count(c) AS n"),
+    ("iddia değmesi", "MATCH (c:Claim)-[m:MENTIONS]->(e:Entity {id: $id}) WHERE m.status = 'CONFIRMED' RETURN count(c) AS n"),
     ("ilişki", "MATCH (e:Entity {id: $id})-[r:ENTITY_RELATION]-(:Entity) RETURN count(r) AS n"),
     ("olay", "MATCH (e:Entity {id: $id})-[r:INVOLVED_IN]->(:Event) RETURN count(r) AS n"),
-    ("investigation kapsamı", "MATCH (:Investigation)-[r:INCLUDES]->(e:Entity {id: $id}) RETURN count(r) AS n"),
+    ("soruşturma kapsamı", "MATCH (:Investigation)-[r:INCLUDES]->(e:Entity {id: $id}) RETURN count(r) AS n"),
     ("belge parmak izi", "MATCH (:Evidence)-[r:FINGERPRINT_ENTITY]->(e:Entity {id: $id}) RETURN count(r) AS n"),
     ("onaylı eşleşme", "MATCH (e:Entity {id: $id})-[r:SAME_AS]-(:Entity) WHERE r.status = 'CONFIRMED' RETURN count(r) AS n"),
 )
@@ -133,7 +133,7 @@ def delete_entity(entity_id: str) -> None:
     aday kararı kaldırılır — ad, aday listesine yeniden düşebilsin."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     usage = []
     for label, query in _ENTITY_USAGE:
         row = fetch_one(conn.execute(query, {"id": entity_id}))
@@ -143,7 +143,7 @@ def delete_entity(entity_id: str) -> None:
         raise HTTPException(
             status_code=409,
             detail=(
-                "Bu entity kullanılıyor (" + ", ".join(usage) + ") — silinmez. Aynı şeyin ikinci "
+                "Bu varlık kullanılıyor (" + ", ".join(usage) + ") — silinmez. Aynı şeyin ikinci "
                 "kaydıysa SAME_AS ile eşleştir; yanlış bir bağsa o bağı kaldır."
             ),
         )
@@ -169,11 +169,11 @@ def _write_entity_relation(conn, entity_id: str, payload: EntityRelationCreate) 
     siliniyor ve yeniden yazılıyor) işlemi dakikalarca sürdürüyordu. Render, çağıranın
     sorumluluğunda ve iş bitince BİR KEZ yapılıyor."""
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": payload.to_entity_id})) is None:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {payload.to_entity_id}")
+        raise HTTPException(status_code=404, detail=f"Varlık bulunamadı: {payload.to_entity_id}")
     if entity_id == payload.to_entity_id:
-        raise HTTPException(status_code=422, detail="Bir entity kendisiyle ilişkilendirilemez")
+        raise HTTPException(status_code=422, detail="Bir varlık kendisiyle ilişkilendirilemez")
     relation_type = payload.relation_type.strip()
     if not relation_type:
         raise HTTPException(status_code=422, detail="İlişki türü boş olamaz — türü sistem tahmin etmez")
@@ -187,7 +187,7 @@ def _write_entity_relation(conn, entity_id: str, payload: EntityRelationCreate) 
             {"aid": entity_id, "bid": payload.to_entity_id, "rt": relation_type},
         )
     ):
-        raise HTTPException(status_code=409, detail=f"Bu iki entity arasında zaten aktif bir '{relation_type}' ilişkisi var")
+        raise HTTPException(status_code=409, detail=f"Bu iki varlık arasında zaten etkin bir '{relation_type}' ilişkisi var")
     now = datetime.now(timezone.utc)
     conn.execute(
         "MATCH (a:Entity {id: $aid}), (b:Entity {id: $bid}) "
@@ -227,7 +227,7 @@ def create_entity_relation(entity_id: str, payload: EntityRelationCreate) -> dic
 def list_entity_relations(entity_id: str) -> list[dict]:
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     outgoing = fetch_all(
         conn.execute(
             "MATCH (e:Entity {id: $id})-[r:ENTITY_RELATION]->(other:Entity) WHERE r.status <> 'SUPERSEDED' "
@@ -255,7 +255,7 @@ def list_relation_candidates(entity_id: str) -> list[RelationCandidate]:
     Zaten ACTIVE ilişkisi olanlar ve CONFIRMED SAME_AS grubundakiler listede yer almaz."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     return [RelationCandidate(**c) for c in relation_candidates(conn, entity_id)]
 
 
@@ -274,7 +274,7 @@ def delete_entity_relation(entity_id: str, to_entity_id: str, relation_type: str
         )
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="Aktif ENTITY_RELATION bulunamadı")
+        raise HTTPException(status_code=404, detail="Etkin bir varlık ilişkisi bulunamadı")
     safe_render_vault(conn)
 
 
@@ -286,7 +286,7 @@ def same_as_candidates(entity_id: str) -> list[dict]:
     """Salt okunur: hiçbir şey yazmaz, sadece aday hesaplar."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     return [c.__dict__ for c in find_candidates(conn, entity_id)]
 
 
@@ -295,11 +295,11 @@ def suggest_same_as(entity_id: str, payload: SameAsSuggestRequest) -> dict:
     """Sadece PENDING öneri yaratır — skor ne olursa olsun asla CONFIRMED yaratmaz (Q7)."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": payload.to_entity_id})) is None:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {payload.to_entity_id}")
+        raise HTTPException(status_code=404, detail=f"Varlık bulunamadı: {payload.to_entity_id}")
     if entity_id == payload.to_entity_id:
-        raise HTTPException(status_code=422, detail="Bir entity kendisiyle eşleşemez")
+        raise HTTPException(status_code=422, detail="Bir varlık kendisiyle eşleşemez")
     existing = fetch_one(
         conn.execute(
             "MATCH (a:Entity {id: $a})-[r:SAME_AS]->(b:Entity {id: $b}) RETURN r.status AS status",
@@ -514,9 +514,9 @@ def decide_relations(payload: RelationBatch) -> RelationBatchResult:
             raise HTTPException(status_code=422, detail=f"Geçersiz aksiyon: {decision.action}")
         for entity_id in (decision.from_entity_id, decision.to_entity_id):
             if fetch_one(conn.execute("MATCH (e:Entity {id: $id}) RETURN e.id AS id", {"id": entity_id})) is None:
-                raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+                raise HTTPException(status_code=404, detail=f"Varlık bulunamadı: {entity_id}")
         if decision.from_entity_id == decision.to_entity_id:
-            raise HTTPException(status_code=422, detail="Bir entity kendisiyle ilişkilendirilemez")
+            raise HTTPException(status_code=422, detail="Bir varlık kendisiyle ilişkilendirilemez")
         if action == "CREATE" and not decision.relation_type.strip():
             raise HTTPException(status_code=422, detail="İlişki türü boş olamaz — türü sistem tahmin etmez")
 

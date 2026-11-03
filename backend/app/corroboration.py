@@ -312,14 +312,14 @@ def find_candidates(
                 reasons = [
                     f"Kaynaklar farklı ({a['source_name']} / {b['source_name']}) ama ikisi de "
                     f"aynı bağımsız köke iniyor: {root_name}",
-                    "Türetilmiş kaynaklar bağımsız doğrulama SAYILMAZ — bağlanırsa confidence "
-                    "sahte yükselirdi (Q6, Faz 6 lineage indirgemesi)",
+                    "Türetilmiş kaynaklar bağımsız doğrulama SAYILMAZ — bağlanırsa güven skoru "
+                    "sahte yükselirdi (Q6, Faz 6 köken indirgemesi)",
                 ]
             elif similarity >= DERIVED_SUSPECT_THRESHOLD:
                 kind = "DERIVED_SUSPECT"
                 reasons = [
                     f"Kaynaklar farklı ({a['source_name']} / {b['source_name']}) ama metin benzerliği çok yüksek ({similarity:.2f})",
-                    "Bu bağımsız doğrulama DEĞİL, tespit edilmemiş bir türetme olabilir — önce kaynak lineage'ını işaretle",
+                    "Bu bağımsız doğrulama DEĞİL, tespit edilmemiş bir türetme olabilir — önce kaynağın kökenini işaretle",
                 ]
             elif days > MAX_DAYS_APART:
                 continue
@@ -520,7 +520,7 @@ def find_observation_candidates(
                 note = "Bu gözlem daha önce elenmişti"
                 if obs["dismiss_reason"]:
                     note += " (" + obs["dismiss_reason"] + ")"
-                reasons.append(note + " — promote edilirse eleme kendiliğinden kalkar")
+                reasons.append(note + " — terfi ettirilirse eleme kendiliğinden kalkar")
 
             if same_source:
                 kind = "SAME_SOURCE"

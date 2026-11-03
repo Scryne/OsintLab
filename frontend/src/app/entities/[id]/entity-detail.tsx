@@ -38,6 +38,7 @@ import { EntityAliasesDialog } from "@/components/forms/entity-aliases-dialog";
 import { EvidenceLinkDialog } from "@/components/forms/evidence-link-dialog";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmButton } from "@/components/ui/confirm-button";
+import { entityTypeLabel, statusLabel } from "@/lib/labels";
 
 export function EntityDetail({ entityId }: { entityId: string }) {
   const toast = useToast();
@@ -146,10 +147,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">{entity.name}</h1>
-            <Badge variant="secondary">{entity.entity_type}</Badge>
+            <Badge variant="secondary">{entityTypeLabel(entity.entity_type)}</Badge>
           </div>
           {entity.aliases.length > 0 && (
-            <p className="mt-1 text-sm text-text-secondary">Alias: {entity.aliases.join(", ")}</p>
+            <p className="mt-1 text-sm text-text-secondary">Diğer adlar: {entity.aliases.join(", ")}</p>
           )}
           {/* Faz 11 (F31): onaylanmış SAME_AS artık okunuyor. Kayıtlar SİLİNMEZ (Q7 /
               History Is Immutable), aynı oldukları işaretlenir — bu yüzden "birleştirildi"
@@ -204,14 +205,14 @@ export function EntityDetail({ entityId }: { entityId: string }) {
       <Tabs defaultValue="timeline">
         <div className="overflow-x-auto">
           <TabsList className="w-max">
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="claims">Claim&apos;ler ({recall.related_claims.length})</TabsTrigger>
+            <TabsTrigger value="timeline">Zaman çizelgesi</TabsTrigger>
+            <TabsTrigger value="claims">İddialar ({recall.related_claims.length})</TabsTrigger>
             {/* Faz 21: "hakkında" ile "adı geçen" AYRI sekmeler. Tek listede birleştirmek
                 "bu entity hakkında 8 iddia var" yanılgısı üretirdi — değme, iddianın o
                 entity hakkında olduğu anlamına gelmez. */}
             <TabsTrigger value="mentions">Adı geçenler ({recall.mentioned_in.length})</TabsTrigger>
-            <TabsTrigger value="events">Event&apos;ler ({recall.related_events.length})</TabsTrigger>
-            <TabsTrigger value="investigations">Investigation&apos;lar ({recall.related_investigations.length})</TabsTrigger>
+            <TabsTrigger value="events">Olaylar ({recall.related_events.length})</TabsTrigger>
+            <TabsTrigger value="investigations">Soruşturmalar ({recall.related_investigations.length})</TabsTrigger>
             <TabsTrigger value="relations">
             İlişkiler ({relations?.length ?? 0})
             {(relationCandidates?.length ?? 0) > 0 && ` · ${relationCandidates?.length} aday`}
@@ -225,15 +226,15 @@ export function EntityDetail({ entityId }: { entityId: string }) {
           <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
             <div className="shrink-0 border-b border-border pb-3 sm:w-40 sm:border-b-0 sm:border-r sm:pr-4 sm:pb-0">
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-tertiary">
-                Confidence Spectrum
+                Güven yelpazesi
               </p>
               <ConfidenceRail active={confidenceFilter} onSelect={setConfidenceFilter} />
             </div>
             <div className="min-w-0 flex-1">
               {timelineItems.length === 0 ? (
                 <EmptyState
-                  title="Timeline boş"
-                  description="Bu entity'ye bir claim ya da event bağlandığında zaman çizgisi burada oluşur."
+                  title="Zaman çizelgesi boş"
+                  description="Bu varlığa bir iddia ya da olay bağlandığında zaman çizelgesi burada oluşur."
                 />
               ) : (
                 <ol className="flex flex-col gap-3">
@@ -268,7 +269,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                           )}
                           {item.kind === "event" && (
                             <Link href={`/events/${item.id}`} className="text-[11px] text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
-                              event&apos;e git →
+                              olaya git →
                             </Link>
                           )}
                         </div>
@@ -284,8 +285,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         <TabsContent value="claims" className="mt-4">
           {recall.related_claims.length === 0 ? (
             <EmptyState
-              title="Bu entity hakkında claim yok"
-              description="Bir iddia kaydettiğinde ya da mevcut bir claim'i bu entity'ye bağladığında burada görünür."
+              title="Bu varlık hakkında iddia yok"
+              description="Bir iddia kaydettiğinde ya da mevcut bir iddiayı bu varlığa bağladığında burada görünür."
               action={
                 <NewClaimDialog
                   aboutEntityId={entityId}
@@ -345,14 +346,14 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         <TabsContent value="mentions" className="mt-4">
           {recall.mentioned_in.length === 0 ? (
             <EmptyState
-              title="Bu kaydın adı başka bir claim'de geçmiyor"
-              description="Claim metinlerinde adı geçtiğinde 'Bağ Adayları' ekranından bağlayabilirsin."
+              title="Bu kaydın adı başka bir iddiada geçmiyor"
+              description="İddia metinlerinde adı geçtiğinde 'Bağ Adayları' ekranından bağlayabilirsin."
             />
           ) : (
             <div className="flex flex-col gap-3">
               <p className="text-xs leading-relaxed text-text-secondary">
-                Bu claim&apos;ler bu kayıt <span className="text-foreground">hakkında değil</span>, ona
-                değiyor — adı metinde geçiyor. Öznesi olduğu iddialar &quot;Claim&apos;ler&quot; sekmesinde.
+                Bu iddialar bu kayıt <span className="text-foreground">hakkında değil</span>, ona
+                değiyor — adı metinde geçiyor. Öznesi olduğu iddialar &quot;İddialar&quot; sekmesinde.
               </p>
               {recall.mentioned_in.map((m) => (
                 <div key={m.id} className="rounded-lg border border-border bg-surface p-3">
@@ -395,8 +396,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         <TabsContent value="events" className="mt-4">
           {recall.related_events.length === 0 ? (
             <EmptyState
-                title="Bu entity bir event'e karışmamış"
-                description="Bir claim bu entity'yi bir olaya bağladığında olay burada listelenir." />
+                title="Bu varlık bir olaya karışmamış"
+                description="Bir iddia bu varlığı bir olaya bağladığında olay burada listelenir." />
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {recall.related_events.map((event) => (
@@ -423,8 +424,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         <TabsContent value="investigations" className="mt-4">
           {recall.related_investigations.length === 0 ? (
             <EmptyState
-                title="Bu entity bir investigation'a dahil değil"
-                description="Bir araştırmanın kapsamına eklendiğinde o araştırma burada görünür." />
+                title="Bu varlık bir soruşturmaya dahil değil"
+                description="Bir soruşturmanın kapsamına eklendiğinde o soruşturma burada görünür." />
           ) : (
             <div className="flex flex-col gap-2">
               {recall.related_investigations.map((inv) => (
@@ -434,7 +435,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                   className="flex items-center justify-between rounded-lg border border-border bg-surface p-3 transition-colors hover:bg-surface-raised"
                 >
                   <span className="text-sm text-foreground">{inv.title}</span>
-                  <Badge variant="outline">{inv.status}</Badge>
+                  <Badge variant="outline">{statusLabel("investigation", inv.status)}</Badge>
                 </Link>
               ))}
             </div>
@@ -445,7 +446,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
           {!relations || relations.length === 0 ? (
             <EmptyState
               title="Henüz kayıtlı bir ilişki yok"
-              description="Aşağıdaki adaylardan birini kur, ya da yukarıdaki 'İlişki Ekle' butonuyla elle ekle." />
+              description="Aşağıdaki adaylardan birini kur, ya da yukarıdaki 'İlişki ekle' düğmesiyle elle ekle." />
           ) : (
             <div className="flex flex-col gap-2">
               {relations.map((r) => (
@@ -519,7 +520,7 @@ function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreate
 
   const items = (entities ?? [])
     .filter((e) => e.id !== entityId)
-    .map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }));
+    .map((e) => ({ id: e.id, label: e.name, sublabel: entityTypeLabel(e.entity_type) }));
 
   async function submit() {
     if (!targetId || !relationType.trim()) return;
@@ -549,19 +550,19 @@ function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreate
         render={
           <Button variant="outline" size="sm">
             <GitBranchPlus aria-hidden className="h-4 w-4" />
-            İlişki Ekle
+            İlişki ekle
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Entity ilişkisi ekle</DialogTitle>
-          <DialogDescription>İki entity arasında bir ilişki kurar. İlişkinin türünü sen verirsin — sistem tahmin etmez.</DialogDescription>
+          <DialogTitle>Varlık ilişkisi ekle</DialogTitle>
+          <DialogDescription>İki varlık arasında bir ilişki kurar. İlişkinin türünü sen verirsin — sistem tahmin etmez.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="entity-detail-hedef-entity-1">Hedef entity</Label>
-            <SearchablePicker id="entity-detail-hedef-entity-1" items={items} value={targetId} onChange={setTargetId} placeholder="Entity ara…" />
+            <Label htmlFor="entity-detail-hedef-entity-1">Hedef varlık</Label>
+            <SearchablePicker id="entity-detail-hedef-entity-1" items={items} value={targetId} onChange={setTargetId} placeholder="Varlık ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="relation-type">İlişki türü</Label>
@@ -573,7 +574,7 @@ function NewRelationDialog({ entityId, onCreated }: { entityId: string; onCreate
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="relation-confidence">Confidence (0–1)</Label>
+            <Label htmlFor="relation-confidence">Güven (0–1)</Label>
             <Input
               id="relation-confidence"
               type="number"
@@ -699,7 +700,7 @@ function SameAsTab({
         {candidates.length === 0 ? (
           <EmptyState
             title="Aday bulunamadı"
-            description="Adaylar isim/alias benzerliğine göre otomatik hesaplanır. Aynı aktörün isimleri birbirine benzemiyorsa (tehdit gruplarında sık) aday çıkmaz — 'Elle eşleştir' ile kendin bildirebilirsin."
+            description="Adaylar ad/diğer ad benzerliğine göre otomatik hesaplanır. Aynı aktörün isimleri birbirine benzemiyorsa (tehdit gruplarında sık) aday çıkmaz — 'Elle eşleştir' ile kendin bildirebilirsin."
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -757,7 +758,7 @@ function RelationCandidates({
         İlişki adayları ({candidates.length})
       </h3>
       <p className="mb-3 max-w-2xl text-xs leading-relaxed text-text-secondary">
-        Bu kayıtlar bu entity ile aynı claim metninde ya da aynı olayda geçiyor. Sistem
+        Bu kayıtlar bu varlıkla aynı iddia metninde ya da aynı olayda geçiyor. Sistem
         yalnızca &quot;bu ikisi birbiriyle ilgili olabilir&quot; der; ilişkinin ne olduğunu sen
         yazarsın. Aynı olduğu onaylanmış kayıtlar ve zaten ilişkisi kurulmuş olanlar burada
         görünmez.
@@ -817,7 +818,7 @@ function RelationCandidateCard({
           <Link href={`/entities/${candidate.entity_id}`} className="text-sm font-medium text-foreground hover:underline">
             {candidate.name}
           </Link>
-          <Badge variant="secondary">{candidate.entity_type}</Badge>
+          <Badge variant="secondary">{entityTypeLabel(candidate.entity_type)}</Badge>
         </div>
         <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           {open ? "Vazgeç" : "İlişki kur"}
@@ -829,7 +830,7 @@ function RelationCandidateCard({
           <Badge variant="outline">{candidate.shared_event_count} ortak olay</Badge>
         )}
         {candidate.co_mention_count > 0 && (
-          <Badge variant="outline">{candidate.co_mention_count} claim&apos;de birlikte</Badge>
+          <Badge variant="outline">{candidate.co_mention_count} iddiada birlikte</Badge>
         )}
       </div>
 

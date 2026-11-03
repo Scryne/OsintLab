@@ -113,7 +113,7 @@ def claim_headline(text: str, limit: int = 90) -> str:
         line = line.strip()
         if line:
             return line[:limit] + ("…" if len(line) > limit else "")
-    return "(boş claim)"
+    return "(boş iddia)"
 
 
 def compute_priority(inputs: PriorityInputs) -> str:

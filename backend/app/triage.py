@@ -261,7 +261,7 @@ def _load_context(conn) -> dict:
             elif cand["status"] == "DISMISSED":
                 dismissed_candidate_names.append(cand["name"])
     except Exception:  # noqa: BLE001 - aday çıkarma kuyruğu ASLA düşürmemeli
-        logger.exception("Entity adayları çıkarılamadı; kuyruk bu sinyal olmadan kuruluyor")
+        logger.exception("Varlık adayları çıkarılamadı; kuyruk bu sinyal olmadan kuruluyor")
 
     # Host bazında eleme oranı (Q14 revizyonu, ağırlığın başındaki nota bak).
     host_totals: dict[str, dict] = {}
@@ -354,7 +354,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
         reasons.append(
             SignalReason(
                 code="KNOWN_ENTITY",
-                text=f"Bildiğimiz entity'ye değiyor: {', '.join(names)}",
+                text=f"Bildiğimiz varlığa değiyor: {', '.join(names)}",
                 weight=SIGNAL_WEIGHTS["KNOWN_ENTITY"],
             )
         )
@@ -364,7 +364,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
                 SignalReason(
                     code="ACTIVE_INVESTIGATION",
                     text=(
-                        "Açık bir investigation'ın kapsamındaki entity: "
+                        "Açık bir soruşturmanın kapsamındaki varlık: "
                         + ", ".join(dict.fromkeys(m["name"] for m in in_investigation))
                     ),
                     weight=SIGNAL_WEIGHTS["ACTIVE_INVESTIGATION"],
@@ -375,7 +375,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
             reasons.append(
                 SignalReason(
                     code="MONITORED_ENTITY",
-                    text="İzlemeye alınmış entity: "
+                    text="İzlemeye alınmış varlık: "
                     + ", ".join(dict.fromkeys(m["name"] for m in monitored)),
                     weight=SIGNAL_WEIGHTS["MONITORED_ENTITY"],
                 )
@@ -400,7 +400,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
             reasons.append(
                 SignalReason(
                     code="MULTI_ENTITY",
-                    text=f"Aynı gözlemde {len(unique_ids)} bilinen entity birlikte geçiyor",
+                    text=f"Aynı gözlemde {len(unique_ids)} bilinen varlık birlikte geçiyor",
                     weight=SIGNAL_WEIGHTS["MULTI_ENTITY"],
                 )
             )
@@ -415,7 +415,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
                 reasons.append(
                     SignalReason(
                         code="RELATED_PAIR",
-                        text="Aralarında zaten kurulmuş bir ilişki olan entity'ler: "
+                        text="Aralarında zaten kurulmuş bir ilişki olan varlıklar: "
                         + ", ".join(f"{a} ↔ {b}" for a, b in pairs),
                         weight=SIGNAL_WEIGHTS["RELATED_PAIR"],
                     )
@@ -430,7 +430,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
             reasons.append(
                 SignalReason(
                     code="KNOWN_SELECTOR",
-                    text="Bir entity'ye bağlı altyapıya değiyor: "
+                    text="Bir varlığa bağlı altyapıya değiyor: "
                     + ", ".join(f"{sid.split(':', 1)[1]} ({', '.join(names)})" for sid, names in touching[:3]),
                     weight=SIGNAL_WEIGHTS["KNOWN_SELECTOR"],
                 )
@@ -497,7 +497,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
         reasons.append(
             SignalReason(
                 code="PENDING_CANDIDATE",
-                text="Claim'lerde tekrar eden, henüz karara bağlanmamış ad: "
+                text="İddialarda tekrar eden, henüz karara bağlanmamış ad: "
                 + ", ".join(pending_hits[:5]),
                 weight=SIGNAL_WEIGHTS["PENDING_CANDIDATE"],
             )
@@ -507,7 +507,7 @@ def score_observation(observation, ctx: dict) -> tuple[float, list[SignalReason]
         reasons.append(
             SignalReason(
                 code="DISMISSED_CANDIDATE",
-                text="Entity olmadığına karar verdiğin ad(lar) geçiyor: "
+                text="Varlık olmadığına karar verdiğin ad(lar) geçiyor: "
                 + ", ".join(dismissed_hits[:5]),
                 weight=SIGNAL_WEIGHTS["DISMISSED_CANDIDATE"],
             )

@@ -47,7 +47,7 @@ export default function SourcesPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Kaynaklar</h1>
-          <p className="text-sm text-text-secondary">Claim ve event&apos;lerin atıflı olduğu bilgi kaynakları.</p>
+          <p className="text-sm text-text-secondary">İddia ve olayların dayandığı bilgi kaynakları.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* F37: Faz 6'nın otomatik türetme tespiti arayüzden hiç tetiklenemiyordu. */}
@@ -157,14 +157,14 @@ export function NewSourceDialog({ onCreated, existingTypes = [] }: { onCreated: 
         render={
           <Button size="sm">
             <Plus aria-hidden className="h-4 w-4" />
-            Yeni Kaynak
+            Yeni kaynak
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Yeni kaynak ekle</DialogTitle>
-          <DialogDescription>Toplama yapılabilecek yeni bir kaynak tanımlar. Güvenilirlik değeri confidence hesabına doğrudan girer.</DialogDescription>
+          <DialogDescription>Toplama yapılabilecek yeni bir kaynak tanımlar. Güvenilirlik değeri güven hesabına doğrudan girer.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -182,7 +182,7 @@ export function NewSourceDialog({ onCreated, existingTypes = [] }: { onCreated: 
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="source-url">URL (opsiyonel)</Label>
+            <Label htmlFor="source-url">URL (isteğe bağlı)</Label>
             <Input id="source-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
           </div>
           <div className="flex flex-col gap-1.5">

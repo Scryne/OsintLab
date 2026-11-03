@@ -105,8 +105,8 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Bu claim&apos;e kanıt bağla</DialogTitle>
-          <DialogDescription>Bu claim&apos;e kanıt bağlar. Bağlanan kanıt confidence&apos;ı yükseltir; duruş, desteklediği yönü söyler.</DialogDescription>
+          <DialogTitle>Bu iddiaya kanıt bağla</DialogTitle>
+          <DialogDescription>Bu iddiaya kanıt bağlar. Bağlanan kanıt güven skorunu yükseltir; duruş, desteklediği yönü söyler.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex gap-1.5 rounded-lg bg-muted p-1">
@@ -150,7 +150,7 @@ export function EvidenceLinkDialog({ claimId, onLinked }: { claimId: string; onL
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="evidence-file-path">Dosya yolu (opsiyonel)</Label>
+                <Label htmlFor="evidence-file-path">Dosya yolu (isteğe bağlı)</Label>
                 <Input
                   id="evidence-file-path"
                   value={filePath}

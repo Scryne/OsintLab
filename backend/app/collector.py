@@ -95,7 +95,7 @@ def load_allowlist() -> set[str]:
     except (OSError, ValueError):
         # Bozuk dosya bütün toplamayı beklenmedik bir istisnayla düşürüyordu. Güvenli taraf
         # boş allowlist: her istek "allowlist'te değil" diye reddedilir ve sebep görünür.
-        logger.exception("Allowlist okunamadı (%s) — boş kabul ediliyor", ALLOWLIST_PATH)
+        logger.exception("İzin listesi okunamadı (%s) — boş kabul ediliyor", ALLOWLIST_PATH)
         return set()
     return {h for h in hosts if isinstance(h, str)} if isinstance(hosts, list) else set()
 
@@ -171,7 +171,7 @@ def _validate_hop(url: str, allowlist: set[str]) -> str:
         raise CollectorSecurityError("URL'de hostname yok")
     if not _host_allowed(hostname, allowlist):
         raise CollectorSecurityError(
-            f"Reddedildi: {hostname!r} allowlist'te değil — Toplayıcılar sayfasından ekleyebilirsin."
+            f"Reddedildi: {hostname!r} izin listesinde değil — Toplayıcılar sayfasından ekleyebilirsin."
         )
     try:
         infos = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
@@ -336,7 +336,7 @@ def _finish(response: requests.Response, current_url: str, content: bytes) -> tu
         if response.status_code in (401, 403, 429):
             teshis = "kaynak otomatik erişimi engelledi (kaynakta içerik yok demek DEĞİL)"
         elif response.status_code in (404, 410):
-            teshis = "böyle bir adres yok — feed adresini kontrol et"
+            teshis = "böyle bir adres yok — besleme adresini kontrol et"
         elif response.status_code >= 500:
             teshis = "kaynağın kendi sunucusu arızalı, sonra tekrar dene"
         else:

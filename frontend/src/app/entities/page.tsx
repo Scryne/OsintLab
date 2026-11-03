@@ -1,5 +1,6 @@
 "use client";
 
+import { entityTypeLabel, entityTypeSuggestions, entityTypeValue } from "@/lib/labels";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
@@ -26,10 +27,10 @@ import { useToast } from "@/components/ui/toast";
 import { WireframeBurst } from "@/components/ui/wireframe-burst";
 
 // Öneri listesi — kural DEĞİL (bkz. TypeCombo). Backend entity_type'ı serbest bırakır.
-const ENTITY_TYPE_SUGGESTIONS = [
+const ENTITY_TYPE_SUGGESTIONS = entityTypeSuggestions([
   "Person", "Organization", "Company", "Location",
   "AI Model", "Product", "Domain", "Vessel", "Aircraft", "Malware",
-];
+]);
 
 export default function EntitiesPage() {
   const { data: entities, error, loading, reload } = useApi(() => api.entities.list(), []);
@@ -49,8 +50,8 @@ export default function EntitiesPage() {
       <WireframeBurst spin className="pointer-events-none absolute -right-10 top-12 -z-10 h-48 w-48 text-white/5" />
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Entity&apos;ler</h1>
-          <p className="text-sm text-text-secondary">Bilinen kişi, kurum ve lokasyonlar.</p>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Varlıklar</h1>
+          <p className="text-sm text-text-secondary">Bilinen kişi, kurum ve konumlar.</p>
         </div>
         <NewEntityDialog onCreated={reload} existingTypes={entities?.map((e) => e.entity_type) ?? []} />
       </div>
@@ -60,8 +61,8 @@ export default function EntitiesPage() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="İsim veya alias ara…"
-          aria-label="Entity ara"
+          placeholder="Ad ya da diğer ad ara…"
+          aria-label="Varlık ara"
           className="pl-9"
         />
       </div>
@@ -70,8 +71,8 @@ export default function EntitiesPage() {
       {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && filtered.length === 0 && (
         <EmptyState
-          title={query ? "Eşleşen entity bulunamadı" : "Henüz entity yok"}
-          description={query ? undefined : "Sağ üstteki butonla ilk entity'ni ekle."}
+          title={query ? "Eşleşen varlık bulunamadı" : "Henüz varlık yok"}
+          description={query ? undefined : "Sağ üstteki düğmeyle ilk varlığını ekle."}
         />
       )}
 
@@ -94,10 +95,10 @@ function EntityCard({ entity }: { entity: Entity }) {
     >
       <div className="flex items-center justify-between">
         <span className="font-medium text-foreground">{entity.name}</span>
-        <Badge variant="secondary">{entity.entity_type}</Badge>
+        <Badge variant="secondary">{entityTypeLabel(entity.entity_type)}</Badge>
       </div>
       {entity.aliases.length > 0 && (
-        <p className="text-xs text-text-tertiary">Alias: {entity.aliases.join(", ")}</p>
+        <p className="text-xs text-text-tertiary">Diğer adlar: {entity.aliases.join(", ")}</p>
       )}
     </Link>
   );
@@ -120,7 +121,7 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
     setError(null);
     try {
       await api.entities.create({
-        entity_type: entityType.trim(),
+        entity_type: entityTypeValue(entityType),
         name: name.trim(),
         aliases: aliases.split(",").map((a) => a.trim()).filter(Boolean),
       });
@@ -142,14 +143,14 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
         render={
           <Button size="sm">
             <Plus aria-hidden className="h-4 w-4" />
-            Yeni Entity
+            Yeni Varlık
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Yeni entity ekle</DialogTitle>
-          <DialogDescription>Graf&apos;a yeni bir kişi, kurum, ürün ya da lokasyon ekler. Tür serbest metindir; listedekiler öneridir, kural değil.</DialogDescription>
+          <DialogTitle>Yeni varlık ekle</DialogTitle>
+          <DialogDescription>Grafa yeni bir kişi, kurum, ürün ya da konum ekler. Tür serbest metindir; listedekiler öneridir, kural değil.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -162,12 +163,12 @@ function NewEntityDialog({ onCreated, existingTypes }: { onCreated: () => void; 
               id="entity-type"
               value={entityType}
               onChange={setEntityType}
-              suggestions={[...ENTITY_TYPE_SUGGESTIONS, ...existingTypes]}
-              placeholder="ör. Organization, AI Model"
+              suggestions={[...ENTITY_TYPE_SUGGESTIONS, ...entityTypeSuggestions(existingTypes)]}
+              placeholder="ör. Kurum, Yapay zekâ modeli"
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="entity-aliases">Alias&apos;lar (opsiyonel, virgülle ayır)</Label>
+            <Label htmlFor="entity-aliases">Diğer adlar (isteğe bağlı, virgülle ayır)</Label>
             <Input
               id="entity-aliases"
               value={aliases}

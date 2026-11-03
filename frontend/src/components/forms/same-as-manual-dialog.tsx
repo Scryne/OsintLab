@@ -17,6 +17,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel } from "@/lib/labels";
 
 /**
  * İki entity'nin aynı şey olduğunu ELLE önerir (Faz 11 dogfooding F29).
@@ -51,7 +52,7 @@ export function SameAsManualDialog({
         .map((e) => ({
           id: e.id,
           label: e.name,
-          sublabel: e.aliases.length > 0 ? `${e.entity_type} · ${e.aliases.join(", ")}` : e.entity_type,
+          sublabel: e.aliases.length > 0 ? `${entityTypeLabel(e.entity_type)} · ${e.aliases.join(", ")}` : entityTypeLabel(e.entity_type),
         })),
     [entities, entityId]
   );
@@ -85,11 +86,11 @@ export function SameAsManualDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Aynı şey olduğunu elle bildir</DialogTitle>
-          <DialogDescription>İki entity kaydının aynı şeye ait olduğunu bildirir. Kayıtlar birleştirilmez, aralarında bir eşitlik bağı kurulur.</DialogDescription>
+          <DialogDescription>İki varlık kaydının aynı şeye ait olduğunu bildirir. Kayıtlar birleştirilmez, aralarında bir eşitlik bağı kurulur.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="same-as-manual-dialog-ayni-oldug-u-entity-1">Aynı olduğu entity</Label>
-          <SearchablePicker id="same-as-manual-dialog-ayni-oldug-u-entity-1" items={items} value={otherId} onChange={setOtherId} placeholder="Entity ara…" />
+          <Label htmlFor="same-as-manual-dialog-ayni-oldug-u-entity-1">Aynı olduğu varlık</Label>
+          <SearchablePicker id="same-as-manual-dialog-ayni-oldug-u-entity-1" items={items} value={otherId} onChange={setOtherId} placeholder="Varlık ara…" />
           <p className="text-xs leading-relaxed text-text-tertiary">
             Otomatik tespit isim benzerliğine bakar; farklı isimler taşıyan aynı aktörü
             (ör. takma adları birbirine benzemeyen tehdit grupları) bulamaz. Bu yol onun için.

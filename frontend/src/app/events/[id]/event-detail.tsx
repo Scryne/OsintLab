@@ -29,6 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel, statusLabel } from "@/lib/labels";
 
 const EVENT_TYPE_SUGGESTIONS = [
   "lansman",
@@ -82,8 +83,8 @@ export function EventDetail({ eventId }: { eventId: string }) {
               elle girilmiş bir değer sanardı. */}
           <p className="mt-1 text-xs text-text-tertiary">
             {recall.related_claims.length === 0
-              ? "Henüz claim bağlı değil — olayın güveni claim'lerinden türetilir."
-              : `Güven, bağlı ${recall.related_claims.length} claim'in en iyi destekleneninden türetildi.`}
+              ? "Henüz iddia bağlı değil — olayın güveni iddialarından türetilir."
+              : `Güven, bağlı ${recall.related_claims.length} iddianın en iyi destekleneninden türetildi.`}
           </p>
           <p className="mt-1 font-mono text-xs text-text-tertiary">
             {event.occurred_at
@@ -101,11 +102,11 @@ export function EventDetail({ eventId }: { eventId: string }) {
       </header>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Bildiren Kaynaklar</h2>
+        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Bildiren kaynaklar</h2>
         {recall.reported_by.length === 0 ? (
           <EmptyState
-              title="Bu event'i bildiren bir kaynak henüz yok"
-              description="Olayı bildiren kaynağı bağladığında provenance zinciri burada kurulur." />
+              title="Bu olayı bildiren bir kaynak henüz yok"
+              description="Olayı bildiren kaynağı bağladığında menşe zinciri burada kurulur." />
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {recall.reported_by.map((s) => (
@@ -118,10 +119,10 @@ export function EventDetail({ eventId }: { eventId: string }) {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">İlgili Entity&apos;ler</h2>
+        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">İlgili varlıklar</h2>
         {recall.related_entities.length === 0 ? (
           <EmptyState
-              title="Bu event'e henüz entity bağlanmadı"
+              title="Bu olaya henüz varlık bağlanmadı"
               description="Olaya karışan kişi ve kurumlar bağlandığında burada listelenir."
               action={<LinkEntityDialog eventId={eventId} linked={[]} onLinked={reloadAll} />} />
         ) : (
@@ -133,7 +134,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
               >
                 <Link href={`/entities/${entity.id}`} className="min-w-0">
                   <p className="text-sm font-medium text-foreground">{entity.name}</p>
-                  <p className="text-xs text-text-tertiary">{entity.entity_type}</p>
+                  <p className="text-xs text-text-tertiary">{entityTypeLabel(entity.entity_type)}</p>
                 </Link>
                 <ConfirmButton
                   size="icon-xs"
@@ -154,11 +155,12 @@ export function EventDetail({ eventId }: { eventId: string }) {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Claim&apos;ler</h2>
+        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">İddialar
+</h2>
         {recall.related_claims.length === 0 ? (
           <EmptyState
-            title="Bu event hakkında claim yok"
-            description="Bu olay hakkında bir iddia kaydettiğinde ya da mevcut bir claim'i bağladığında burada görünür."
+            title="Bu olay hakkında iddia yok"
+            description="Bu olay hakkında bir iddia kaydettiğinde ya da mevcut bir iddiayı bağladığında burada görünür."
             action={<LinkClaimDialog eventId={eventId} onLinked={reloadAll} />} />
         ) : (
           <div className="flex flex-col gap-2">
@@ -173,7 +175,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
                     <ConfirmButton
                       size="icon-xs"
                       variant="ghost"
-                      aria-label="Bu claim'i olaydan çıkar"
+                      aria-label="Bu iddiayı olaydan çıkar"
                       confirmAction="Olaydan çıkar"
                       onConfirm={async () => {
                         await api.events.unlinkClaim(eventId, claim.id);
@@ -196,11 +198,11 @@ export function EventDetail({ eventId }: { eventId: string }) {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Investigation&apos;lar</h2>
+        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-text-tertiary">Soruşturmalar</h2>
         {recall.related_investigations.length === 0 ? (
           <EmptyState
-              title="Bu event bir investigation'a dahil değil"
-              description="Bir araştırmanın kapsamına eklendiğinde o araştırma burada görünür." />
+              title="Bu olay bir soruşturmaya dahil değil"
+              description="Bir soruşturmanın kapsamına eklendiğinde o soruşturma burada görünür." />
         ) : (
           <div className="flex flex-col gap-2">
             {recall.related_investigations.map((inv) => (
@@ -210,7 +212,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
                 className="flex items-center justify-between rounded-lg border border-border bg-surface p-3 transition-colors hover:bg-surface-raised"
               >
                 <span className="text-sm text-foreground">{inv.title}</span>
-                <Badge variant="outline">{inv.status}</Badge>
+                <Badge variant="outline">{statusLabel("investigation", inv.status)}</Badge>
               </Link>
             ))}
           </div>
@@ -244,7 +246,7 @@ function LinkClaimDialog({ eventId, onLinked }: { eventId: string; onLinked: () 
       ...others.map((c) => ({
         id: c.id,
         label: label(c.text),
-        sublabel: c.about_entity_id ? "bir entity'ye bağlı" : "başka bir olaya bağlı",
+        sublabel: c.about_entity_id ? "bir varlığa bağlı" : "başka bir olaya bağlı",
       })),
     ];
   }, [claims, eventId]);
@@ -254,7 +256,7 @@ function LinkClaimDialog({ eventId, onLinked }: { eventId: string; onLinked: () 
     setSubmitting(true);
     try {
       await api.events.linkClaim(eventId, claimId);
-      toast("Claim bu olaya bağlandı", "success");
+      toast("İddia bu olaya bağlandı", "success");
       setClaimId(null);
       setOpen(false);
       onLinked();
@@ -271,22 +273,21 @@ function LinkClaimDialog({ eventId, onLinked }: { eventId: string; onLinked: () 
         render={
           <Button variant="outline" size="sm">
             <Link2 aria-hidden className="h-4 w-4" />
-            Claim bağla
+            İddia bağla
           </Button>
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Claim&apos;i bu olaya bağla</DialogTitle>
+          <DialogTitle>İddiayı bu olaya bağla</DialogTitle>
           <DialogDescription>
-            Claim&apos;in metni değişmez, yalnızca neyle ilgili olduğu düzeltilir. Bir claim aynı
-            anda hem bir entity hem bir olay hakkında olamaz — entity bağı varsa yerini olay alır.
+            İddianın metni değişmez, yalnızca neyle ilgili olduğu düzeltilir. Bir iddia aynı anda hem bir varlık hem bir olay hakkında olamaz — varlık bağı varsa yerini olay alır.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="event-link-claim">Claim</Label>
-          <SearchablePicker id="event-link-claim" items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
-          <p className="text-xs text-text-tertiary">Bağlantısız claim&apos;ler listenin başında.</p>
+          <Label htmlFor="event-link-claim">İddia</Label>
+          <SearchablePicker id="event-link-claim" items={items} value={claimId} onChange={setClaimId} placeholder="İddia ara…" />
+          <p className="text-xs text-text-tertiary">Bağlantısız iddialar listenin başında.</p>
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !claimId}>
@@ -318,14 +319,14 @@ function LinkEntityDialog({
 
   const items = (entities ?? [])
     .filter((e) => !linked.includes(e.id))
-    .map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }));
+    .map((e) => ({ id: e.id, label: e.name, sublabel: entityTypeLabel(e.entity_type) }));
 
   async function submit() {
     if (!entityId || !role.trim()) return;
     setSubmitting(true);
     try {
       await api.events.linkEntity(eventId, entityId, role.trim());
-      toast("Entity olaya bağlandı", "success");
+      toast("Varlık olaya bağlandı", "success");
       setEntityId(null);
       setOpen(false);
       onLinked();
@@ -342,13 +343,13 @@ function LinkEntityDialog({
         render={
           <Button variant="outline" size="sm">
             <Users aria-hidden className="h-4 w-4" />
-            Entity bağla
+            Varlık bağla
           </Button>
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Olaya karışan entity&apos;yi bağla</DialogTitle>
+          <DialogTitle>Olaya karışan varlığı bağla</DialogTitle>
           <DialogDescription>
             Bu olaya karışan kişi/kurumu işaretler. Rolü sen verirsin — sistem &quot;fail&quot; ile
             &quot;mağdur&quot;u ayırt edemez.
@@ -356,13 +357,13 @@ function LinkEntityDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="event-link-entity">Entity</Label>
+            <Label htmlFor="event-link-entity">Varlık</Label>
             <SearchablePicker
               id="event-link-entity"
               items={items}
               value={entityId}
               onChange={setEntityId}
-              placeholder="Entity ara…"
+              placeholder="Varlık ara…"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -437,7 +438,7 @@ function EditEventDialog({
         <DialogHeader>
           <DialogTitle>Olayı düzenle</DialogTitle>
           <DialogDescription>
-            Olayın sınıflandırması düzeltilir; bağlı claim&apos;lerin metnine dokunulmaz.
+            Olayın sınıflandırması düzeltilir; bağlı iddiaların metnine dokunulmaz.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -512,14 +513,14 @@ function LinkSourceDialog({ eventId, onLinked }: { eventId: string; onLinked: ()
         render={
           <Button variant="outline" size="sm">
             <Plus aria-hidden className="h-4 w-4" />
-            Kaynak Ekle
+            Kaynak ekle
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Bu event&apos;i bildiren kaynağı bağla</DialogTitle>
-          <DialogDescription>Bu event&apos;i bildiren kaynağı işaretler; olayın provenance zinciri buradan kurulur.</DialogDescription>
+          <DialogTitle>Bu olayı bildiren kaynağı bağla</DialogTitle>
+          <DialogDescription>Bu olayı bildiren kaynağı işaretler; olayın menşe zinciri buradan kurulur.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <SearchablePicker items={items} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" aria-label="Bildiren kaynak" />

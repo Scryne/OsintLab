@@ -51,7 +51,13 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8420)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--log-level", default="info")
+    # Arayüz 3000 dışında bir portta açılıyorsa (3000'i başka bir uygulama tutuyor) o portun yerel
+    # origin'i CORS/CSRF listesine eklenir — `OSINTLAB_FRONTEND_PORT` ile aynı şey. Zamanlanmış
+    # görev ortam değişkeni taşımadığı için argüman olarak da verilebiliyor (start.ps1 -WebPort).
+    parser.add_argument("--frontend-port", default=None, help="ek yerel arayüz portu (ör. 3001; virgülle birden fazla)")
     args = parser.parse_args()
+    if args.frontend_port:
+        os.environ["OSINTLAB_FRONTEND_PORT"] = args.frontend_port
 
     setup_logging(args.log_level)
     logger = logging.getLogger("osintlab.service")

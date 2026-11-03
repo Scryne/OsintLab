@@ -96,11 +96,11 @@ export function ConfidenceExplainDisclosure({ claimId }: { claimId: string }) {
 
               <div className="mt-2">
                 <p className="text-[11px] font-medium text-text-secondary">
-                  Doğrulayan claim&apos;ler ({data.corroborated_by.length})
+                  Doğrulayan iddialar ({data.corroborated_by.length})
                 </p>
                 {data.corroborated_by.length === 0 ? (
                   <p className="mt-1 text-[11px] text-text-tertiary">
-                    Bu iddiayı başka hiçbir claim doğrulamıyor — confidence&apos;ın %40&apos;ı kaynaktan
+                    Bu iddiayı başka hiçbir iddia doğrulamıyor — güven skorunun %40&apos;ı kaynaktan
                     gelir, kalan %60 ancak doğrulama, bağımsızlık ve kanıtla açılır.
                   </p>
                 ) : (

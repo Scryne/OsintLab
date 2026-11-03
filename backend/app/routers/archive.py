@@ -64,7 +64,7 @@ def get_claim_archive(claim_id: str) -> ArchiveRecord:
     conn = get_connection()
     rows = archive.archive_rows(conn, [claim_id])
     if not rows:
-        raise HTTPException(status_code=404, detail="Bu claim'in arşiv kopyası yok.")
+        raise HTTPException(status_code=404, detail="Bu iddianın arşiv kopyası yok.")
     return _record(conn, rows[0])
 
 

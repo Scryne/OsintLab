@@ -18,6 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { useToast } from "@/components/ui/toast";
+import { statusLabel } from "@/lib/labels";
 
 /** Kanıt → Claim yönü. `EvidenceLinkDialog` aynı kenarı ters yönden kurar (bir claim'in
  * sayfasından kanıt seçerek); Kanıt Kasası'nda ihtiyaç bunun tersi: elindeki kanıtı hangi
@@ -41,7 +42,7 @@ export function EvidenceClaimLinkDialog({
     id: c.id,
     // Claim.text bileşik bir alan; başlık ilk satır (F46 — ortak kalıp).
     label: c.text.split("\n").find((l) => l.trim()) ?? c.text,
-    sublabel: `${c.knowledge_state} · %${Math.round(c.confidence * 100)}`,
+    sublabel: `${statusLabel("knowledge", c.knowledge_state)} · %${Math.round(c.confidence * 100)}`,
   }));
 
   async function submit() {
@@ -49,7 +50,7 @@ export function EvidenceClaimLinkDialog({
     setSubmitting(true);
     try {
       await api.evidence.linkToClaim(evidenceId, claimId, stance);
-      toast(stance === "SUPPORTS" ? "Kanıt claim'i destekliyor olarak bağlandı" : "Kanıt claim'i çürütüyor olarak bağlandı", "success");
+      toast(stance === "SUPPORTS" ? "Kanıt iddiayı destekliyor olarak bağlandı" : "Kanıt iddiayı çürütüyor olarak bağlandı", "success");
       setOpen(false);
       setClaimId(null);
       onLinked();
@@ -66,25 +67,25 @@ export function EvidenceClaimLinkDialog({
         render={
           <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
             <Link2 aria-hidden className="h-3.5 w-3.5" />
-            Claim&apos;e bağla
+            İddiaya bağla
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Kanıtı bir claim&apos;e bağla</DialogTitle>
-          <DialogDescription>Bu kanıtı bir claim&apos;e bağlar ve kanıtın claim&apos;i desteklediğini mi yoksa çürüttüğünü mü belirtir.</DialogDescription>
+          <DialogTitle>Kanıtı bir iddiaya bağla</DialogTitle>
+          <DialogDescription>Bu kanıtı bir iddiaya bağlar ve kanıtın iddiayı desteklediğini mi yoksa çürüttüğünü mü belirtir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="evidence-claim-link-dialog-claim-1">Claim</Label>
+            <Label htmlFor="evidence-claim-link-dialog-claim-1">İddia</Label>
             <SearchablePicker
               id="evidence-claim-link-dialog-claim-1"
               items={items}
               value={claimId}
               onChange={setClaimId}
-              placeholder="Claim ara…"
-              emptyText="Henüz claim yok"
+              placeholder="İddia ara…"
+              emptyText="Henüz iddia yok"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -99,7 +100,7 @@ export function EvidenceClaimLinkDialog({
               </SelectContent>
             </Select>
             <p className="text-xs text-text-tertiary">
-              Çürütüyor seçilirse claim&apos;in confidence&apos;ı ceza alır ve yeniden hesaplanır.
+              Çürütüyor seçilirse iddianın güven skoru ceza alır ve yeniden hesaplanır.
             </p>
           </div>
         </div>

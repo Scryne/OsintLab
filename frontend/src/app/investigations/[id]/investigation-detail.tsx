@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { useToast } from "@/components/ui/toast";
+import { statusLabel } from "@/lib/labels";
 
 const TRANSITIONS: Record<InvestigationStatus, InvestigationStatus[]> = {
   OPEN: ["ACTIVE", "ARCHIVED"],
@@ -100,7 +101,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
       <header>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">{inv.title}</h1>
-          <Badge variant="outline">{inv.status}</Badge>
+          <Badge variant="outline">{statusLabel("investigation", inv.status)}</Badge>
         </div>
         <p className="mt-1 text-sm text-text-secondary">{inv.research_question}</p>
         {inv.concluded_at && (
@@ -119,15 +120,14 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
           <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-tertiary">
             <Lock aria-hidden className="h-3.5 w-3.5" />
             {inv.status === "CLOSED"
-              ? "Kapatıldı — kapsam, bulgular ve metin artık değişmez; doğrulanmış bulgular Knowledge Graph'a yükseldi."
-              : "Arşivlendi — araştırma bırakıldı; kayıt olduğu gibi duruyor, bulgular doğrulanmış sayılmadı."}
+              ? "Kapatıldı — kapsam, bulgular ve metin artık değişmez; doğrulanmış bulgular Bilgi Grafı'na yükseldi."
+              : "Arşivlendi — soruşturma bırakıldı; kayıt olduğu gibi duruyor, bulgular doğrulanmış sayılmadı."}
           </p>
         )}
         <ReportExport investigationId={inv.id} />
         {inv.status === "RESOLVED" && !inv.conclusion && (
           <p className="mt-2 text-xs text-priority-medium-text">
-            Kapatmak için önce Sonuç yazılmalı — kapanış, doğrulanmış bulguları Knowledge
-            Graph&apos;a yükselten adım.
+            Kapatmak için önce Sonuç yazılmalı — kapanış, doğrulanmış bulguları Bilgi Grafı&apos;na yükselten adım.
           </p>
         )}
       </header>
@@ -135,7 +135,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
       <WorkflowRail steps={ws.steps} />
 
       {/* Zincir sırası (madde 30): Scope → Kaynaklar → Gözlemler → Claim'ler → Kanıtlar →
-          Hipotezler → Analiz → Findings → Sonuç. */}
+          Hipotezler → Analiz → Bulgular → Sonuç. */}
       <InvestigationScope
         investigationId={investigationId}
         scope={ws.scope}
@@ -147,7 +147,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         title="Kaynaklar"
         icon={Database}
         count={ws.sources.length}
-        empty="Kapsamdaki claim'lere henüz hiçbir kaynak atıf yapmadı."
+        empty="Kapsamdaki iddialara henüz hiçbir kaynak atıf yapmadı."
       >
         {ws.sources.map((s) => (
           <Link
@@ -167,7 +167,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         title="Gözlemler"
         icon={Eye}
         count={ws.observations.length}
-        empty="Bu araştırmadaki claim'lerin hiçbiri bir gözlemden promote edilmemiş (elle girilmiş)."
+        empty="Bu soruşturmadaki iddiaların hiçbiri bir gözlemden terfi ettirilmemiş (elle girilmiş)."
       >
         {ws.observations.map((o) => (
           <div key={o.id} className="rounded-md border border-border bg-surface px-3 py-2">
@@ -187,11 +187,11 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
       </DerivedSection>
 
       <section>
-        <SectionHeader title="Claim'ler" count={ws.claims.length} />
+        <SectionHeader title="İddialar" count={ws.claims.length} />
         {ws.claims.length === 0 ? (
           <EmptyState
-            title="Henüz claim yok"
-            description="Kapsama bir entity ekle ya da bir gözlemi promote et."
+            title="Henüz iddia yok"
+            description="Kapsama bir varlık ekle ya da bir gözlemi terfi ettir."
           />
         ) : (
           // Design.md imza öğesinin ikinci yarısı: spektrum sadece Entity'de bir filtre
@@ -201,15 +201,15 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
           <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
             <div className="shrink-0 border-b border-border pb-3 sm:w-40 sm:border-b-0 sm:border-r sm:pr-4 sm:pb-0">
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-tertiary">
-                Confidence Spectrum
+                Güven yelpazesi
               </p>
               <ConfidenceRail active={confidenceFilter} onSelect={setConfidenceFilter} />
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               {visibleClaims.length === 0 ? (
                 <EmptyState
-                  title="Bu güven seviyesinde claim yok"
-                  description="Spektrum'dan seçimi kaldırıp hepsini görebilirsin."
+                  title="Bu güven seviyesinde iddia yok"
+                  description="Yelpazeden seçimi kaldırıp hepsini görebilirsin."
                 />
               ) : null}
               {visibleClaims.map((c) => (
@@ -238,7 +238,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         title="Kanıtlar"
         icon={FileCheck}
         count={ws.evidence.length}
-        empty="Bu araştırmanın claim'lerine bağlı bir kanıt yok."
+        empty="Bu soruşturmanın iddialarına bağlı bir kanıt yok."
       >
         {ws.evidence.map((e) => (
           <div key={`${e.id}-${e.stance}`} className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm">
@@ -290,14 +290,14 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
       <section>
         <div className="mb-2 flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">
-            Findings {findings && findings.length > 0 && `(${findings.length})`}
+            Bulgular {findings && findings.length > 0 && `(${findings.length})`}
           </h2>
           {!readOnly && <AddFindingDialog investigationId={investigationId} onAdded={reloadAll} />}
         </div>
         {!findings || findings.length === 0 ? (
           <EmptyState
-            title="Henüz finding eklenmedi"
-            description="Findings, kapanışta Knowledge Graph'a yükselecek claim'ler — sadece doğrulanmış olanlar."
+            title="Henüz bulgu eklenmedi"
+            description="Bulgular, kapanışta Bilgi Grafı'na yükselecek iddialar — yalnızca doğrulanmış olanlar."
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -320,7 +320,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         value={inv.conclusion}
         label="Sonuç"
         placeholder="Araştırma sorusunun cevabı — ve ne kadar güvenle."
-        hint="Henüz sonuç yazılmadı. Kapatmak (CLOSED) için gerekli."
+        hint="Henüz sonuç yazılmadı. Kapatmak için gerekli."
         readOnly={readOnly}
         onSaved={reloadAll}
       />
@@ -358,7 +358,7 @@ function HypothesisCard({
               }}
             />
           )}
-          <Badge variant="outline">{hypothesis.status}</Badge>
+          <Badge variant="outline">{statusLabel("hypothesis", hypothesis.status)}</Badge>
         </div>
       </div>
       {links && links.length > 0 && (
@@ -468,7 +468,7 @@ function NewHypothesisDialog({ investigationId, onCreated }: { investigationId: 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Yeni hipotez</DialogTitle>
-          <DialogDescription>Bu araştırmaya sınanabilir bir hipotez ekler. Kanıt daha sonra hipoteze bağlanır.</DialogDescription>
+          <DialogDescription>Bu soruşturmaya sınanabilir bir hipotez ekler. Kanıt daha sonra hipoteze bağlanır.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="hypothesis-text">Hipotez</Label>
@@ -476,7 +476,7 @@ function NewHypothesisDialog({ investigationId, onCreated }: { investigationId: 
             id="hypothesis-text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="H1: Company X, Organization Y tarafından doğrudan kontrol ediliyor."
+            placeholder="H1: X şirketi, Y kurumu tarafından doğrudan kontrol ediliyor."
             rows={3}
           />
         </div>

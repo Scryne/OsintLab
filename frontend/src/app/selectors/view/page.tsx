@@ -19,6 +19,7 @@ import { EnrichmentPanel } from "@/components/pivot/enrichment-panel";
 import { KIND_ICON, SelectorChip } from "@/components/pivot/selector-chip";
 import { PivotGraphView } from "@/components/pivot/pivot-graph";
 import { DorkList, ToolLinks } from "@/components/pivot/tool-links";
+import { entityTypeLabel, statusLabel } from "@/lib/labels";
 
 // Pivot ilişkilerinin okunur adı. Yön önemli: "resolves_to" giden kenarda "çözüldüğü IP",
 // gelen kenarda "buna çözülen alan adı".
@@ -35,7 +36,7 @@ const RELATION: Record<string, { out: string; in: string }> = {
   exposes: { out: "Bilinen açıklar (Shodan)", in: "Bu açığı taşıyan IP'ler" },
   announced_by: { out: "Duyuran ASN", in: "Bu ASN'nin duyurduğu IP'ler" },
   scanned_on: { out: "urlscan'de görüldüğü IP'ler", in: "urlscan'de bu IP'de görülen" },
-  links_to: { out: "Bağlantı verdiği host'lar", in: "Buna bağlantı veren siteler" },
+  links_to: { out: "Bağlantı verdiği sunucular", in: "Buna bağlantı veren siteler" },
 };
 
 function relLabel(p: SelectorPivot): string {
@@ -146,10 +147,10 @@ function Detail({ data, reload }: { data: SelectorDetail; reload: () => void }) 
         <div className="-mx-1 overflow-x-auto px-1">
           <TabsList className="w-max">
             <TabsTrigger value="enrich">Zenginleştirme</TabsTrigger>
-            <TabsTrigger value="pivots">Pivotlar ({data.pivots.length})</TabsTrigger>
+            <TabsTrigger value="pivots">Bağlantılar ({data.pivots.length})</TabsTrigger>
             <TabsTrigger value="seen">Görüldüğü yerler ({data.observation_count + data.documents.length})</TabsTrigger>
             <TabsTrigger value="tools">Dış araçlar</TabsTrigger>
-            <TabsTrigger value="links">Entity bağları ({data.entities.length})</TabsTrigger>
+            <TabsTrigger value="links">Varlık bağları ({data.entities.length})</TabsTrigger>
           </TabsList>
         </div>
 
@@ -213,10 +214,10 @@ function Detail({ data, reload }: { data: SelectorDetail; reload: () => void }) 
                       {(() => { try { return new URL(s.source_url).hostname; } catch { return s.source_url; } })()}
                     </a>
                   )}
-                  {s.defanged && <span>defang&apos;li yazılmış</span>}
+                  {s.defanged && <span>zararsızlaştırılmış (defang) yazılmış</span>}
                   {(s.occurrences ?? 1) > 1 && <span>{s.occurrences} kez</span>}
                   <Link href={`/observations?ids=${s.observation_id}`} className="hover:text-foreground">gözlem</Link>
-                  {s.claim_id && <Link href={`/claims/view?id=${s.claim_id}`} className="text-brand-accent-text hover:underline">claim · {s.claim_state}</Link>}
+                  {s.claim_id && <Link href={`/claims/view?id=${s.claim_id}`} className="text-brand-accent-text hover:underline">iddia · {statusLabel("knowledge", s.claim_state)}</Link>}
                 </div>
                 {/* Toplanan metin güvenilmeyen veridir (Q22) — yalnızca gösterilir, yorumlanmaz. */}
                 <p className="mt-1 font-mono text-xs leading-relaxed text-text-secondary">…{s.context}…</p>
@@ -284,7 +285,7 @@ function EntityLinks({ data, onChanged }: { data: SelectorDetail; onChanged: () 
   const { data: entities, loading } = useApi(() => api.entities.list(), []);
   const [target, setTarget] = useState<string | null>(null);
   const linked = new Set(data.entities.map((e) => e.id));
-  const items = (entities ?? []).filter((e) => !linked.has(e.id)).map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }));
+  const items = (entities ?? []).filter((e) => !linked.has(e.id)).map((e) => ({ id: e.id, label: e.name, sublabel: entityTypeLabel(e.entity_type) }));
 
   async function link() {
     if (!target) return;
@@ -301,7 +302,7 @@ function EntityLinks({ data, onChanged }: { data: SelectorDetail; onChanged: () 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-pretty text-text-secondary">
-        Bir seçiciyi bir entity&apos;ye bağlamak bir iddiadır: &quot;bu altyapı/gösterge şu kuruma ait&quot;. Sistem bunu kendisi
+        Bir seçiciyi bir varlığa bağlamak bir iddiadır: &quot;bu altyapı/gösterge şu kuruma ait&quot;. Sistem bunu kendisi
         kurmaz; zenginleştirme sonuçları yalnızca aday gösterir.
       </p>
       {data.entities.length > 0 && (
@@ -311,7 +312,7 @@ function EntityLinks({ data, onChanged }: { data: SelectorDetail; onChanged: () 
               <Link href={`/entities/${e.id}`} className="flex items-center gap-2 text-sm text-foreground hover:underline">
                 <Network aria-hidden className="h-3.5 w-3.5 text-text-tertiary" />
                 {e.name}
-                <span className="text-xs text-text-tertiary">{e.entity_type}</span>
+                <span className="text-xs text-text-tertiary">{entityTypeLabel(e.entity_type)}</span>
               </Link>
               <ConfirmButton
                 variant="ghost"
@@ -332,10 +333,10 @@ function EntityLinks({ data, onChanged }: { data: SelectorDetail; onChanged: () 
         <SkeletonRows count={2} />
       ) : (
         <div className="flex flex-col gap-2">
-          <SearchablePicker items={items} value={target} onChange={setTarget} placeholder="Entity ara…" aria-label="Bağlanacak entity" />
+          <SearchablePicker items={items} value={target} onChange={setTarget} placeholder="Varlık ara…" aria-label="Bağlanacak varlık" />
           <Button size="sm" className="self-start" onClick={link} disabled={!target}>
             <Link2 aria-hidden className="h-3.5 w-3.5" />
-            Entity&apos;ye bağla
+            Varlığa bağla
           </Button>
         </div>
       )}
@@ -364,7 +365,7 @@ function WatchButton({ selectorId, kind }: { selectorId: string; kind: string })
         await api.monitors.create({ target_type: "Selector", target_id: selectorId });
         // İlk koşu taban çizgisi: sonraki günlük koşular bununla karşılaştırılır.
         await api.selectors.watchCheck(selectorId);
-        toast("İzlemeye alındı — değişiklikler günde bir kontrol edilip Inbox'a düşer", "success");
+        toast("İzlemeye alındı — değişiklikler günde bir kontrol edilip Gelen Kutusu'na düşer", "success");
       }
       reload();
     } catch (err) {

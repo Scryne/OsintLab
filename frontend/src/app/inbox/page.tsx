@@ -16,6 +16,7 @@ import { PriorityBadge, PRIORITY_ORDER, PRIORITY_LABEL_TR } from "@/components/p
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { statusLabel } from "@/lib/labels";
 
 const TARGET_HREF: Record<string, (id: string) => string> = {
   Entity: (id) => `/entities/${id}`,
@@ -62,7 +63,7 @@ function ScanDetail({ detail }: { detail: Record<string, unknown> }) {
       )}
       {matched.length > 0 && (
         <p className="text-[11px] text-text-tertiary">
-          Bildiğimiz entity&apos;ler:{" "}
+          Bildiğimiz varlıklar:{" "}
           {matched.map((m, i) => (
             <span key={m.id}>
               {i > 0 && ", "}
@@ -106,9 +107,9 @@ export default function InboxPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Intelligence Inbox</h1>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Gelen Kutusu</h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-secondary">
-            More signal, less noise.
+            Daha çok sinyal, daha az gürültü.
             {/* Sayfanın canlı olduğunu SÖYLEMEK gerekiyor: sessizce tazelenen bir liste ile
                 donmuş bir liste ekranda birbirinin aynı görünür — kullanıcı yine elle
                 yenilemeye devam ederdi. */}
@@ -137,7 +138,7 @@ export default function InboxPage() {
       {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && items?.length === 0 && (
         <EmptyState
-            title="Inbox boş"
+            title="Gelen Kutusu boş"
             description="Bu eşiğin üzerinde bekleyen bir şey yok. İzlenen bir kaynakta değişiklik olduğunda bildirim buraya düşer."
           />
       )}
@@ -211,7 +212,7 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
     try {
       const investigation = await api.investigations.create({
         title: item.title.split("\n")[0].slice(0, 120),
-        research_question: `Bu bildirim ne anlama geliyor? (${item.item_type})`,
+        research_question: `Bu bildirim ne anlama geliyor? (${statusLabel("inboxItem", item.item_type)})`,
       });
       createdId = investigation.id;
       if (item.target_type === "Entity") {
@@ -242,7 +243,7 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <PriorityBadge priority={item.priority} />
-            <span className="text-[11px] uppercase tracking-wide text-text-tertiary">{item.item_type}</span>
+            <span className="text-[11px] uppercase tracking-wide text-text-tertiary">{statusLabel("inboxItem", item.item_type)}</span>
           </div>
           <p className="mt-1 text-sm text-foreground">{item.title}</p>
           {item.item_type === "NEW_OBSERVATION" && <ScanDetail detail={item.detail} />}
@@ -256,7 +257,7 @@ function InboxRow({ item, onChanged }: { item: InboxItem; onChanged: () => void 
             )}
           </div>
         </div>
-        {acted && <Badge variant="outline">{item.status}</Badge>}
+        {acted && <Badge variant="outline">{statusLabel("inbox", item.status)}</Badge>}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">

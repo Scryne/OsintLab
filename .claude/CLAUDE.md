@@ -55,7 +55,8 @@ getirirdi.
 
 - `frontend/.env.local` → `NEXT_PUBLIC_API_BASE=http://127.0.0.1:8420`
 - `.claude/hooks/vault-session-end.ps1` → `$apiBase = 'http://127.0.0.1:8420'`
-- `backend/app/main.py` CORS → sadece `localhost:3000` / `127.0.0.1:3000`
+- `backend/app/main.py` CORS → varsayılan `localhost:3000` / `127.0.0.1:3000`; 3000 doluysa
+  `.\start.ps1 -WebPort 3001` aynı portu `OSINTLAB_FRONTEND_PORT` ile backend'e verir (yalnız yerel origin)
 
 Yani `uvicorn`'u elle varsayılan 8000'de başlatırsan hem arayüz hem oturum-sonu vault
 senkronu **sessizce** kırılır (hata vermez, sadece veri gelmez). `start.ps1` portu her zaman
@@ -240,7 +241,7 @@ yazarken bilinmesi gerekenler:
   kalır (oturum-sonu hook'u ona güveniyor). Klasörler silinip yazılmıyor, eşitleniyor.
 - **Kuyruk önbellekli:** `triage` skorlanmış listeyi `db.data_version` ile tutar. HTTP dışından
   yeni bir yazma yolu eklersen `bump_data_version()` çağır (`create_observation_record` yapıyor).
-- **Tarayıcıdan yazma yalnız `localhost:3000` origin'inden** (CSRF); `Host` yalnız yerel adlar
+- **Tarayıcıdan yazma yalnız izinli yerel origin'lerden** (`localhost:3000` + `OSINTLAB_FRONTEND_PORT`; CORS ile aynı liste, CSRF); `Host` yalnız yerel adlar
   (DNS rebinding). Başlıksız istemciler (curl, hook, script) etkilenmez.
 - **CLOSED/ARCHIVED investigation salt-okunurdur** (backend 409, arayüz düzenlemeyi gizler).
   Bulgular yalnızca CLOSED'da yükselir — ARCHIVED "bıraktım" demek.

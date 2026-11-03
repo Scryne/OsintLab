@@ -382,9 +382,9 @@ def promote_observations_batch(payload: ObservationPromoteBatch) -> ObservationP
                 ObservationPromoteBatchItem(
                     observation_id=observation_id, status="SKIPPED", headline=head,
                     message=(
-                        "Entity bağı yok — bağlanmazsa claim yalıtık kalır (Memory Recall "
-                        "bulamaz, vault notunda görünmez). Kümeye tek bir entity seç ya da bu "
-                        "kaydı tek tek promote et."
+                        "Varlık bağı yok — bağlanmazsa iddia yalıtık kalır (hafıza sorgusu "
+                        "bulamaz, kasa notunda görünmez). Kümeye tek bir varlık seç ya da bu "
+                        "kaydı tek tek terfi ettir."
                     ),
                 )
             )
@@ -406,7 +406,7 @@ def promote_observations_batch(payload: ObservationPromoteBatch) -> ObservationP
                     ObservationPromoteBatchItem(
                         observation_id=observation_id, status="SKIPPED", headline=head,
                         claim_id=existing,
-                        message=f"Bu gözlemden zaten bir claim üretilmiş ({existing[:8]}…).",
+                        message=f"Bu gözlemden zaten bir iddia üretilmiş ({existing[:8]}…).",
                     )
                 )
                 continue
@@ -462,7 +462,7 @@ def get_observation(observation_id: str) -> Observation:
     )
     row = fetch_one(result)
     if row is None:
-        raise HTTPException(status_code=404, detail="Observation not found")
+        raise HTTPException(status_code=404, detail="Gözlem bulunamadı")
     return _observation_from_row(row)
 
 
@@ -495,9 +495,9 @@ def promote_observation(observation_id: str, payload: ObservationPromote) -> dic
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    "Bu gözlemden zaten bir claim üretilmiş "
-                    f"(claim {already_produced[:8]}…). Confidence eşiği geçilmemiş olsa bile "
-                    "claim graf'ta duruyor — aynı gözlemden ikinci bir claim üretilmez."
+                    "Bu gözlemden zaten bir iddia üretilmiş "
+                    f"(iddia {already_produced[:8]}…). Güven eşiği geçilmemiş olsa bile "
+                    "iddia grafta duruyor — aynı gözlemden ikinci bir iddia üretilmez."
                 ),
             )
 

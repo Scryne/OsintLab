@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { statusLabel } from "@/lib/labels";
 
 type Stance = "SUPPORTS" | "WEAKENS" | "REFUTES";
 
@@ -96,7 +97,7 @@ export function HypothesisEvidenceDialog({
       }
       if (!targetEvidenceId) return;
       const h = await api.investigations.linkHypothesisEvidence(hypothesisId, targetEvidenceId, stance);
-      toast(`Kanıt bağlandı — hipotez durumu: ${h.status}`, "success");
+      toast(`Kanıt bağlandı — hipotez durumu: ${statusLabel("hypothesis", h.status)}`, "success");
       reset();
       setOpen(false);
       onLinked();
@@ -177,7 +178,7 @@ export function HypothesisEvidenceDialog({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="hyp-evidence-path">Dosya yolu (opsiyonel)</Label>
+                <Label htmlFor="hyp-evidence-path">Dosya yolu (isteğe bağlı)</Label>
                 <Input
                   id="hyp-evidence-path"
                   value={filePath}

@@ -18,8 +18,9 @@ import {
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { TypeCombo } from "@/components/forms/type-combo";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel, entityTypeSuggestions, entityTypeValue } from "@/lib/labels";
 
-const ENTITY_TYPE_SUGGESTIONS = ["Organization", "Person", "Kurum", "Şirket", "Kişi"];
+const ENTITY_TYPE_SUGGESTIONS = entityTypeSuggestions(["Organization", "Company", "Person"]);
 
 /**
  * Faz 15.3 — bir belge metadata alanını graf'taki bir Entity'ye bağlar.
@@ -60,7 +61,7 @@ export function FingerprintLinkDialog({
     const hepsi = (entities ?? []).map((e) => ({
       id: e.id,
       label: e.name,
-      sublabel: e.entity_type,
+      sublabel: entityTypeLabel(e.entity_type),
       benzer:
         v.length > 2 &&
         (e.name.toLowerCase().includes(v) || v.includes(e.name.toLowerCase())),
@@ -75,12 +76,12 @@ export function FingerprintLinkDialog({
     try {
       let hedef = entityId;
       if (yeniMod) {
-        const yeni = await api.entities.create({ entity_type: yeniTur, name: value.trim() });
+        const yeni = await api.entities.create({ entity_type: entityTypeValue(yeniTur), name: value.trim() });
         hedef = yeni.id;
       }
       if (!hedef) return;
       await api.evidence.linkFingerprint(evidenceId, hedef, field);
-      toast(`${field} alanı entity'ye bağlandı`, "success");
+      toast(`${field} alanı varlığa bağlandı`, "success");
       setOpen(false);
       setEntityId(null);
       setYeniMod(false);
@@ -98,35 +99,35 @@ export function FingerprintLinkDialog({
         render={
           <Button size="sm" variant="outline" className="h-6 px-1.5 text-[11px]">
             <Link2 aria-hidden className="h-3 w-3" />
-            Entity&apos;ye bağla
+            Varlığa bağla
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Metadata alanını entity&apos;ye bağla</DialogTitle>
-          <DialogDescription>Belgenin metadata alanından çıkan kişi ya da kurumu bir entity&apos;ye bağlar.</DialogDescription>
+          <DialogTitle>Üst veri alanını varlığa bağla</DialogTitle>
+          <DialogDescription>Belgenin üst veri alanından çıkan kişi ya da kurumu bir varlığa bağlar.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           {/* Q22 — bu değer belgeyi kim ürettiyse onun yazdığı metindir. Sınır burada da
               görünür kalıyor: bağlanan şeyin ham veri olduğu unutulmasın. */}
           <div className="rounded-md border border-dashed border-border bg-black/30 p-2">
             <p className="font-mono text-[10px] uppercase tracking-wide text-text-tertiary">
-              güvenilmeyen içerik · metadata:{field}
+              güvenilmeyen içerik · üst veri:{field}
             </p>
             <p className="mt-1 break-words font-mono text-xs text-foreground">{value}</p>
           </div>
 
           {!yeniMod && (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="fingerprint-link-dialog-mevcut-entity-1">Mevcut entity</Label>
+              <Label htmlFor="fingerprint-link-dialog-mevcut-entity-1">Mevcut varlık</Label>
               <SearchablePicker
                 id="fingerprint-link-dialog-mevcut-entity-1"
                 items={items.map(({ id, label, sublabel }) => ({ id, label, sublabel }))}
                 value={entityId}
                 onChange={setEntityId}
-                placeholder="Entity ara…"
-                emptyText="Henüz entity yok"
+                placeholder="Varlık ara…"
+                emptyText="Henüz varlık yok"
               />
               {onerilen && !entityId && (
                 <p className="text-xs text-text-tertiary">
@@ -138,7 +139,7 @@ export function FingerprintLinkDialog({
 
           {yeniMod && (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="fp-new-type">Yeni entity türü</Label>
+              <Label htmlFor="fp-new-type">Yeni varlık türü</Label>
               <TypeCombo
                 id="fp-new-type"
                 value={yeniTur}
@@ -147,7 +148,7 @@ export function FingerprintLinkDialog({
                 placeholder="ör. Organization"
               />
               <p className="text-xs text-text-tertiary">
-                &quot;{value}&quot; adıyla yeni bir entity oluşturulup bu alana bağlanacak.
+                &quot;{value}&quot; adıyla yeni bir varlık oluşturulup bu alana bağlanacak.
               </p>
             </div>
           )}
@@ -157,10 +158,10 @@ export function FingerprintLinkDialog({
             onClick={() => setYeniMod((v) => !v)}
             className="self-start text-xs text-text-tertiary underline decoration-white/20 underline-offset-2 hover:text-foreground"
           >
-            {yeniMod ? "Mevcut bir entity seç" : (
+            {yeniMod ? "Mevcut bir varlık seç" : (
               <span className="inline-flex items-center gap-1">
                 <Plus aria-hidden className="h-3 w-3" />
-                Graf&apos;ta karşılığı yok — yeni entity oluştur
+                Grafta karşılığı yok — yeni varlık oluştur
               </span>
             )}
           </button>

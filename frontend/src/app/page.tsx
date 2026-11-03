@@ -13,6 +13,7 @@ import { PriorityBadge } from "@/components/provenance/priority";
 import { IconChip } from "@/components/ui/icon-chip";
 import { WireframeGlobe } from "@/components/ui/wireframe-globe";
 import { ExploitedPanel } from "@/components/pivot/exploited-panel";
+import { entityTypeLabel, statusLabel } from "@/lib/labels";
 
 export default function MainWorkspace() {
   const { data: entities } = useApi(() => api.entities.list(), []);
@@ -56,14 +57,14 @@ export default function MainWorkspace() {
       <section>
         <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Ana Çalışma Alanı</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Bilinen entity ve event&apos;lerde ara — sonuçlar Knowledge Graph&apos;a dayanır.
+          Bilinen varlık ve olaylarda ara — sonuçlar Bilgi Grafı&apos;na dayanır.
         </p>
         {/* Uygulamanın birincil kontrolü etiketsizdi — sadece placeholder vardı, o da
             yazmaya başlayınca kayboluyor ve ekran okuyucuya isim vermiyor. Etiket görsel
             olarak gizli ama gerçek: `sr-only` + `htmlFor`. */}
         <div className="glass-panel relative mt-5 rounded-2xl p-1">
           <label htmlFor="workspace-search" className="sr-only">
-            Entity ve event ara
+            Varlık ve olay ara
           </label>
           <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
           <Input
@@ -71,7 +72,7 @@ export default function MainWorkspace() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Bir kişi, kurum, lokasyon ya da event ara…"
+            placeholder="Bir kişi, kurum, konum ya da olay ara…"
             className="h-12 border-0 bg-transparent pl-11 text-base shadow-none focus-visible:ring-0"
           />
         </div>
@@ -90,7 +91,7 @@ export default function MainWorkspace() {
             {results.entities.map((e) => (
               <Link key={e.id} href={`/entities/${e.id}`} className="rounded-md px-2 py-1.5 text-sm hover:bg-surface-raised">
                 <Users className="mr-2 inline h-3.5 w-3.5 text-text-tertiary" />
-                {e.name} <span className="text-xs text-text-tertiary">· {e.entity_type}</span>
+                {e.name} <span className="text-xs text-text-tertiary">· {entityTypeLabel(e.entity_type)}</span>
               </Link>
             ))}
             {results.events.map((e) => (
@@ -104,18 +105,18 @@ export default function MainWorkspace() {
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard icon={Users} label="Entity" value={entities?.length} href="/entities" />
-        <StatCard icon={Calendar} label="Event" value={events?.length} href="/events" />
-        <StatCard icon={FolderSearch} label="Investigation" value={investigations?.length} href="/investigations" />
-        <StatCard icon={Radio} label="Source" value={sources?.length} href="/sources" />
+        <StatCard icon={Users} label="Varlık" value={entities?.length} href="/entities" />
+        <StatCard icon={Calendar} label="Olay" value={events?.length} href="/events" />
+        <StatCard icon={FolderSearch} label="Soruşturma" value={investigations?.length} href="/investigations" />
+        <StatCard icon={Radio} label="Kaynak" value={sources?.length} href="/sources" />
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Priority Intelligence</h2>
+            <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Öncelikli İstihbarat</h2>
             <Link href="/inbox" className="text-xs text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
-              Inbox&apos;a git →
+              Gelen Kutusu&apos;na git →
             </Link>
           </div>
           <div className="glass-panel rounded-lg p-3">
@@ -134,7 +135,7 @@ export default function MainWorkspace() {
                 <div key={item.id} className="flex items-center justify-between gap-2 rounded-md bg-surface-raised px-2.5 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm text-foreground">{item.title}</p>
-                    <p className="text-[11px] text-text-tertiary">{item.item_type}</p>
+                    <p className="text-[11px] text-text-tertiary">{statusLabel("inboxItem", item.item_type)}</p>
                   </div>
                   <PriorityBadge priority={item.priority} className="shrink-0" />
                 </div>
@@ -151,8 +152,8 @@ export default function MainWorkspace() {
             {claimsLoading && <SkeletonRows count={3} />}
             {claimsError && <ErrorState error={claimsError} />}
             {!claimsLoading && !claimsError && recentClaims.length === 0 && <EmptyState
-                title="Henüz claim yok"
-                description="Bir gözlemi claim'e yükselttiğinde ya da elle claim eklediğinde burada görünür."
+                title="Henüz iddia yok"
+                description="Bir gözlemi iddiaya terfi ettirdiğinde ya da elle iddia eklediğinde burada görünür."
               />}
             <div className="flex flex-col gap-2">
               {recentClaims.map((claim) => (

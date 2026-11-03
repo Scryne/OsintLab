@@ -228,7 +228,7 @@ function ExtractPanel({ onAdded }: { onAdded: () => void }) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2 self-start text-sm text-text-secondary hover:text-foreground">
         <FileSearch aria-hidden className="h-4 w-4" />
-        Bir metinden seçici çıkar (rapor, advisory, e-posta başlığı…)
+        Bir metinden seçici çıkar (rapor, güvenlik bülteni, e-posta başlığı…)
       </button>
     );
   }
@@ -253,7 +253,7 @@ function ExtractPanel({ onAdded }: { onAdded: () => void }) {
                 />
                 <div className="min-w-0">
                   <SelectorChip id={f.id} kind={f.kind} value={f.value} link={false} />
-                  {f.defanged && <span className="ml-2 text-[10px] text-text-tertiary">defang&apos;li yazılmış</span>}
+                  {f.defanged && <span className="ml-2 text-[10px] text-text-tertiary">zararsızlaştırılmış (defang) yazılmış</span>}
                   <p className="mt-0.5 truncate font-mono text-[11px] text-text-tertiary">{f.context}</p>
                 </div>
               </li>

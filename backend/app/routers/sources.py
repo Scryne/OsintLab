@@ -51,7 +51,7 @@ def get_source(source_id: str) -> Source:
     result = conn.execute(f"MATCH (s:Source {{id: $id}}) RETURN {_FIELDS}", {"id": source_id})
     row = fetch_one(result)
     if row is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail="Kaynak bulunamadı")
     return Source(**row)
 
 
@@ -66,7 +66,7 @@ def delete_source(source_id: str) -> None:
     kabul etmeli (v1'de "force" seçeneği yok, YAGNI)."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": source_id})) is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail="Kaynak bulunamadı")
     asserted_claims = fetch_all(
         conn.execute(
             "MATCH (s:Source {id: $id})-[:ASSERTS]->(c:Claim) RETURN c.id AS id", {"id": source_id}
@@ -75,7 +75,7 @@ def delete_source(source_id: str) -> None:
     if asserted_claims:
         raise HTTPException(
             status_code=409,
-            detail=f"Source silinemedi: {len(asserted_claims)} claim bu source'a atıflı (provenance kaybı riski)",
+            detail=f"Source silinemedi: {len(asserted_claims)} iddia bu kaynağa dayanıyor (menşe kaybı riski)",
         )
     lineage_links = fetch_all(
         conn.execute(
@@ -85,7 +85,7 @@ def delete_source(source_id: str) -> None:
     if lineage_links:
         raise HTTPException(
             status_code=409,
-            detail="Source silinemedi: bir DERIVED_FROM lineage zincirinde yer alıyor",
+            detail="Kaynak silinemedi: bir köken (türetme) zincirinde yer alıyor",
         )
     conn.execute("MATCH (s:Source {id: $id}) DETACH DELETE s", {"id": source_id})
     safe_render_vault(conn)
@@ -100,7 +100,7 @@ def _claim_text_source_created(conn, claim_id: str) -> dict:
         )
     )
     if row is None:
-        raise HTTPException(status_code=404, detail=f"Claim not found or has no asserting Source: {claim_id}")
+        raise HTTPException(status_code=404, detail=f"İddia bulunamadı ya da dayandığı bir kaynak yok: {claim_id}")
     return row
 
 
@@ -128,7 +128,7 @@ def detect_lineage(payload: LineageDetectRequest) -> dict:
         return result
 
     if claim_a["source_id"] == claim_b["source_id"]:
-        result["note"] = "Aynı Source — lineage ilişkisi gereksiz."
+        result["note"] = "Aynı kaynak — köken ilişkisi gereksiz."
         return result
 
     # Daha sonra oluşturulan (downstream) -> daha önce oluşturulan (upstream).
@@ -159,7 +159,7 @@ def detect_lineage(payload: LineageDetectRequest) -> dict:
         )
     ) is not None:
         result["note"] = (
-            "Ters yönde bir lineage zaten var (üst kaynak bu kaynaktan türetilmiş) — döngü "
+            "Ters yönde bir köken bağı zaten var (üst kaynak bu kaynaktan türetilmiş) — döngü "
             "kurulmadı. Yön yanlışsa var olan bağı kaldırıp elle kur."
         )
         result["downstream_source_id"] = downstream_id
@@ -215,7 +215,7 @@ def list_source_claims(source_id: str) -> list[dict]:
     olması onarılması gerekeni görünür kılar."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": source_id})) is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail="Kaynak bulunamadı")
     return fetch_all(
         conn.execute(
             "MATCH (:Source {id: $id})-[:ASSERTS]->(c:Claim) "
@@ -245,7 +245,7 @@ def get_lineage(source_id: str) -> dict:
     gösterilebilirdi (Ajans → Site A → Site B sırası kaybolurdu)."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": source_id})) is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail="Kaynak bulunamadı")
 
     # min(length(p)): iki kaynak arasında birden fazla türetme yolu varsa en kısası zincirdeki
     # yerini belirler.
@@ -287,7 +287,7 @@ def link_derived_from(source_id: str, payload: LineageLinkRequest) -> dict:
         raise HTTPException(status_code=422, detail="Bir kaynak kendinden türetilemez")
     for sid in (source_id, upstream_id):
         if fetch_one(conn.execute("MATCH (s:Source {id: $id}) RETURN s.id AS id", {"id": sid})) is None:
-            raise HTTPException(status_code=404, detail=f"Source not found: {sid}")
+            raise HTTPException(status_code=404, detail=f"Kaynak bulunamadı: {sid}")
 
     # Döngü koruması: upstream zaten bu kaynaktan türemişse ters yönde bağ kurulamaz.
     cycle = fetch_one(
@@ -309,7 +309,7 @@ def link_derived_from(source_id: str, payload: LineageLinkRequest) -> dict:
         )
     )
     if existing is not None:
-        raise HTTPException(status_code=409, detail=f"Bu lineage ilişkisi zaten var (method={existing['method']})")
+        raise HTTPException(status_code=409, detail=f"Bu köken ilişkisi zaten var (yöntem={existing['method']})")
 
     conn.execute(
         "MATCH (down:Source {id: $down}), (up:Source {id: $up}) "
@@ -351,7 +351,7 @@ def unlink_derived_from(source_id: str, upstream_source_id: str) -> None:
         )
     )
     if existing is None:
-        raise HTTPException(status_code=404, detail="Lineage ilişkisi bulunamadı")
+        raise HTTPException(status_code=404, detail="Köken ilişkisi bulunamadı")
     conn.execute(
         "MATCH (:Source {id: $down})-[r:DERIVED_FROM]->(:Source {id: $up}) DELETE r",
         {"down": source_id, "up": upstream_source_id},

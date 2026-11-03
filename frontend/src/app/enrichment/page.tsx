@@ -87,18 +87,18 @@ function Modules() {
                         onClick={async () => {
                           try {
                             await api.enrichment.bulk(m.name, "entity");
-                            toast(`${m.label} bütün entity'lerde arka planda çalışıyor (yalnız eksikler)`, "default");
+                            toast(`${m.label} bütün varlıklarda arka planda çalışıyor (yalnız eksikler)`, "default");
                           } catch (err) {
                             toast(err instanceof Error ? err.message : "Başlatılamadı", "error");
                           }
                         }}
                         className="mt-1 text-[11px] text-brand-accent-text hover:underline"
                       >
-                        Bütün entity&apos;lere uygula
+                        Bütün varlıklara uygula
                       </button>
                     )}
                   </td>
-                  <td className="hidden px-3 py-2 text-xs text-text-secondary sm:table-cell">{m.target === "entity" ? "Kurum (entity)" : m.target === "claim" ? "Claim" : m.kind_labels.join(", ")}</td>
+                  <td className="hidden px-3 py-2 text-xs text-text-secondary sm:table-cell">{m.target === "entity" ? "Kurum (varlık)" : m.target === "claim" ? "İddia" : m.kind_labels.join(", ")}</td>
                   <td className="px-3 py-2">
                     <OpsecBadge opsec={m.opsec} title={m.opsec_note} />
                     <div className="mt-1 text-[11px] text-text-tertiary">önbellek {m.cache_hours >= 1 ? `${m.cache_hours} sa` : `${Math.round(m.cache_hours * 60)} dk`}</div>

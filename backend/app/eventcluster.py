@@ -210,7 +210,7 @@ def set_claim_about(
 
     Dönen: {"previous_entity_id", "previous_event_id", "carried_entity_id"}."""
     if entity_id and event_id:
-        raise ValueError("Bir claim ya bir entity ya da bir event hakkında olabilir, ikisi birden değil")
+        raise ValueError("Bir iddia ya bir varlık ya da bir olay hakkında olabilir, ikisi birden değil")
 
     previous = fetch_one(
         conn.execute(

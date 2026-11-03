@@ -30,7 +30,7 @@ def test_used_entity_cannot_be_deleted(client, make_entity, make_source, make_cl
     make_claim(make_source()["id"], about_entity_id=used["id"])
     r = client.delete(f"/entities/{used['id']}")
     assert r.status_code == 409
-    assert "claim öznesi" in r.json()["detail"]
+    assert "iddia öznesi" in r.json()["detail"]
     assert client.delete(f"/entities/{unused['id']}").status_code == 204
     assert client.get(f"/entities/{unused['id']}").status_code == 404
 

@@ -160,7 +160,7 @@ def test_safe_fetch_total_deadline_cuts_slow_servers(no_dns, monkeypatch):
 
 
 def test_validate_hop_rejects_non_allowlisted_and_private(monkeypatch):
-    with pytest.raises(CollectorSecurityError, match="allowlist"):
+    with pytest.raises(CollectorSecurityError, match="izin listesinde değil"):
         collector._validate_hop("https://evil.com/", {"example.com"})
     monkeypatch.setattr(collector.socket, "getaddrinfo", lambda *a, **k: [(None, None, None, None, ("10.0.0.5", 443))])
     with pytest.raises(CollectorSecurityError, match="SSRF"):

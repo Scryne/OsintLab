@@ -145,7 +145,7 @@ function Dns({ s }: { s: S }) {
       <Facts rows={[["Çözümleyici", s.resolver], ["DNSSEC", s.dnssec_validated ? "doğrulandı" : "yok / doğrulanmadı"]]} />
       <Table head={["Tür", "Değer"]} rows={Object.entries(records).map(([t, vals]) => [<Mono key="t">{t}</Mono>, <Chips key="v" items={vals} />])} />
       {s.verification_tokens?.length > 0 && (
-        <Section title="Site doğrulama belirteçleri (ortak sahiplik pivotu)">
+        <Section title="Site doğrulama belirteçleri (ortak sahiplik ipucu)">
           <Table head={["Servis", "Belirteç"]} rows={s.verification_tokens.map((v: any) => [v.service, <Mono key="k">{v.token}</Mono>])} />
         </Section>
       )}
@@ -310,9 +310,9 @@ function Http({ s }: { s: S }) {
       <Facts
         rows={[
           ["Başlık", s.title ? <Untrusted key="t">{s.title}</Untrusted> : null],
-          ["Generator", s.generator],
+          ["Üretici yazılım", s.generator],
           [
-            "Favicon (mmh3)",
+            "Site simgesi (favicon, mmh3)",
             s.favicon_mmh3 != null ? (
               <span key="f" className="flex flex-wrap items-center gap-2">
                 <Mono>{s.favicon_mmh3}</Mono>
@@ -322,7 +322,7 @@ function Http({ s }: { s: S }) {
               s.favicon_note
             ),
           ],
-          ["Analytics kimlikleri", s.analytics_ids?.length ? <Chips key="a" items={s.analytics_ids} /> : "yok"],
+          ["Analitik kimlikleri", s.analytics_ids?.length ? <Chips key="a" items={s.analytics_ids} /> : "yok"],
         ]}
       />
       {s.external_hosts?.length > 0 && (
@@ -459,7 +459,7 @@ function Gdelt({ s }: { s: S }) {
 [${a.publisher}${a.domain ? ` · ${a.domain}` : ""}]` : a.title;
       await api.observations.create({ raw_content: text, source_url: a.url, observed_at: a.seen_at });
       setAdded((prev) => new Set(prev).add(a.url));
-      toast("Gözlem olarak eklendi — Promote Kuyruğu'nda", "success");
+      toast("Gözlem olarak eklendi — Terfi Kuyruğu'nda", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Eklenemedi", "error");
     }

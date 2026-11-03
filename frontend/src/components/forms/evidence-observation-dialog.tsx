@@ -90,9 +90,7 @@ export function EvidenceObservationDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <p className="text-xs text-text-secondary">
-            Seçtiğin sayfaların metni bir Observation olarak sisteme girer ve normal promote
-            akışına katılır. Tüm belgeyi tek gözleme çevirmek yerine aralık seçiliyor: promote
-            gözlemin metnini doğrudan claim metni yapıyor.
+            Seçtiğin sayfaların metni bir gözlem olarak sisteme girer ve normal terfi akışına katılır. Tüm belgeyi tek gözleme çevirmek yerine aralık seçiliyor: terfi gözlemin metnini doğrudan claim metni yapıyor.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">

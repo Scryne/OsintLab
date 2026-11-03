@@ -94,11 +94,11 @@ export default function RelationCandidatesPage() {
           İlişki Adayları
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Aynı claim&apos;e bağlı ya da aynı olaya karışan entity çiftleri. Sistem yalnızca
+          Aynı iddiaya bağlı ya da aynı olaya karışan varlık çiftleri. Sistem yalnızca
           &quot;bu ikisi birbiriyle ilgili olabilir&quot; der; ilişkinin ne olduğunu sen yazarsın.
           İlgisiz bulduğun çifti reddet — bir daha önerilmez ama kaybolmaz.{" "}
           <Link href="/graph" className="underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
-            Kurulan ilişkileri graf&apos;ta gör →
+            Kurulan ilişkileri grafta gör →
           </Link>
         </p>
       </header>
@@ -171,7 +171,7 @@ export default function RelationCandidatesPage() {
       {!loading && !error && candidates.length === 0 && (
         <EmptyState
           title="Bekleyen ilişki adayı yok"
-          description="Liste eritilmiş. Yeni claim bağları ya da olaylar eklendikçe yeni çiftler burada belirir."
+          description="Liste eritilmiş. Yeni iddia bağları ya da olaylar eklendikçe yeni çiftler burada belirir."
           action={
             <Link href="/graph" className="text-sm text-text-secondary underline decoration-white/20 underline-offset-2 hover:text-foreground hover:decoration-white/50">
               Graf görünümüne git →
@@ -237,7 +237,7 @@ function PairRow({
         {candidate.shared_event_count > 0 && (
           <Badge variant="outline">{candidate.shared_event_count} ortak olay</Badge>
         )}
-        <Badge variant="outline">{candidate.shared_claim_count} ortak claim</Badge>
+        <Badge variant="outline">{candidate.shared_claim_count} ortak iddia</Badge>
         <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           {open ? "Vazgeç" : "Bağla"}
         </Button>

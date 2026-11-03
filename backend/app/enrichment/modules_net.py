@@ -636,7 +636,7 @@ def run_http(ctx: Ctx, target: Target) -> Result:
 
 MODULES = [
     Module("dns", "DNS kayıtları", "Cloudflare / Google DoH",
-           "A, AAAA, CNAME, MX, NS, TXT, CAA, SOA kayıtları; SPF içerikleri ve site doğrulama belirteçleri (ortak sahiplik pivotu).",
+           "A, AAAA, CNAME, MX, NS, TXT, CAA, SOA kayıtları; SPF içerikleri ve site doğrulama belirteçleri (ortak sahiplik ipucu).",
            "selector", ("domain", "email", "url"), PASSIVE, frozenset({"cloudflare-dns.com", "dns.google"}), run_dns,
            cache_hours=6, docs_url="https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/dns-json/",
            terms_note="Çözümleyici hedefin ad sunucusuna sorar; sorgunun kaynağı sen değil, çözümleyicidir."),
@@ -670,7 +670,7 @@ MODULES = [
            "selector", ("domain", "ip", "url"), PASSIVE, frozenset({"urlscan.io"}), run_urlscan, cache_hours=24,
            docs_url="https://urlscan.io/docs/search/", terms_note="Anonim arama yalnızca herkese açık taramaları ve son ~30 günü görür."),
     Module("http", "HTTP parmak izi", "Hedefin kendi sunucusu",
-           "Sayfa başlığı, generator, favicon hash'i (Shodan `http.favicon.hash` pivotu), analytics kimlikleri, dış bağlantılar.",
+           "Sayfa başlığı, üretici yazılım, site simgesi (favicon) hash'i (Shodan `http.favicon.hash` sorgusu için), analitik kimlikleri, dış bağlantılar.",
            "selector", ("domain", "url"), ACTIVE, frozenset(), run_http, cache_hours=24,
            terms_note="AKTİF: hedef sunucu isteği loglarında görür."),
 ]

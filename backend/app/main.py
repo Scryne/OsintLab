@@ -20,7 +20,38 @@ logger = logging.getLogger(__name__)
 
 # Faz 8: Next.js frontend'i (localhost:3000) yerel geliştirmede API'ye tarayıcıdan erişiyor.
 # Tek kullanıcılı, local-first bir araç — sadece localhost origin'lerine izin veriliyor.
-ALLOWED_ORIGINS = ("http://localhost:3000", "http://127.0.0.1:3000")
+DEFAULT_FRONTEND_PORT = 3000
+_LOCAL_ORIGIN_HOSTS = ("localhost", "127.0.0.1")
+
+
+def frontend_origins(extra_ports: str | None) -> tuple[str, ...]:
+    """Tarayıcıdan okuma (CORS) VE yazma (CSRF) izni olan origin'lerin TEK listesi.
+
+    Varsayılan her zaman `localhost:3000` / `127.0.0.1:3000`. Başka bir uygulama 3000'i
+    tuttuğunda arayüz başka bir portta açılır ve API'den veri alamaz; bunun için
+    `OSINTLAB_FRONTEND_PORT=3001` (virgülle birden fazla port) ek yerel origin ekler.
+
+    Değişken bilerek yalnızca PORT alıyor, origin değil: host her zaman `localhost` ve
+    `127.0.0.1` — yani bu ayarla yerel olmayan bir siteye yazma izni vermek mümkün değil.
+    Geçersiz bir değer (sayı olmayan, aralık dışı, "*" ya da tam adres) sessizce yok sayılmaz,
+    backend açılırken hata verir: yok sayılsaydı arayüz yine "veri gelmiyor" diye kırılırdı
+    ve sebebi hiçbir yerde görünmezdi."""
+    ports = [DEFAULT_FRONTEND_PORT]
+    for part in (extra_ports or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if not part.isascii() or not part.isdigit() or not 1 <= int(part) <= 65535:
+            raise ValueError(
+                f"OSINTLAB_FRONTEND_PORT geçersiz: {part!r}. Yalnızca 1-65535 arası port numarası "
+                "(virgülle birden fazla) verilebilir; host her zaman localhost/127.0.0.1."
+            )
+        if int(part) not in ports:
+            ports.append(int(part))
+    return tuple(f"http://{host}:{port}" for port in ports for host in _LOCAL_ORIGIN_HOSTS)
+
+
+ALLOWED_ORIGINS = frontend_origins(os.environ.get("OSINTLAB_FRONTEND_PORT"))
 
 # DNS rebinding savunması: tarayıcı, saldırganın alan adını 127.0.0.1'e çözdürse bile `Host`
 # başlığında o alan adını gönderir. Yalnızca yerel adlar kabul ediliyor. Ek bir ad gerekirse
