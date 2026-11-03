@@ -5,6 +5,7 @@ import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import type { EntityGraphData, GraphEdge, GraphNode } from "@/lib/types";
 import { CONFIDENCE_COLOR_VAR } from "@/components/provenance/confidence";
 import { cn } from "@/lib/utils";
+import { entityTypeLabel } from "@/lib/labels";
 
 /**
  * Faz 22 — graf görünümü. Bağımlılık EKLENMEDİ, yerleşim burada hesaplanıyor.
@@ -322,7 +323,7 @@ export function ForceGraph({
         // `img` değil `group`: img rolü alt öğeleri sunumsal yapar ve odaklanabilir düğüm
         // düğmeleri ekran okuyucuya hiç ulaşmıyordu.
         role="group"
-        aria-label={`Bilgi graf'ı: ${data.nodes.length} düğüm, ${data.edges.length} kenar`}
+        aria-label={`Bilgi grafı: ${data.nodes.length} düğüm, ${data.edges.length} kenar`}
         onPointerDown={startPan}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -378,7 +379,7 @@ export function ForceGraph({
                   opacity={dimmed(node.id) ? 0.2 : 1}
                   tabIndex={0}
                   role="button"
-                  aria-label={`${node.label} — ${node.kind === "event" ? "olay" : node.entity_type}, ${node.degree} bağ`}
+                  aria-label={`${node.label} — ${node.kind === "event" ? "olay" : entityTypeLabel(node.entity_type)}, ${node.degree} bağ`}
                   onMouseEnter={() => setHovered(node.id)}
                   onMouseLeave={() => setHovered(null)}
                   onFocus={() => setHovered(node.id)}
@@ -477,7 +478,7 @@ export function ForceGraph({
       </div>
 
       <p className="mt-2 text-xs text-text-tertiary">
-        Düğümleri sürükleyerek ayırabilirsin; boş alanı sürüklemek graf&apos;ı kaydırır.
+        Düğümleri sürükleyerek ayırabilirsin; boş alanı sürüklemek grafı kaydırır.
         Taşınan düğüm vurgulu kenarlıkla işaretlenir ve yerinde kalır
         {pinnedCount > 0 ? ` (${pinnedCount} düğüm taşındı)` : ""}. Bir düğüme gitmek için
         tıkla — taşıdığın düğüm için satırın altındaki listeyi kullan.

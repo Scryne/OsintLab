@@ -103,7 +103,7 @@ export default function ArchivePage() {
     setBusy(true);
     try {
       const res = await api.archive.verify(ids);
-      const durum = res.state_changes > 0 ? ` — ${res.state_changes} claim durum değiştirdi` : "";
+      const durum = res.state_changes > 0 ? ` — ${res.state_changes} iddia durum değiştirdi` : "";
       toast(
         `${res.checked} arşiv kontrol edildi: ${res.verified} doğrulandı, ${res.changed} değişmiş, ${res.unreachable} erişilemedi${durum}`,
         res.unreachable > 0 || res.changed > 0 ? "default" : "success"
@@ -127,7 +127,7 @@ export default function ArchivePage() {
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
           Her iddia, dayandığı metnin bir kopyasıyla birlikte saklanıyor — kaynak sayfa
-          silinse de elde kalan kayıt bu. Arşivin kendisi confidence&apos;a dokunmaz: bir
+          silinse de elde kalan kayıt bu. Arşivin kendisi güven skoruna dokunmaz: bir
           arşiv, kaynağın o cümleyi <em>söylediğinin</em> kaydıdır, iddianın doğru olduğunun
           kanıtı değil. Skora ancak canlı sayfaya karşı doğrulandığında girer.
         </p>
@@ -145,7 +145,7 @@ export default function ArchivePage() {
         </span>
         {bekleyen > 0 && (
           <span className="text-text-secondary">
-            <strong className="tabular-nums text-foreground">{bekleyen}</strong> claim&apos;in arşivi yok
+            <strong className="tabular-nums text-foreground">{bekleyen}</strong> iddianın arşivi yok
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
@@ -193,7 +193,7 @@ export default function ArchivePage() {
       {records && gosterilen.length === 0 && (
         <EmptyState
           title="Bu filtrede arşiv yok"
-          description="Arşivler promote sırasında kendiliğinden oluşur. Eski claim'ler için üstteki düğmeyle geri doldurabilirsin."
+          description="Arşivler terfi sırasında kendiliğinden oluşur. Eski iddialar için üstteki düğmeyle geri doldurabilirsin."
         />
       )}
 

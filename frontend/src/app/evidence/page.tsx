@@ -103,7 +103,7 @@ export default function EvidencePage() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tür, dosya adı, hash veya bağlı claim ara…"
+          placeholder="Tür, dosya adı, hash ya da bağlı iddia ara…"
           aria-label="Kanıt ara"
           className="pl-9"
         />
@@ -298,7 +298,7 @@ function EvidenceRow({ item, onChanged }: { item: EvidenceVaultItem; onChanged: 
       <div className="mt-3 border-t border-border pt-3">
         {item.linked_claims.length === 0 ? (
           <p className="text-xs text-text-tertiary">
-            Hiçbir claim&apos;e bağlı değil — bu haliyle confidence hesabına girmiyor.
+            Hiçbir iddiaya bağlı değil — bu hâliyle güven hesabına girmiyor.
           </p>
         ) : (
           <ul className="flex flex-col gap-1.5">

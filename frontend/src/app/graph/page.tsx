@@ -48,7 +48,7 @@ export default function GraphPage() {
             Graf
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
-            Entity&apos;ler (daire) ve olaylar (kare), aralarındaki bağlarla. Kalın çizgi senin
+            Varlıklar (daire) ve olaylar (kare), aralarındaki bağlarla. Kalın çizgi senin
             kurduğun ilişki, soluk çizgi bir olaya karışma, kesik çizgi ise aynı kaydın iki
             adı — aynılık bir ilişki değildir. Bir düğüme gel: yalnızca komşuları kalır.
           </p>
@@ -75,7 +75,7 @@ export default function GraphPage() {
 
       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text-secondary">
         <span>
-          <strong className="tabular-nums text-foreground">{relationCount}</strong> entity ilişkisi
+          <strong className="tabular-nums text-foreground">{relationCount}</strong> varlık ilişkisi
         </span>
         <span>
           <strong className="tabular-nums text-foreground">{data?.edges.length ?? 0}</strong> toplam bağ
@@ -95,8 +95,8 @@ export default function GraphPage() {
       {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && view.nodes.length === 0 && (
         <EmptyState
-          title="Graf'ta gösterilecek bağ yok"
-          description="İlişki adaylarından ilk bağları kur, ya da bir olaya entity bağla."
+          title="Grafta gösterilecek bağ yok"
+          description="İlişki adaylarından ilk bağları kur, ya da bir olaya varlık bağla."
         />
       )}
 

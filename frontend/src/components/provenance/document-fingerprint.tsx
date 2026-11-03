@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { FingerprintLinkDialog } from "@/components/forms/fingerprint-link-dialog";
 import { InjectionWarning } from "@/components/provenance/injection-warning";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel } from "@/lib/labels";
 
 /**
  * Faz 15.3 — belgenin üretildiği ortamın izi.
@@ -67,7 +68,7 @@ export function DocumentFingerprint({ evidenceId }: { evidenceId: string }) {
 
           {data && alanSayisi === 0 && (
             <p className="text-xs text-text-tertiary">
-              Bu belgede metadata yok — üretildiği ortama dair bir iz taşımıyor.
+              Bu belgede üst veri (metadata) yok — üretildiği ortama dair bir iz taşımıyor.
             </p>
           )}
 
@@ -97,7 +98,7 @@ export function DocumentFingerprint({ evidenceId }: { evidenceId: string }) {
                             {bagli.map((l) => (
                               <span key={l.entity_id} className="inline-flex items-center gap-1">
                                 <Badge variant="outline" className="text-[10px]">
-                                  {l.entity_name} · {l.entity_type}
+                                  {l.entity_name} · {entityTypeLabel(l.entity_type)}
                                 </Badge>
                                 <button
                                   type="button"

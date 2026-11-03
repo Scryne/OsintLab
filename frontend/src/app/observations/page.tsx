@@ -31,6 +31,7 @@ import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { ProvenanceBlock } from "@/components/provenance/provenance-label";
 import { SingleSourceNote } from "@/components/provenance/single-source-note";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel } from "@/lib/labels";
 
 type Filter = "all" | "promoted" | "pending" | "dismissed";
 
@@ -99,7 +100,7 @@ function ObservationsView() {
         <div>
           <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Gözlemler</h1>
           <p className="text-sm text-text-secondary">
-            Ham metin/haber yapıştır, sisteme sok — eşiği geçerse Knowledge Graph&apos;a Claim olarak yükselir.
+            Ham metin/haber yapıştır, sisteme sok — eşiği geçerse Bilgi Grafı&apos;na iddia olarak yükselir.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -116,7 +117,7 @@ function ObservationsView() {
             render={<Link href="/observations/queue" />}
           >
             <ListChecks aria-hidden className="h-4 w-4" />
-            Promote Kuyruğu
+            Terfi Kuyruğu
           </Button>
           <NewObservationDialog onCreated={reload} />
         </div>
@@ -126,7 +127,7 @@ function ObservationsView() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
           <p className="flex items-center gap-2 text-sm text-text-secondary">
             <InboxIcon aria-hidden className="h-4 w-4 shrink-0 text-text-tertiary" />
-            Bir Inbox bildiriminden gelen <strong className="text-foreground">{ids.length}</strong> gözlem
+            Bir Gelen Kutusu bildiriminden gelen <strong className="text-foreground">{ids.length}</strong> gözlem
             gösteriliyor.
           </p>
           <Link
@@ -150,7 +151,7 @@ function ObservationsView() {
         <TabsList>
           <TabsTrigger value="all">Tümü</TabsTrigger>
           <TabsTrigger value="pending">Bekliyor</TabsTrigger>
-          <TabsTrigger value="promoted">Promote edildi</TabsTrigger>
+          <TabsTrigger value="promoted">Terfi ettirildi</TabsTrigger>
           <TabsTrigger value="dismissed">Elendi</TabsTrigger>
         </TabsList>
         <TabsContent value={filter} className="mt-4 flex flex-col gap-3">
@@ -213,7 +214,7 @@ function ObservationRow({ observation, onPromoted }: { observation: Observation;
           {observation.promoted
             ? "promoted"
             : observation.produced_claim_id
-              ? "claim üretildi · eşik altı"
+              ? "iddia üretildi · eşik altı"
               : observation.dismissed
                 ? "elendi"
                 : "bekliyor"}
@@ -373,7 +374,7 @@ function NewObservationDialog({ onCreated }: { onCreated: () => void }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Yeni gözlem ekle</DialogTitle>
-          <DialogDescription>Sisteme elle bir gözlem girer. Gözlemler ham kayıttır; claim&apos;e yükseltilene kadar Knowledge Graph&apos;a girmez.</DialogDescription>
+          <DialogDescription>Sisteme elle bir gözlem girer. Gözlemler ham kayıttır; iddiaya terfi ettirilene kadar Bilgi Grafı&apos;na girmez.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -387,7 +388,7 @@ function NewObservationDialog({ onCreated }: { onCreated: () => void }) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="observation-source-url">Kaynak URL (opsiyonel)</Label>
+            <Label htmlFor="observation-source-url">Kaynak URL (isteğe bağlı)</Label>
             <Input
               id="observation-source-url"
               value={sourceUrl}
@@ -447,7 +448,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
   const sourceItems = (sources ?? []).map((s) => ({ id: s.id, label: s.name, sublabel: s.source_type }));
   const aboutItems =
     aboutType === "entity"
-      ? (entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }))
+      ? (entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: entityTypeLabel(e.entity_type) }))
       : (events ?? []).map((e) => ({ id: e.id, label: e.title, sublabel: e.event_type }));
   const evidenceItems = (evidenceList ?? []).map((e) => ({ id: e.id, label: e.evidence_type, sublabel: e.file_path ?? undefined }));
   const claimItems = (claims ?? []).map((c) => ({ id: c.id, label: c.text.slice(0, 60) }));
@@ -470,8 +471,8 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
       setResult(res);
       toast(
         res.claim.confidence >= 0.45
-          ? "Claim'e yükseltildi"
-          : "Claim üretildi (REPORTED) — tek kaynak, doğrulanmayı bekliyor",
+          ? "İddiaya terfi ettirildi"
+          : "İddia üretildi (Bildirildi) — tek kaynak, doğrulanmayı bekliyor",
         "success"
       );
       // Liste diyalog kapanınca tazeleniyor: tazelenen satır `produced_claim_id` taşıdığı
@@ -512,11 +513,11 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
         }
       }}
     >
-      <DialogTrigger render={<Button size="sm">Promote</Button>} />
+      <DialogTrigger render={<Button size="sm">Terfi ettir</Button>} />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Observation&apos;ı Claim&apos;e yükselt</DialogTitle>
-          <DialogDescription>Bu gözlemi bir claim&apos;e yükseltir. Kaynak zorunlu; entity bağı kurulmazsa Memory Recall bu claim&apos;i bulamaz.</DialogDescription>
+          <DialogTitle>Gözlemi iddiaya terfi ettir</DialogTitle>
+          <DialogDescription>Bu gözlemi bir iddiaya terfi ettirir. Kaynak zorunlu; varlık bağı kurulmazsa hafıza sorgusu bu iddiayı bulamaz.</DialogDescription>
         </DialogHeader>
 
         {result ? (
@@ -545,10 +546,10 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               <SearchablePicker id="page-kaynak-1" items={sourceItems} value={sourceId} onChange={setSourceId} placeholder="Kaynak ara…" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="page-ilgili-entity-event-1">İlgili entity/event</Label>
+              <Label htmlFor="page-ilgili-entity-event-1">İlgili varlık/olay</Label>
               <Select
                 value={aboutType}
-                items={{ none: "Yok", entity: "Entity", event: "Event" }}
+                items={{ none: "Yok", entity: "Varlık", event: "Olay" }}
                 onValueChange={(v) => {
                   if (!v) return;
                   setAboutType(v as "none" | "entity" | "event");
@@ -560,8 +561,8 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Yok</SelectItem>
-                  <SelectItem value="entity">Entity</SelectItem>
-                  <SelectItem value="event">Event</SelectItem>
+                  <SelectItem value="entity">Varlık</SelectItem>
+                  <SelectItem value="event">Olay</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -571,22 +572,21 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
                 value={aboutId}
                 onChange={setAboutId}
                 placeholder="Ara…"
-                aria-label={aboutType === "entity" ? "İlgili entity" : "İlgili event"}
+                aria-label={aboutType === "entity" ? "İlgili varlık" : "İlgili olay"}
               />
             )}
             {(aboutType === "none" || !aboutId) && (
               <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
-                <span className="font-medium text-foreground">Bağlanmazsa bu claim yalıtık kalır.</span>{" "}
-                Memory Recall onu bulamaz, entity sayfasında ve Obsidian vault notunda görünmez.
-                Bağ sonradan entity sayfasındaki &ldquo;Mevcut claim&apos;i bağla&rdquo; ile de kurulabilir.
+                <span className="font-medium text-foreground">Bağlanmazsa bu iddia yalıtık kalır.</span>{" "}
+                Hafıza sorgusu onu bulamaz, varlık sayfasında ve Obsidian kasası notunda görünmez. Bağ sonradan varlık sayfasındaki &ldquo;Mevcut iddiayı bağla&rdquo; ile de kurulabilir.
               </p>
             )}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="page-destekleyici-kanit-opsiyonel-2">Destekleyici kanıt (opsiyonel)</Label>
+              <Label htmlFor="page-destekleyici-kanit-opsiyonel-2">Destekleyici kanıt (isteğe bağlı)</Label>
               <SearchablePicker id="page-destekleyici-kanit-opsiyonel-2" items={evidenceItems} value={evidenceIds} onChange={setEvidenceIds} multiple placeholder="Kanıt ara…" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="page-c-elis-en-kanit-opsiyonel-3">Çelişen kanıt (opsiyonel)</Label>
+              <Label htmlFor="page-c-elis-en-kanit-opsiyonel-3">Çelişen kanıt (isteğe bağlı)</Label>
               <SearchablePicker
                 id="page-c-elis-en-kanit-opsiyonel-3"
                 items={evidenceItems}
@@ -597,26 +597,26 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="page-dog-ruladig-i-claimler-opsiy-4">Doğruladığı claim&apos;ler (opsiyonel)</Label>
-              <SearchablePicker id="page-dog-ruladig-i-claimler-opsiy-4" items={claimItems} value={corroborates} onChange={setCorroborates} multiple placeholder="Claim ara…" />
+              <Label htmlFor="page-dog-ruladig-i-claimler-opsiy-4">Doğruladığı iddialar (isteğe bağlı)</Label>
+              <SearchablePicker id="page-dog-ruladig-i-claimler-opsiy-4" items={claimItems} value={corroborates} onChange={setCorroborates} multiple placeholder="İddia ara…" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="page-c-elis-tig-i-claimler-opsiyo-5">Çeliştiği claim&apos;ler (opsiyonel)</Label>
-              <SearchablePicker id="page-c-elis-tig-i-claimler-opsiyo-5" items={claimItems} value={contradicts} onChange={setContradicts} multiple placeholder="Claim ara…" />
+              <Label htmlFor="page-c-elis-tig-i-claimler-opsiyo-5">Çeliştiği iddialar (isteğe bağlı)</Label>
+              <SearchablePicker id="page-c-elis-tig-i-claimler-opsiyo-5" items={claimItems} value={contradicts} onChange={setContradicts} multiple placeholder="İddia ara…" />
               {contradicts.length > 0 && (
                 <p className="text-xs leading-relaxed text-text-tertiary">
-                  Her iki claim de <span className="font-medium text-foreground">CONTRADICTED</span> durumuna geçer
+                  Her iki iddia da <span className="font-medium text-foreground">CONTRADICTED</span> durumuna geçer
                   ve çelişki <span className="font-medium text-foreground">UNRESOLVED</span> olarak kaydedilir —
                   eski bilgi silinmez.
                 </p>
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="page-yerini-aldig-i-claim-opsiyon-6">Yerini aldığı claim (opsiyonel)</Label>
-              <SearchablePicker id="page-yerini-aldig-i-claim-opsiyon-6" items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="Claim ara…" />
+              <Label htmlFor="page-yerini-aldig-i-claim-opsiyon-6">Yerini aldığı iddia (isteğe bağlı)</Label>
+              <SearchablePicker id="page-yerini-aldig-i-claim-opsiyon-6" items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="İddia ara…" />
               {supersedes && (
                 <p className="text-xs leading-relaxed text-text-tertiary">
-                  Eski claim silinmez; <span className="font-medium text-foreground">valid_to</span> alanı kapatılır.
+                  Eski iddia silinmez; <span className="font-medium text-foreground">valid_to</span> alanı kapatılır.
                 </p>
               )}
             </div>
@@ -629,7 +629,7 @@ function PromoteDialog({ observation, onPromoted }: { observation: Observation; 
             <Button onClick={() => setOpen(false)}>Kapat</Button>
           ) : (
             <Button onClick={submit} disabled={submitting || !sourceId}>
-              {submitting ? "Yükseltiliyor…" : "Promote et"}
+              {submitting ? "Terfi ettiriliyor…" : "Terfi ettir"}
             </Button>
           )}
         </DialogFooter>

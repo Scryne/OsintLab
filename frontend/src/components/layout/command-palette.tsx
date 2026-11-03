@@ -78,7 +78,7 @@ export function CommandPalette() {
         href: selectorHref(det.id),
         title: det.value,
         subtitle: `${det.label} — ${det.exists ? "grafta var, aç" : "yeni seçici olarak ekle ve aç"}`,
-        group: "Pivotla",
+        group: "Çapraz sorgula",
         action: det.exists
           ? undefined
           : async () => {
@@ -126,7 +126,7 @@ export function CommandPalette() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent showCloseButton={false} className="top-[15%] translate-y-0 gap-0 p-0 sm:max-w-xl" initialFocus={inputRef}>
-        <DialogTitle className="sr-only">Ara ya da pivotla</DialogTitle>
+        <DialogTitle className="sr-only">Ara ya da çapraz sorgula</DialogTitle>
         <div className="flex items-center gap-2 border-b border-border px-3">
           {loading ? <Loader2 aria-hidden className="h-4 w-4 animate-spin text-text-tertiary" /> : <Search aria-hidden className="h-4 w-4 text-text-tertiary" />}
           <input
@@ -135,7 +135,7 @@ export function CommandPalette() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onInputKey}
             placeholder="Ara ya da bir değer yapıştır: alan adı, IP, hash, CVE, kurum adı…"
-            aria-label="Ara ya da pivotla"
+            aria-label="Ara ya da çapraz sorgula"
             aria-controls="palette-results"
             aria-activedescendant={rows[active] ? `palette-${active}` : undefined}
             className="h-12 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-text-tertiary"
@@ -147,7 +147,7 @@ export function CommandPalette() {
         <ul id="palette-results" role="listbox" className="max-h-[55vh] overflow-y-auto p-1.5">
           {!q.trim() && (
             <li className="px-3 py-6 text-center text-xs text-text-tertiary">
-              Ctrl+K ya da / ile her sayfadan açılır. Defang&apos;li değerler (hxxp, [.]) de tanınır.
+              Ctrl+K ya da / ile her sayfadan açılır. Zararsızlaştırılmış (defang) değerler (hxxp, [.]) de tanınır.
             </li>
           )}
           {q.trim() && !loading && rows.length === 0 && result && (
@@ -171,13 +171,13 @@ export function CommandPalette() {
                     i === active ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
                   )}
                 >
-                  {row.group === "Pivotla" ? (
+                  {row.group === "Çapraz sorgula" ? (
                     <Crosshair aria-hidden className="h-4 w-4 shrink-0 text-brand-accent-text" />
                   ) : (
                     <ArrowRight aria-hidden className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className={cn("block truncate text-sm text-foreground", (row.group === "Pivotla" || row.group === "Seçiciler") && "font-mono text-xs")}>
+                    <span className={cn("block truncate text-sm text-foreground", (row.group === "Çapraz sorgula" || row.group === "Seçiciler") && "font-mono text-xs")}>
                       {row.title}
                     </span>
                     {row.subtitle && <span className="block truncate text-[11px] text-text-tertiary">{row.subtitle}</span>}
@@ -202,7 +202,7 @@ export function CommandPaletteHint() {
       className="mb-3 flex w-full items-center gap-2 rounded-md border border-border bg-white/[0.03] px-2.5 py-1.5 text-xs text-text-tertiary hover:border-white/20 hover:text-text-secondary"
     >
       <Search aria-hidden className="h-3.5 w-3.5" />
-      Ara / pivotla
+      Ara / çapraz sorgula
       <kbd className="ml-auto rounded border border-border px-1 font-mono text-[10px]">Ctrl K</kbd>
     </button>
   );

@@ -24,6 +24,7 @@ import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { ProvenanceBlock } from "@/components/provenance/provenance-label";
 import { SingleSourceNote } from "@/components/provenance/single-source-note";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel } from "@/lib/labels";
 
 const PROMOTION_THRESHOLD = 0.45;
 
@@ -61,7 +62,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
   }
 
   const sourceItems = (sources ?? []).map((s) => ({ id: s.id, label: s.name, sublabel: s.source_type }));
-  const entityItems = (entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }));
+  const entityItems = (entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: entityTypeLabel(e.entity_type) }));
 
   async function submit() {
     if (!sourceId) return;
@@ -79,8 +80,8 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
       // okununca sistemin çalışmadığı izlenimini veriyordu.
       toast(
         res.claim.confidence >= PROMOTION_THRESHOLD
-          ? "Claim'e yükseltildi"
-          : "Claim üretildi (REPORTED) — tek kaynak, doğrulanmayı bekliyor",
+          ? "İddiaya terfi ettirildi"
+          : "İddia üretildi (Bildirildi) — tek kaynak, doğrulanmayı bekliyor",
         "success"
       );
       // Liste kapanışta tazeleniyor, şimdi değil: gözlem kuyruktan düştüğü an bu satır (ve
@@ -107,14 +108,14 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
         render={
           <Button size="sm" variant={item.suggested_source_id ? "default" : "outline"}>
             <Zap aria-hidden className="h-4 w-4" />
-            Hızlı promote
+            Hızlı terfi
           </Button>
         }
       />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Hızlı promote</DialogTitle>
-          <DialogDescription>Tek bir gözlemi claim&apos;e yükseltir. Kaynak ve entity önerilir; onaylamadan önce kontrol et.</DialogDescription>
+          <DialogTitle>Hızlı terfi</DialogTitle>
+          <DialogDescription>Tek bir gözlemi iddiaya terfi ettirir. Kaynak ve varlık önerilir; onaylamadan önce kontrol et.</DialogDescription>
         </DialogHeader>
 
         {result ? (
@@ -146,7 +147,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
                 görünmesi şart, ama sınır içinde ve talimat olarak değil. */}
             <div className="rounded-lg border border-border bg-black/20 p-3">
               <p className="mb-1 text-[11px] uppercase tracking-wide text-text-tertiary">
-                Claim metni olacak
+                İddia metni olacak
               </p>
               <p className="max-h-32 overflow-y-auto whitespace-pre-wrap text-sm text-text-secondary">
                 {item.raw_content}
@@ -182,7 +183,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="quick-promote-entity">
-                İlgili entity
+                İlgili varlık
                 {item.suggested_entity_id === entityId && entityId && (
                   <span className="ml-1.5 text-xs font-normal text-text-tertiary">
                     · metinde adı geçtiği için önerildi
@@ -194,18 +195,18 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
                 items={entityItems}
                 value={entityId}
                 onChange={setEntityId}
-                placeholder="Entity ara…"
+                placeholder="Varlık ara…"
               />
               {!entityId && (
                 <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
-                  <span className="font-medium text-foreground">Bağlanmazsa bu claim yalıtık kalır.</span>{" "}
-                  Memory Recall onu bulamaz, entity sayfasında ve Obsidian vault notunda görünmez.
+                  <span className="font-medium text-foreground">Bağlanmazsa bu iddia yalıtık kalır.</span>{" "}
+                  hafıza sorgusu onu bulamaz, varlık sayfasında ve Obsidian kasası notunda görünmez.
                 </p>
               )}
             </div>
 
             <p className="text-xs leading-relaxed text-text-tertiary">
-              Kanıt bağı, çelişki, supersede ve event bağlantısı bu kısa yolda yok — onlar için{" "}
+              Kanıt bağı, çelişki, yerine geçme ve olay bağlantısı bu kısa yolda yok — onlar için{" "}
               <Link
                 href="/observations"
                 className="underline decoration-white/20 underline-offset-2 hover:text-foreground"
@@ -224,7 +225,7 @@ export function QuickPromoteDialog({ item, onPromoted }: { item: QueueItem; onPr
             <Button onClick={() => setOpen(false)}>Kapat</Button>
           ) : (
             <Button onClick={submit} disabled={submitting || !sourceId}>
-              {submitting ? "Yükseltiliyor…" : "Promote et"}
+              {submitting ? "Terfi ettiriliyor…" : "Terfi ettir"}
             </Button>
           )}
         </DialogFooter>

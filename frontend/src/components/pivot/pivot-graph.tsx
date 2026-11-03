@@ -9,6 +9,7 @@ import { KIND_LABELS, selectorHref, type SelectorKind } from "@/lib/types-pivot"
 import { ForceGraph } from "@/components/graph/force-graph";
 import { EmptyState, ErrorState } from "@/components/ui/state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { entityTypeLabel } from "@/lib/labels";
 
 /** Faz 31 — seçicinin pivot komşuluğu. Mevcut graf bileşeni yeniden kullanılıyor: seçici daire,
  * bağlı entity kare; zenginleştirmenin kurduğu pivot düz çizgi, kullanıcının kurduğu "bu
@@ -28,7 +29,7 @@ export function PivotGraphView({ selectorId }: { selectorId: string }) {
       id: n.id,
       kind: n.type === "entity" ? "event" : "entity",
       label: n.value.length > 34 ? `${n.value.slice(0, 32)}…` : n.value,
-      entity_type: n.type === "entity" ? (n.entity_type ?? "Entity") : KIND_LABELS[n.kind as SelectorKind],
+      entity_type: n.type === "entity" ? entityTypeLabel(n.entity_type ?? "Entity") : KIND_LABELS[n.kind as SelectorKind],
       degree: degree.get(n.id) ?? 0,
       knowledge_state: null,
       confidence: null,
@@ -49,7 +50,7 @@ export function PivotGraphView({ selectorId }: { selectorId: string }) {
   if (!data || data.nodes.length <= 1) {
     return (
       <EmptyState
-        title="Henüz pivot yok"
+        title="Henüz bağlantı yok"
         description="Zenginleştirme modülleri (DNS, sertifika, RDAP, InternetDB…) çalıştıkça bu seçiciden diğerlerine giden bağlar burada belirir."
       />
     );

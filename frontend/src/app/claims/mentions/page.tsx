@@ -13,6 +13,7 @@ import { EmptyState, ErrorState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { ConfidenceBadge } from "@/components/provenance/confidence";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel } from "@/lib/labels";
 
 type Decision = { claim_id: string; entity_id: string; action: "CONFIRM" | "REJECT"; matched_on: string };
 
@@ -89,9 +90,8 @@ export default function MentionsPage() {
           Bağ Adayları
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Bir claim yalnızca tek bir şey <em>hakkında</em> olabilir, ama birden çok şeye
-          <em> değebilir</em>. Aşağıdaki adaylar claim metninde adı geçen entity&apos;ler.
-          Onaylananlar o entity&apos;nin sayfasında ve vault notunda görünür — ama iddianın
+          Bir iddia yalnızca tek bir şey <em>hakkında</em> olabilir, ama birden çok şeye
+          <em> değebilir</em>. Aşağıdaki adaylar iddia metninde adı geçen varlıklar. Onaylananlar o varlığın sayfasında ve vault notunda görünür — ama iddianın
           öznesi olarak değil, adı geçen kayıt olarak.
         </p>
       </header>
@@ -145,7 +145,7 @@ export default function MentionsPage() {
       {!loading && !error && pairCount === 0 && (
         <EmptyState
           title="Bekleyen bağ adayı yok"
-          description="Liste eritilmiş. Yeni claim'ler eklendikçe ya da yeni entity onaylandıkça yeni adaylar burada belirir."
+          description="Liste eritilmiş. Yeni iddialar eklendikçe ya da yeni varlıklar onaylandıkça yeni adaylar burada belirir."
         />
       )}
 
@@ -217,7 +217,7 @@ function ClaimGroup({
               <Link href={`/entities/${c.entity_id}`} className="text-sm text-foreground hover:underline">
                 {c.name}
               </Link>
-              <Badge variant="outline">{c.entity_type}</Badge>
+              <Badge variant="outline">{entityTypeLabel(c.entity_type)}</Badge>
               {/* Eşleşme adın kendisi olmayabilir: Faz 20'de kurulan alias'lar üzerinden de
                   gelebilir ("GPT-6 Astra" → Astra). Hangisi olduğu söylenmezse öneri
                   denetlenemez hale gelir. */}

@@ -45,7 +45,7 @@ def search(q: str = Query(..., min_length=1, max_length=500)) -> dict:
     entities = fetch_all(conn.execute(
         "MATCH (e:Entity) RETURN e.id AS id, e.name AS name, e.entity_type AS type, e.aliases AS aliases"
     ))
-    group("entities", "Entity'ler", [
+    group("entities", "Varlıklar", [
         {"id": e["id"], "title": e["name"], "subtitle": e["type"], "href": f"/entities/{e['id']}"}
         for e in entities
         if needle in _norm(e["name"]) or any(needle in _norm(a) for a in (e["aliases"] or []))
@@ -67,7 +67,7 @@ def search(q: str = Query(..., min_length=1, max_length=500)) -> dict:
     invs = fetch_all(conn.execute(
         "MATCH (i:Investigation) RETURN i.id AS id, i.title AS title, i.research_question AS question, i.status AS status"
     ))
-    group("investigations", "Investigation'lar", [
+    group("investigations", "Soruşturmalar", [
         {"id": i["id"], "title": i["title"], "subtitle": i["status"], "href": f"/investigations/{i['id']}"}
         for i in invs if needle in _norm(i["title"]) or needle in _norm(i["question"])
     ])
@@ -91,5 +91,5 @@ def search(q: str = Query(..., min_length=1, max_length=500)) -> dict:
         snippet = ("…" if start else "") + " ".join(text[start:pos + len(needle) + 80].split()) + "…"
         hits.append({"id": c["id"], "title": snippet, "subtitle": STATE_LABELS.get(c["state"], c["state"]),
                      "href": f"/claims/view?id={c['id']}"})
-    group("claims", "Claim'ler", hits)
+    group("claims", "İddialar", hits)
     return out

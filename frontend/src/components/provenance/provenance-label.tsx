@@ -13,21 +13,21 @@ const CONFIG: Record<
   ProvenanceLabel,
   { label: string; icon: typeof Quote; border: string; italic: boolean; tint?: string }
 > = {
-  SOURCE_FACT: { label: "SOURCE FACT", icon: Quote, border: "border-l-2 border-solid border-text-secondary", italic: false },
+  SOURCE_FACT: { label: "KAYNAK OLGUSU", icon: Quote, border: "border-l-2 border-solid border-text-secondary", italic: false },
   SYSTEM_INFERENCE: {
-    label: "SYSTEM INFERENCE",
+    label: "SİSTEM ÇIKARIMI",
     icon: GitBranch,
     border: "border-l-2 border-dashed border-text-secondary",
     italic: false,
   },
   AI_ANALYSIS: {
-    label: "AI ANALYSIS",
+    label: "YZ ANALİZİ",
     icon: Sparkles,
     border: "border-l-2 border-dotted border-text-secondary",
     italic: true,
   },
   USER_INTERPRETATION: {
-    label: "USER INTERPRETATION",
+    label: "KULLANICI YORUMU",
     icon: Pencil,
     border: "border-l-2 border-solid border-brand-accent",
     italic: false,

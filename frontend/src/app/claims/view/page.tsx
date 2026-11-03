@@ -13,6 +13,7 @@ import { SelectorChip } from "@/components/pivot/selector-chip";
 import { EnrichmentPanel } from "@/components/pivot/enrichment-panel";
 import { EmptyState, ErrorState } from "@/components/ui/state";
 import { SkeletonDetail } from "@/components/ui/skeleton";
+import { entityTypeLabel } from "@/lib/labels";
 
 /** Faz 33 — claim ayrıntısı.
  *
@@ -37,7 +38,7 @@ function ClaimView() {
   const { data: grade } = useApi(() => (id ? api.selectors.claimGrade(id).catch(() => null) : Promise.resolve(null)), [id, claim?.knowledge_state]);
   const { data: archive } = useApi(() => (id ? api.archive.forClaim(id).catch(() => null) : Promise.resolve(null)), [id]);
 
-  if (!id) return <EmptyState title="Claim belirtilmedi" />;
+  if (!id) return <EmptyState title="İddia belirtilmedi" />;
   if (loading) return <div className="mx-auto max-w-4xl"><SkeletonDetail /></div>;
   if (error) return <div className="mx-auto max-w-4xl"><ErrorState error={error} onRetry={reload} /></div>;
   if (!claim) return null;
@@ -57,7 +58,7 @@ function ClaimView() {
           )}
           {claim.superseded_by_claim_id && (
             <Link href={`/claims/view?id=${claim.superseded_by_claim_id}`} className="text-xs text-priority-medium-text hover:underline">
-              Daha yeni bir claim bunun yerini aldı →
+              Daha yeni bir iddia bunun yerini aldı →
             </Link>
           )}
         </div>
@@ -73,7 +74,7 @@ function ClaimView() {
           )}
           {claim.about_entity_id && (
             <Link href={`/entities/${claim.about_entity_id}`} className="inline-flex items-center gap-1.5 hover:text-foreground">
-              <Network aria-hidden className="h-3.5 w-3.5" /> özne: entity
+              <Network aria-hidden className="h-3.5 w-3.5" /> özne: varlık
             </Link>
           )}
           {claim.about_event_id && (
@@ -96,8 +97,7 @@ function ClaimView() {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Bu iddiayı başka kim söylüyor?</h2>
         <p className="text-xs text-pretty text-text-secondary">
-          Haber araması iddianın başlığıyla yapılır. Bağımsız bir yayıncının haberini gözleme çevir: Promote Kuyruğu ve
-          Doğrulama ekranı onu bu claim&apos;in olası doğrulayıcısı olarak önerir.
+          Haber araması iddianın başlığıyla yapılır. Bağımsız bir yayıncının haberini gözleme çevir: Terfi Kuyruğu ve Doğrulama ekranı onu bu iddianın olası doğrulayıcısı olarak önerir.
         </p>
         <EnrichmentPanel targetId={`claim:${claim.id}`} />
       </section>
@@ -108,7 +108,7 @@ function ClaimView() {
           <div className="flex flex-wrap gap-1.5">
             {mentions.map((m) => (
               <Link key={m.entity_id} href={`/entities/${m.entity_id}`} className="rounded-md border border-border bg-surface px-2 py-1 text-sm hover:border-white/25">
-                {m.name} <span className="text-xs text-text-tertiary">{m.entity_type}</span>
+                {m.name} <span className="text-xs text-text-tertiary">{entityTypeLabel(m.entity_type)}</span>
               </Link>
             ))}
           </div>
@@ -124,7 +124,7 @@ function ClaimView() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-text-tertiary">Bu claim&apos;in kaynak metninde makine-okunur gösterge yok.</p>
+          <p className="text-sm text-text-tertiary">Bu iddianın kaynak metninde makine tarafından okunabilir gösterge yok.</p>
         )}
       </section>
 

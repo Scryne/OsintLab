@@ -56,7 +56,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
       if (monitor) {
         await api.monitors.delete(monitor.id);
         setMonitor(null);
-        toast("İzleme kapatıldı — bu kaynağın taramaları artık Inbox'a düşmez", "default");
+        toast("İzleme kapatıldı — bu kaynağın taramaları artık Gelen Kutusu'na düşmez", "default");
       } else {
         const created = await api.monitors.create({ target_type: "Source", target_id: sourceId });
         setMonitor(created);
@@ -91,9 +91,9 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
             {/* Lineage bilinmeden "Bağımsız kaynak" demek yanlış bir provenance beyanıydı:
                 yüklenirken ve istek başarısızken başlık kaynağı bağımsız gösteriyordu. */}
             {lineageLoading ? (
-              <span className="text-text-tertiary">Lineage yükleniyor…</span>
+              <span className="text-text-tertiary">Köken yükleniyor…</span>
             ) : lineageError ? (
-              <span className="text-priority-high-text">Lineage okunamadı — bağımsızlık bilinmiyor</span>
+              <span className="text-priority-high-text">Köken okunamadı — bağımsızlık bilinmiyor</span>
             ) : isDerived ? (
               <span className="text-priority-medium-text">Türetilmiş kaynak ({ancestors.length} üst kaynak)</span>
             ) : (
@@ -135,9 +135,9 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
       <Tabs defaultValue="claims">
         <div className="overflow-x-auto">
           <TabsList className="w-max">
-            <TabsTrigger value="lineage">Lineage ({ancestors.length + descendants.length})</TabsTrigger>
-            <TabsTrigger value="claims">Claim&apos;ler ({claims ? claims.length : "…"})</TabsTrigger>
-            <TabsTrigger value="scans">Otomatik Tarama</TabsTrigger>
+            <TabsTrigger value="lineage">Köken ({ancestors.length + descendants.length})</TabsTrigger>
+            <TabsTrigger value="claims">İddialar ({claims ? claims.length : "…"})</TabsTrigger>
+            <TabsTrigger value="scans">Otomatik tarama</TabsTrigger>
           </TabsList>
         </div>
 
@@ -167,7 +167,7 @@ export function SourceDetail({ sourceId }: { sourceId: string }) {
           />
           {monitor === null && (
             <p className="mt-3 text-xs text-priority-medium-text">
-              Bu kaynak izlenmiyor — taramalar çalışsa bile Inbox&apos;a hiçbir şey düşmez. Yukarıdaki
+              Bu kaynak izlenmiyor — taramalar çalışsa bile Gelen Kutusu&apos;na hiçbir şey düşmez. Yukarıdaki
               &quot;İzlemeye al&quot; ile açabilirsin.
             </p>
           )}
@@ -201,7 +201,7 @@ function LineagePanel({
     return (
       <EmptyState
         title="Bilinen bir türetme ilişkisi yok"
-        description="Bu kaynak şu an bağımsız sayılıyor: attığı claim'ler confidence hesabında tam independence puanı alıyor. Bir haberin başka bir kaynaktan alındığını fark edersen yukarıdaki Lineage butonuyla bağla."
+        description="Bu kaynak şu an bağımsız sayılıyor: attığı iddialar güven hesabında tam bağımsızlık puanı alıyor. Bir haberin başka bir kaynaktan alındığını fark edersen yukarıdaki Köken düğmesiyle bağla."
       />
     );
   }
@@ -252,8 +252,7 @@ function LineagePanel({
 
       <p className="text-xs text-text-tertiary">
         Türetilmiş kaynaklar birbirini <strong className="text-text-secondary">bağımsız olarak
-        doğrulamaz</strong>: aynı köke dayanan iki haber, confidence formülündeki independence
-        terimini yükseltmez (Q4/Faz 6).
+        doğrulamaz</strong>: aynı köke dayanan iki haber, güven formülündeki bağımsızlık terimini yükseltmez (Q4/Faz 6).
       </p>
     </div>
   );
@@ -321,8 +320,8 @@ function ClaimsPanel({
   if (claims.length === 0) {
     return (
       <EmptyState
-        title="Bu kaynak henüz bir claim atfetmedi"
-        description="Bir gözlemi promote ettiğinde ya da elle claim eklediğinde burada görünür."
+        title="Bu kaynak henüz bir iddiaya kaynaklık etmedi"
+        description="Bir gözlemi terfi ettirdiğinde ya da elle iddia eklediğinde burada görünür."
       />
     );
   }
@@ -343,7 +342,7 @@ function ClaimsPanel({
                 state={claim.knowledge_state as never}
                 confidence={claim.confidence}
               />
-              {superseded && <Badge variant="secondary">yerini aldı: daha yeni bir claim</Badge>}
+              {superseded && <Badge variant="secondary">yerini aldı: daha yeni bir iddia</Badge>}
               {!claim.about_entity_id && !claim.about_event_id && (
                 <Badge variant="secondary" className="text-priority-medium-text">
                   hiçbir şeye bağlı değil

@@ -27,7 +27,7 @@ export default function CollectorsPage() {
     setAdding(true);
     try {
       await api.collectors.addAllowlist(hostname.trim());
-      toast(`${hostname.trim()} allowlist'e eklendi`, "success");
+      toast(`${hostname.trim()} izin listesine eklendi`, "success");
       setHostname("");
       reload();
     } catch (err) {
@@ -53,19 +53,19 @@ export default function CollectorsPage() {
       <div>
         <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Toplayıcılar</h1>
         <p className="text-sm text-text-secondary">
-          Allowlist&apos;teki hostname&apos;lerden RSS/web sayfası tara — sonuçlar Gözlem olarak sisteme düşer.
+          İzin listesindeki sunucu adlarından RSS/web sayfası tara — sonuçlar gözlem olarak sisteme düşer.
           Bir kaynağı zamanlanmış taramaya alırsan bunu senin yerine arka plan yapar.
         </p>
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Allowlist</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">İzin listesi</h2>
         <div className="flex gap-2">
           <Input
             value={hostname}
             onChange={(e) => setHostname(e.target.value)}
             placeholder="ör. feeds.bbci.co.uk"
-            aria-label="Allowlist'e eklenecek hostname"
+            aria-label="İzin listesine eklenecek sunucu adı"
             onKeyDown={(e) => e.key === "Enter" && addHostname()}
           />
           <Button onClick={addHostname} disabled={adding || !hostname.trim()}>
@@ -83,8 +83,8 @@ export default function CollectorsPage() {
         {error && <ErrorState error={error} onRetry={reload} />}
         {!loading && !error && (!allowlist || allowlist.hostnames.length === 0) && (
           <EmptyState
-              title="Allowlist boş"
-              description="Toplama yapılabilmesi için en az bir alan adı eklenmeli — allowlist dışındaki adresler reddedilir. Taramak istediğin bir hostname ekle."
+              title="İzin listesi boş"
+              description="Toplama yapılabilmesi için en az bir alan adı eklenmeli — izin listesi dışındaki adresler reddedilir. Taramak istediğin bir sunucu adı ekle."
             />
         )}
         <div className="flex flex-wrap gap-1.5">
@@ -103,7 +103,7 @@ export default function CollectorsPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Tek Seferlik Tarama</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-text-tertiary">Tek seferlik tarama</h2>
         <FetchForm hostnames={allowlist?.hostnames ?? []} />
       </section>
 
@@ -142,25 +142,25 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
       {hostnames.length === 0 && (
-        <p className="text-xs text-text-tertiary">Önce yukarıdan bir hostname allowlist&apos;e ekle.</p>
+        <p className="text-xs text-text-tertiary">Önce yukarıdan bir sunucu adını izin listesine ekle.</p>
       )}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="collector-url">URL</Label>
         <Input id="collector-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={mode === "telegram" ? "@kanal ya da https://t.me/s/kanal" : "https://…"} />
         {mode === "telegram" && (
           <p className="text-xs text-text-tertiary">
-            Yalnızca önizlemesi açık herkese açık kanallar (son ~20 mesaj). Allowlist&apos;te <span className="font-mono">t.me</span> olmalı.
+            Yalnızca önizlemesi açık herkese açık kanallar (son ~20 mesaj). İzin listesinde <span className="font-mono">t.me</span> olmalı.
           </p>
         )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="page-mod-1">Mod</Label>
-        <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası", telegram: "Telegram kanalı (herkese açık)" }} onValueChange={(v) => v && setMode(v as "rss" | "web" | "telegram")}>
+        <Select value={mode} items={{ rss: "RSS beslemesi", web: "Tek web sayfası", telegram: "Telegram kanalı (herkese açık)" }} onValueChange={(v) => v && setMode(v as "rss" | "web" | "telegram")}>
           <SelectTrigger id="page-mod-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="rss">RSS feed</SelectItem>
+            <SelectItem value="rss">RSS beslemesi</SelectItem>
             <SelectItem value="web">Tek web sayfası</SelectItem>
                 <SelectItem value="telegram">Telegram kanalı (herkese açık)</SelectItem>
           </SelectContent>
@@ -178,7 +178,7 @@ function FetchForm({ hostnames }: { hostnames: string[] }) {
               value={limit}
               onChange={(e) => setLimit(e.target.value)}
             />
-            <p className="text-xs text-text-tertiary">En yeniden başlayarak. Bazı feed&apos;ler tüm arşivi yayınlar.</p>
+            <p className="text-xs text-text-tertiary">En yeniden başlayarak. Bazı beslemeler tüm arşivi yayınlar.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="collector-since">Son kaç gün</Label>

@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { SearchablePicker } from "@/components/forms/searchable-picker";
 import { EmptyState } from "@/components/ui/state";
 import { useToast } from "@/components/ui/toast";
+import { entityTypeLabel } from "@/lib/labels";
 
 /**
  * Bir investigation'ın kapsamı: hangi entity/event'leri kapsıyor (Faz 11 tarama bulgusu F35).
@@ -80,14 +81,14 @@ export function InvestigationScope({
       {entities.length === 0 && events.length === 0 ? (
         <EmptyState
           title="Kapsam boş"
-          description="Bu investigation'ın hangi entity ve event'leri incelediğini buradan tanımla."
+          description="Bu soruşturmanın hangi varlık ve olayları incelediğini buradan tanımla."
         />
       ) : (
         <div className="flex flex-col gap-2">
           {entities.map((e) => (
             <div key={e.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
               <p className="min-w-0 text-sm text-foreground">
-                {e.name} <span className="text-xs text-text-tertiary">· {e.entity_type}</span>
+                {e.name} <span className="text-xs text-text-tertiary">· {entityTypeLabel(e.entity_type)}</span>
               </p>
               {!readOnly && (
                 <Button
@@ -111,7 +112,7 @@ export function InvestigationScope({
                 <Button
                   size="sm"
                   variant="ghost"
-                  aria-label={`${ev.title} event'ini kapsamdan çıkar`}
+                  aria-label={`${ev.title} olayını kapsamdan çıkar`}
                   disabled={busy === ev.id}
                   onClick={() => remove("event", ev.id)}
                 >
@@ -152,7 +153,7 @@ function ScopeAddDialog({
 
   const items = useMemo(() => {
     if (kind === "entity") {
-      return (entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: e.entity_type }));
+      return (entities ?? []).map((e) => ({ id: e.id, label: e.name, sublabel: entityTypeLabel(e.entity_type) }));
     }
     return (events ?? []).map((e) => ({ id: e.id, label: e.title, sublabel: e.event_type }));
   }, [entities, events, kind]);
@@ -174,7 +175,7 @@ function ScopeAddDialog({
     }
   }
 
-  const etiket = kind === "entity" ? "Entity" : "Event";
+  const etiket = kind === "entity" ? "Varlık" : "Olay";
 
   return (
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setPickedId(null); }}>
@@ -188,8 +189,8 @@ function ScopeAddDialog({
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Kapsama {etiket.toLowerCase()} ekle</DialogTitle>
-          <DialogDescription>Bu araştırmanın kapsamına bir öğe ekler. Kapsam, hangi claim ve kaynakların araştırmaya ait sayılacağını belirler.</DialogDescription>
+          <DialogTitle>Kapsama {etiket.toLocaleLowerCase("tr")} ekle</DialogTitle>
+          <DialogDescription>Bu soruşturmanın kapsamına bir öğe ekler. Kapsam, hangi iddia ve kaynakların soruşturmaya ait sayılacağını belirler.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="investigation-scope-etiket-1">{etiket}</Label>

@@ -49,7 +49,7 @@ export function QuickPivot() {
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3">
       <label htmlFor="quick-pivot" className="flex items-center gap-2 text-sm font-medium text-foreground">
         <Crosshair aria-hidden className="h-4 w-4 text-text-tertiary" />
-        Pivotla
+        Çapraz sorgula
       </label>
       <div className="flex gap-2">
         <Input
@@ -57,7 +57,7 @@ export function QuickPivot() {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && go()}
-          placeholder="alan adı, IP, URL, hash, CVE-…, T1059, AS13335, BTC/ETH adresi, 41.01, 28.97 — defang'li yazım da olur"
+          placeholder="alan adı, IP, URL, hash, CVE-…, T1059, AS13335, BTC/ETH adresi, 41.01, 28.97 — zararsızlaştırılmış (defang) yazım da olur"
           className="font-mono text-xs"
           autoComplete="off"
           spellCheck={false}

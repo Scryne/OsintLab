@@ -54,7 +54,7 @@ def add_to_allowlist(payload: AllowlistAdd) -> dict:
     hosts = load_allowlist()
     hostname = normalize_hostname(payload.hostname)
     if not hostname:
-        raise HTTPException(status_code=422, detail="Geçerli bir hostname değil")
+        raise HTTPException(status_code=422, detail="Geçerli bir sunucu adı değil")
     hosts.add(hostname)
     save_allowlist(hosts)
     return {"hostnames": sorted(hosts)}
@@ -69,7 +69,7 @@ def remove_from_allowlist(hostname: str) -> None:
     normalized = normalize_hostname(hostname)
     target = normalized if normalized in hosts else hostname
     if target not in hosts:
-        raise HTTPException(status_code=404, detail=f"{normalized or hostname} allowlist'te yok")
+        raise HTTPException(status_code=404, detail=f"{normalized or hostname} izin listesinde yok")
     hosts.discard(target)
     save_allowlist(hosts)
 
@@ -299,7 +299,7 @@ def create_scan_schedule(payload: ScanScheduleCreate) -> ScanSchedule:
         )
     )
     if source is None:
-        raise HTTPException(status_code=404, detail=f"Source not found: {payload.source_id}")
+        raise HTTPException(status_code=404, detail=f"Kaynak bulunamadı: {payload.source_id}")
 
     url = (payload.url or source["url"] or "").strip()
     if payload.mode == "telegram" and url:
@@ -323,8 +323,8 @@ def create_scan_schedule(payload: ScanScheduleCreate) -> ScanSchedule:
         raise HTTPException(
             status_code=403,
             detail=(
-                f"{hostname or url} allowlist'te değil. Zamanlanmış tarama da elle tarama ile "
-                "aynı güvenlik katmanından geçer (Q22) — önce hostname'i allowlist'e ekle."
+                f"{hostname or url} izin listesinde değil. Zamanlanmış tarama da elle tarama ile "
+                "aynı güvenlik katmanından geçer (Q22) — önce sunucu adını izin listesine ekle."
             ),
         )
 
@@ -364,7 +364,7 @@ def list_scan_schedules(active: bool | None = None) -> list[ScanSchedule]:
 def update_scan_schedule(schedule_id: str, payload: ScanScheduleUpdate) -> ScanSchedule:
     conn = get_connection()
     if get_schedule_row(conn, schedule_id) is None:
-        raise HTTPException(status_code=404, detail="Scan schedule not found")
+        raise HTTPException(status_code=404, detail="Tarama planı bulunamadı")
 
     updates = payload.model_dump(exclude_unset=True)
     if not updates:
@@ -405,7 +405,7 @@ def delete_scan_schedule(schedule_id: str) -> None:
     hangi taramadan geldiğini göstermeye devam edebilsin (Q14/audit trail)."""
     conn = get_connection()
     if get_schedule_row(conn, schedule_id) is None:
-        raise HTTPException(status_code=404, detail="Scan schedule not found")
+        raise HTTPException(status_code=404, detail="Tarama planı bulunamadı")
     conn.execute("MATCH (s:ScanSchedule {id: $id}) SET s.active = false", {"id": schedule_id})
 
 
@@ -420,6 +420,6 @@ def run_scan_schedule_now(schedule_id: str) -> dict:
     try:
         return run_schedule(conn, schedule_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Scan schedule not found") from exc
+        raise HTTPException(status_code=404, detail="Tarama planı bulunamadı") from exc
     except ScheduleBusyError as exc:
         raise HTTPException(status_code=409, detail="Bu tarama şu anda zaten çalışıyor") from exc

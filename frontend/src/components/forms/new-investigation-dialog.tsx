@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 
 /**
- * Yeni investigation açar (Faz 11 tarama bulgusu F38).
+ * Yeni soruşturma açar (Faz 11 tarama bulgusu F38).
  *
  * `POST /investigations` backend'de baştan beri vardı; arayüzde ne api metodu ne buton vardı,
  * yani bir investigation UI'dan hiç açılamıyordu. Faz 3 roadmap'te ✅ ama graf'ta 0
@@ -59,14 +59,14 @@ export function NewInvestigationDialog({ onCreated }: { onCreated: () => void })
         render={
           <Button size="sm">
             <Plus aria-hidden className="h-4 w-4" />
-            Yeni investigation
+            Yeni soruşturma
           </Button>
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Yeni investigation aç</DialogTitle>
-          <DialogDescription>Yeni bir araştırma açar. Araştırma sorusu zorunludur — kapsam ve bulgular ona göre değerlendirilir.</DialogDescription>
+          <DialogTitle>Yeni soruşturma aç</DialogTitle>
+          <DialogDescription>Yeni bir soruşturma açar. Araştırma sorusu zorunludur — kapsam ve bulgular ona göre değerlendirilir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -87,8 +87,7 @@ export function NewInvestigationDialog({ onCreated }: { onCreated: () => void })
               placeholder="Cevaplanabilir tek bir soru yaz"
             />
             <p className="text-xs text-text-tertiary">
-              Investigation OPEN olarak başlar; kapanışta yalnızca doğrulanmış finding&apos;ler
-              kalıcı bilgiye yükselir.
+              Soruşturma Açık durumunda başlar; kapanışta yalnızca doğrulanmış bulgular kalıcı bilgiye yükselir.
             </p>
           </div>
           {error && <p className="text-sm text-priority-critical-text">{error}</p>}

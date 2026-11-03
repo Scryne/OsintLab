@@ -114,7 +114,7 @@ def resolve_target(target_id: str) -> Target:
             {"id": target_id[len("entity:"):]},
         ))
         if row is None:
-            raise EnrichmentError("Entity bulunamadı", 404)
+            raise EnrichmentError("Varlık bulunamadı", 404)
         return Target("entity", target_id, "entity", row["name"], row["type"], list(row["aliases"] or []))
     if target_id.startswith("claim:"):
         # Claim hedefi yalnızca haber araması için: "bu iddiayı başka kim söylüyor?" (Faz 28'in
@@ -125,7 +125,7 @@ def resolve_target(target_id: str) -> Target:
             "MATCH (c:Claim {id: $id}) RETURN c.text AS text", {"id": target_id[len("claim:"):]}
         ))
         if row is None:
-            raise EnrichmentError("Claim bulunamadı", 404)
+            raise EnrichmentError("İddia bulunamadı", 404)
         return Target("claim", target_id, "claim", claim_headline(row["text"] or "", limit=160))
     sel = pivot.get_selector(target_id)
     if sel is None:
@@ -392,7 +392,7 @@ def start_bulk(name: str, kind: str, *, only_missing: bool = True, limit: int = 
         raise EnrichmentError(f"Bilinmeyen modül: {name}", 404)
     entity_bulk = module.target == "entity"
     if entity_bulk and kind != "entity":
-        raise EnrichmentError(f"{module.label} kurum (entity) düzeyinde çalışır; tür olarak 'entity' ver.")
+        raise EnrichmentError(f"{module.label} kurum (varlık) düzeyinde çalışır; tür olarak 'entity' ver.")
     if not entity_bulk and kind not in module.kinds:
         raise EnrichmentError(f"{module.label} {KIND_LABELS.get(kind, kind)} türünü zenginleştirmez.")
     if module.opsec == ACTIVE:

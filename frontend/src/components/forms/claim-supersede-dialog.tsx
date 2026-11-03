@@ -28,7 +28,7 @@ import { useToast } from "@/components/ui/toast";
  * tasarım, gerçek araştırma sırasına uymuyor: yeni bilgi çoğu zaman eskisi kaydedildikten
  * sonra çıkıyor, bazen de eskisi sonradan kaydediliyor.
  *
- * Eski claim SİLİNMEZ — yalnızca geçerlilik penceresi (`valid_to`) kapanır, ve kapanış anı
+ * Eski iddia SİLİNMEZ — yalnızca geçerlilik penceresi (`valid_to`) kapanır, ve kapanış anı
  * kayıt zamanı değil yeni claim'in `valid_from`'udur (F44).
  */
 export function ClaimSupersedeDialog({
@@ -67,7 +67,7 @@ export function ClaimSupersedeDialog({
     setError(null);
     try {
       await api.claims.addSupersede(newerId, olderId);
-      toast("Supersede kaydedildi — eski claim arşiv oldu", "success");
+      toast("Yerine geçme kaydedildi — eski iddia arşiv oldu", "success");
       setNewerId(null);
       setOlderId(null);
       setOpen(false);
@@ -95,28 +95,27 @@ export function ClaimSupersedeDialog({
         render={
           <Button size="sm" variant="outline">
             <History aria-hidden className="h-4 w-4" />
-            Supersede
+            Yerine geçme
           </Button>
         }
       />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Bir claim&apos;in yerini aldığını bildir</DialogTitle>
-          <DialogDescription>Yeni bir claim&apos;in eskisinin yerini aldığını bildirir. Eski kayıt silinmez, geçerlilik aralığı kapanır.</DialogDescription>
+          <DialogTitle>Bir iddianın yerini aldığını bildir</DialogTitle>
+          <DialogDescription>Yeni bir iddianın eskisinin yerini aldığını bildirir. Eski kayıt silinmez, geçerlilik aralığı kapanır.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="claim-supersede-dialog-yeni-claim-yerini-alan-1">Yeni claim (yerini alan)</Label>
-            <SearchablePicker id="claim-supersede-dialog-yeni-claim-yerini-alan-1" items={items} value={newerId} onChange={setNewerId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-supersede-dialog-yeni-claim-yerini-alan-1">Yeni iddia (yerini alan)</Label>
+            <SearchablePicker id="claim-supersede-dialog-yeni-claim-yerini-alan-1" items={items} value={newerId} onChange={setNewerId} placeholder="İddia ara…" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="claim-supersede-dialog-eski-claim-yerini-birakan-2">Eski claim (yerini bırakan)</Label>
-            <SearchablePicker id="claim-supersede-dialog-eski-claim-yerini-birakan-2" items={olderItems} value={olderId} onChange={setOlderId} placeholder="Claim ara…" />
+            <Label htmlFor="claim-supersede-dialog-eski-claim-yerini-birakan-2">Eski iddia (yerini bırakan)</Label>
+            <SearchablePicker id="claim-supersede-dialog-eski-claim-yerini-birakan-2" items={olderItems} value={olderId} onChange={setOlderId} placeholder="İddia ara…" />
           </div>
           <p className="rounded-lg border border-priority-high/30 bg-priority-high/5 px-3 py-2 text-xs leading-relaxed text-text-secondary">
-            Eski claim <span className="font-medium text-foreground">silinmez</span> — geçerlilik
-            penceresi kapanır ve arşiv kaydı olarak işaretlenir. Kapanış anı, yeni claim&apos;in
-            geçerli olmaya başladığı tarihtir (kayıt anı değil).
+            Eski iddia <span className="font-medium text-foreground">silinmez</span> — geçerlilik
+            penceresi kapanır ve arşiv kaydı olarak işaretlenir. Kapanış anı, yeni iddianın geçerli olmaya başladığı tarihtir (kayıt anı değil).
           </p>
           {error && <p className="text-sm text-priority-critical-text">{error}</p>}
         </div>

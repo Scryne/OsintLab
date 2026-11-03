@@ -90,8 +90,8 @@ export function ScanSchedules() {
             Zamanlanmış Taramalar
           </h2>
           <p className="mt-0.5 text-xs text-text-tertiary">
-            Kurulan tarama arka planda kendi çalışır — yeni içerik Gözlem&apos;e, izlenen kaynaklarda
-            Inbox&apos;a düşer.
+            Kurulan tarama arka planda kendi çalışır — yeni içerik gözlemlere, izlenen kaynaklarda
+            Gelen Kutusu&apos;na düşer.
           </p>
         </div>
         <Button size="sm" variant={showForm ? "ghost" : "outline"} onClick={() => setShowForm((s) => !s)}>
@@ -175,7 +175,7 @@ function ScheduleRow({
             {schedule.active && !schedule.monitored && (
               <Badge variant="secondary" className="text-priority-medium-text">
                 <BellOff aria-hidden className="h-3 w-3" />
-                Inbox&apos;a düşmez
+                Gelen Kutusu&apos;na düşmez
               </Badge>
             )}
           </div>
@@ -319,20 +319,20 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
           placeholder={selectedSource?.url ? `${selectedSource.url} (kaynağın adresi)` : "https://…/feed/"}
         />
         <p className="text-xs text-text-tertiary">
-          Boş bırakılırsa kaynağın kendi adresi kullanılır. Feed adresi genelde farklıdır (ör.{" "}
-          <span className="font-mono">/feed/</span>). Hostname allowlist&apos;te olmalı.
+          Boş bırakılırsa kaynağın kendi adresi kullanılır. Besleme adresi genelde farklıdır (ör.{" "}
+          <span className="font-mono">/feed/</span>). Sunucu adı izin listesinde olmalı.
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="scan-schedules-mod-1">Mod</Label>
-          <Select value={mode} items={{ rss: "RSS feed", web: "Tek web sayfası", telegram: "Telegram kanalı (herkese açık)" }} onValueChange={(v) => v && setMode(v as "rss" | "web" | "telegram")}>
+          <Select value={mode} items={{ rss: "RSS beslemesi", web: "Tek web sayfası", telegram: "Telegram kanalı (herkese açık)" }} onValueChange={(v) => v && setMode(v as "rss" | "web" | "telegram")}>
             <SelectTrigger id="scan-schedules-mod-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="rss">RSS feed</SelectItem>
+              <SelectItem value="rss">RSS beslemesi</SelectItem>
               <SelectItem value="web">Tek web sayfası</SelectItem>
                 <SelectItem value="telegram">Telegram kanalı (herkese açık)</SelectItem>
             </SelectContent>
@@ -392,7 +392,7 @@ function ScheduleForm({ onCreated }: { onCreated: () => void }) {
         <span>
           Bu kaynağı izlemeye al
           <span className="block text-xs text-text-tertiary">
-            Kapalıysa tarama yine çalışır ama Inbox&apos;a hiçbir şey düşmez — yeni içerikleri
+            Kapalıysa tarama yine çalışır ama Gelen Kutusu&apos;na hiçbir şey düşmez — yeni içerikleri
             Gözlemler sayfasından elle kontrol etmen gerekir.
           </span>
         </span>

@@ -43,8 +43,8 @@ export function EntityIntel({ entityId, name }: { entityId: string; name: string
           </div>
         ) : (
           <EmptyState
-            title="Bu entity'ye bağlı altyapı yok"
-            description="Bir seçicinin sayfasındaki 'Entity bağları' sekmesinden ya da aşağıdaki Wikidata önerisinden bağlayabilirsin."
+            title="Bu varlığa bağlı altyapı yok"
+            description="Bir seçicinin sayfasındaki 'Varlık bağları' sekmesinden ya da aşağıdaki Wikidata önerisinden bağlayabilirsin."
           />
         )}
       </section>

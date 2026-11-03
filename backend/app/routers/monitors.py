@@ -44,12 +44,12 @@ def _row_to_inbox_item(row: dict) -> InboxItem:
 @router.post("/monitors", response_model=Monitor, status_code=201)
 def create_monitor(payload: MonitorCreate) -> Monitor:
     if payload.target_type not in MONITOR_TARGET_TYPES:
-        raise HTTPException(status_code=422, detail=f"target_type must be one of {MONITOR_TARGET_TYPES}")
+        raise HTTPException(status_code=422, detail=f"target_type şunlardan biri olmalı: {MONITOR_TARGET_TYPES}")
     conn = get_connection()
     if fetch_one(conn.execute(
         f"MATCH (t:{payload.target_type} {{id: $id}}) RETURN t.id AS id", {"id": payload.target_id}
     )) is None:
-        raise HTTPException(status_code=404, detail=f"{payload.target_type} not found: {payload.target_id}")
+        raise HTTPException(status_code=404, detail=f"{payload.target_type} bulunamadı: {payload.target_id}")
 
     existing = fetch_one(
         conn.execute(
@@ -90,7 +90,7 @@ def delete_monitor(monitor_id: str) -> None:
     öğeleri hangi Monitor'den geldiğini göstermeye devam edebilsin)."""
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (m:Monitor {id: $id}) RETURN m.id AS id", {"id": monitor_id})) is None:
-        raise HTTPException(status_code=404, detail="Monitor not found")
+        raise HTTPException(status_code=404, detail="İzleme kaydı bulunamadı")
     conn.execute("MATCH (m:Monitor {id: $id}) SET m.active = false", {"id": monitor_id})
     safe_render_vault(conn)
 
@@ -105,9 +105,9 @@ def list_inbox(
     conn = get_connection()
     threshold = min_priority or load_inbox_settings().get("min_priority", "INFO")
     if threshold not in PRIORITY_LEVELS:
-        raise HTTPException(status_code=422, detail=f"min_priority must be one of {PRIORITY_LEVELS}")
+        raise HTTPException(status_code=422, detail=f"min_priority şunlardan biri olmalı: {PRIORITY_LEVELS}")
     if status is not None and status not in INBOX_ITEM_STATUSES:
-        raise HTTPException(status_code=422, detail=f"status must be one of {INBOX_ITEM_STATUSES}")
+        raise HTTPException(status_code=422, detail=f"status şunlardan biri olmalı: {INBOX_ITEM_STATUSES}")
 
     if status is None:
         result = conn.execute(f"MATCH (n:InboxItem) RETURN {_INBOX_FIELDS} ORDER BY n.created_at DESC")
@@ -128,7 +128,7 @@ def get_inbox_settings() -> InboxSettings:
 @router.put("/inbox/settings", response_model=InboxSettings)
 def update_inbox_settings(payload: InboxSettings) -> InboxSettings:
     if payload.min_priority not in PRIORITY_LEVELS:
-        raise HTTPException(status_code=422, detail=f"min_priority must be one of {PRIORITY_LEVELS}")
+        raise HTTPException(status_code=422, detail=f"min_priority şunlardan biri olmalı: {PRIORITY_LEVELS}")
     save_inbox_settings(payload.model_dump())
     return payload
 
@@ -138,10 +138,10 @@ def update_inbox_item(item_id: str, payload: InboxStatusUpdate) -> InboxItem:
     """Q14: kullanıcı davranışı (Ignore/Confirm/Reject/Investigate/Follow) loglanır — v1'de
     prioritization algoritmasını otomatik ETKİLEMEZ, sadece audit trail için tutulur."""
     if payload.status not in INBOX_ITEM_STATUSES:
-        raise HTTPException(status_code=422, detail=f"status must be one of {INBOX_ITEM_STATUSES}")
+        raise HTTPException(status_code=422, detail=f"status şunlardan biri olmalı: {INBOX_ITEM_STATUSES}")
     conn = get_connection()
     if fetch_one(conn.execute("MATCH (n:InboxItem {id: $id}) RETURN n.id AS id", {"id": item_id})) is None:
-        raise HTTPException(status_code=404, detail="Inbox item not found")
+        raise HTTPException(status_code=404, detail="Gelen Kutusu öğesi bulunamadı")
     now = datetime.now(timezone.utc)
     conn.execute(
         "MATCH (n:InboxItem {id: $id}) SET n.status = $status, n.actioned_at = $now",

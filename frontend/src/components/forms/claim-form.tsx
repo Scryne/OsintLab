@@ -24,7 +24,7 @@ interface RelatedClaim {
   text: string;
 }
 
-/** Entity/Event sayfalarından "Yeni Claim" — source seçimi + corroborates/contradicts/
+/** Entity/Event sayfalarından "Yeni iddia" — source seçimi + corroborates/contradicts/
  * supersedes ilişkilendirmesi dahil (Faz 10 B3). `relatedClaims`, çağıran sayfanın recall'undan
  * gelir (о entity/event'e ait claim'lerle sınırlı — tüm claim listesini çekmek gereksiz). */
 export function NewClaimDialog({
@@ -76,7 +76,7 @@ export function NewClaimDialog({
         contradicts,
         supersedes,
       });
-      toast("Claim eklendi", "success");
+      toast("İddia eklendi", "success");
       reset();
       setOpen(false);
       onCreated();
@@ -99,14 +99,14 @@ export function NewClaimDialog({
         render={
           <Button size="sm" variant="outline">
             <Plus aria-hidden className="h-4 w-4" />
-            Yeni Claim
+            Yeni iddia
           </Button>
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Yeni claim ekle</DialogTitle>
-          <DialogDescription>Bir kaynağa dayanan yeni bir iddia kaydeder. Confidence, kaynağın güvenilirliğinden ve kurulan bağlardan hesaplanır.</DialogDescription>
+          <DialogTitle>Yeni iddia ekle</DialogTitle>
+          <DialogDescription>Bir kaynağa dayanan yeni bir iddia kaydeder. Güven skoru, kaynağın güvenilirliğinden ve kurulan bağlardan hesaplanır.</DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <div className="flex flex-col gap-1.5">
@@ -126,30 +126,30 @@ export function NewClaimDialog({
           {claimItems.length > 0 && (
             <>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="claim-form-dog-ruladig-i-claimler-corro-2">Doğruladığı claim&apos;ler (corroborates)</Label>
+                <Label htmlFor="claim-form-dog-ruladig-i-claimler-corro-2">Doğruladığı iddialar</Label>
                 <SearchablePicker
                   id="claim-form-dog-ruladig-i-claimler-corro-2"
                   items={claimItems}
                   value={corroborates}
                   onChange={setCorroborates}
                   multiple
-                  placeholder="Claim ara…"
+                  placeholder="İddia ara…"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="claim-form-c-elis-tig-i-claimler-contra-3">Çeliştiği claim&apos;ler (contradicts)</Label>
+                <Label htmlFor="claim-form-c-elis-tig-i-claimler-contra-3">Çeliştiği iddialar</Label>
                 <SearchablePicker
                   id="claim-form-c-elis-tig-i-claimler-contra-3"
                   items={claimItems}
                   value={contradicts}
                   onChange={setContradicts}
                   multiple
-                  placeholder="Claim ara…"
+                  placeholder="İddia ara…"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="claim-form-yerini-aldig-i-claim-superse-4">Yerini aldığı claim (supersedes)</Label>
-                <SearchablePicker id="claim-form-yerini-aldig-i-claim-superse-4" items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="Claim ara…" />
+                <Label htmlFor="claim-form-yerini-aldig-i-claim-superse-4">Yerini aldığı iddia</Label>
+                <SearchablePicker id="claim-form-yerini-aldig-i-claim-superse-4" items={claimItems} value={supersedes} onChange={setSupersedes} placeholder="İddia ara…" />
               </div>
             </>
           )}

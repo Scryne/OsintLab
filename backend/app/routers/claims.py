@@ -202,14 +202,14 @@ def _notify_change(
         item_type = "CONTRADICTION"
         # Faz 23 hata düzeltmesi: `item_type` SONUÇTAN türetiliyordu ama başlık ÇAĞIRANDAN
         # geliyordu ve ikisi çelişebiliyordu. Ölçümde Inbox'taki 4 CONTRADICTION öğesinin
-        # dördü de "Claim bağımsız olarak doğrulandı" diyordu — çünkü toplu bağlama ucu
+        # dördü de "İddia bağımsız olarak doğrulandı" diyordu — çünkü toplu bağlama ucu
         # (links-batch) iki tarafa da aynı doğrulama başlığını geçiyor. En yüksek öncelikli
         # öğeler tam tersini söyleyen bir başlıkla duruyordu; Inbox'ın hiç kullanılmamış
         # olmasının muhtemel sebeplerinden biri bu. Başlık artık türle birlikte, tek yerde
         # türetiliyor — çağıranın metni çelişki durumunda eziliyor.
         row = fetch_one(conn.execute("MATCH (c:Claim {id: $id}) RETURN c.text AS text", {"id": claim_id}))
         excerpt = claim_headline(row["text"]) if row else ""
-        title = f"Çelişki: {excerpt}" if excerpt else "Bir claim çelişkili duruma düştü"
+        title = f"Çelişki: {excerpt}" if excerpt else "Bir iddia çelişkili duruma düştü"
     elif is_novel:
         item_type = "NEW_RELATIONSHIP"
     else:
@@ -263,9 +263,9 @@ def _corroboration_block_reason(conn, source_id: str | None, other_claim_id: str
     if source_id and other_source:
         if resolve_independent_root(conn, source_id) == resolve_independent_root(conn, other_source["id"]):
             return (
-                "İki claim aynı bağımsız kaynağa iniyor — doğrulama bağı kurulmadı. "
-                "Bağımsız olmayan bir doğrulama confidence'ı sahte yükseltirdi (Q6). "
-                "Aynı haberin iki kaydıysa biri supersede edilmeli."
+                "İki iddia aynı bağımsız kaynağa iniyor — doğrulama bağı kurulmadı. "
+                "Bağımsız olmayan bir doğrulama güven skorunu sahte yükseltirdi (Q6). "
+                "Aynı haberin iki kaydıysa biri ötekinin yerine geçmeli."
             )
     return None
 
@@ -281,7 +281,7 @@ def _supersede_block(conn, *, old_claim_id: str, new_valid_from, new_claim_id: s
         conn.execute("MATCH (c:Claim {id: $id}) RETURN c.valid_from AS valid_from", {"id": old_claim_id})
     )
     if old is None:
-        return 404, f"Claim not found: {old_claim_id}"
+        return 404, f"İddia bulunamadı: {old_claim_id}"
     mevcut = fetch_one(
         conn.execute(
             "MATCH (a:Claim)-[:SUPERSEDES]->(b:Claim {id: $oid}) RETURN a.id AS id",
@@ -289,11 +289,11 @@ def _supersede_block(conn, *, old_claim_id: str, new_valid_from, new_claim_id: s
         )
     )
     if mevcut:
-        return 409, f"Bu claim'in yerini zaten başka bir claim almış (claim {mevcut['id'][:8]}…)"
+        return 409, f"Bu iddianın yerini zaten başka bir iddia almış (iddia {mevcut['id'][:8]}…)"
     # Zaman çizgisi tersine dönmesin: yerini alan bilgi, aldığı bilgiden önce başlayamaz.
     if new_valid_from is not None and old["valid_from"] is not None and new_valid_from < old["valid_from"]:
         return 422, (
-            "Yerini alan claim daha ESKİ bir tarihte geçerli olmaya başlıyor "
+            "Yerini alan iddia daha ESKİ bir tarihte geçerli olmaya başlıyor "
             f"({new_valid_from} < {old['valid_from']}) — zaman çizgisi tersine dönerdi. "
             "Yön yanlış olabilir: hangisi yenisi?"
         )
@@ -305,7 +305,7 @@ def _supersede_block(conn, *, old_claim_id: str, new_valid_from, new_claim_id: s
             {"old": old_claim_id, "new": new_claim_id},
         )
     ):
-        return 422, "Bu bağ bir döngü kurardı: eski claim zaten bu claim'in yerini (dolaylı olarak) almış."
+        return 422, "Bu bağ bir döngü kurardı: eski iddia zaten bu iddianın yerini (dolaylı olarak) almış."
     return None
 
 
@@ -341,30 +341,30 @@ def create_claim_record(conn, payload: ClaimCreate) -> Claim:
     işlem (transaction) değil, yani yarıda reddedilen bir istek grafı yarım bırakırdı."""
     if payload.about_entity_id and payload.about_event_id:
         raise HTTPException(
-            status_code=422, detail="Bir claim ya bir entity ya da bir event hakkında olabilir, ikisi birden değil"
+            status_code=422, detail="Bir iddia ya bir varlık ya da bir olay hakkında olabilir, ikisi birden değil"
         )
     if not _node_exists(conn, "Source", payload.source_id):
-        raise HTTPException(status_code=404, detail=f"Source not found: {payload.source_id}")
+        raise HTTPException(status_code=404, detail=f"Kaynak bulunamadı: {payload.source_id}")
     if payload.about_entity_id and not _node_exists(conn, "Entity", payload.about_entity_id):
-        raise HTTPException(status_code=404, detail=f"Entity not found: {payload.about_entity_id}")
+        raise HTTPException(status_code=404, detail=f"Varlık bulunamadı: {payload.about_entity_id}")
     if payload.about_event_id and not _node_exists(conn, "Event", payload.about_event_id):
-        raise HTTPException(status_code=404, detail=f"Event not found: {payload.about_event_id}")
+        raise HTTPException(status_code=404, detail=f"Olay bulunamadı: {payload.about_event_id}")
     for eid in payload.evidence_ids + payload.contradicting_evidence_ids:
         if not _node_exists(conn, "Evidence", eid):
-            raise HTTPException(status_code=404, detail=f"Evidence not found: {eid}")
+            raise HTTPException(status_code=404, detail=f"Kanıt bulunamadı: {eid}")
     for cid in payload.corroborates + payload.contradicts:
         if not _node_exists(conn, "Claim", cid):
-            raise HTTPException(status_code=404, detail=f"Claim not found: {cid}")
+            raise HTTPException(status_code=404, detail=f"İddia bulunamadı: {cid}")
     overlap = set(payload.corroborates) & set(payload.contradicts)
     if overlap:
         raise HTTPException(
             status_code=422,
-            detail=f"Bir claim aynı claim'i hem doğrulayıp hem onunla çelişemez: {', '.join(sorted(overlap))}",
+            detail=f"Bir iddia aynı iddiayı hem doğrulayıp hem onunla çelişemez: {', '.join(sorted(overlap))}",
         )
     for cid in dict.fromkeys(payload.corroborates):
         reason = _corroboration_block_reason(conn, payload.source_id, cid)
         if reason:
-            raise HTTPException(status_code=422, detail=f"{reason} (claim {cid[:8]}…)")
+            raise HTTPException(status_code=422, detail=f"{reason} (iddia {cid[:8]}…)")
 
     now = datetime.now(timezone.utc)
     # Faz 11 (F12): created_at = kaydın oluşturulduğu an (değişmez sistem kaydı),
@@ -421,7 +421,7 @@ def create_claim_record(conn, payload: ClaimCreate) -> Claim:
             about_entity_id=other_about_entity,
             about_event_id=other_about_event,
             result=other_result,
-            title="Var olan bir claim bağımsız olarak doğrulandı",
+            title="Var olan bir iddia bağımsız olarak doğrulandı",
         )
 
     # Q9 Contradiction: eski bilgi SİLİNMEZ, her iki claim de CONTRADICTED'a döner,
@@ -440,7 +440,7 @@ def create_claim_record(conn, payload: ClaimCreate) -> Claim:
             about_entity_id=other_about_entity,
             about_event_id=other_about_event,
             result=other_result,
-            title="Var olan bir claim ile çelişki tespit edildi",
+            title="Var olan bir iddiayla çelişki tespit edildi",
         )
 
     # Q9 temporal versiyonlama: eski claim silinmez, geçerliliği kapatılır.
@@ -598,12 +598,12 @@ def _link_skip_reason(conn, a_id: str, b_id: str, link: str, raw_link: str) -> s
     if link not in ("CORROBORATES", "CONTRADICTS"):
         return f"Bilinmeyen bağ türü: {raw_link}"
     if a_id == b_id:
-        return "Bir claim kendisiyle bağlanamaz"
+        return "Bir iddia kendisiyle bağlanamaz"
     if not _node_exists(conn, "Claim", a_id) or not _node_exists(conn, "Claim", b_id):
-        return "Claim bulunamadı"
+        return "İddia bulunamadı"
     existing = _already_linked(conn, a_id, b_id)
     if existing:
-        return f"Bu iki claim arasında zaten bir {existing} bağı var"
+        return f"Bu iki iddia arasında zaten bir {existing} bağı var"
     # Kullanıcı aday listesinde uyarıyı görse bile API'nin bunu kabul etmesi, arayüzün
     # dışından gelen her çağrıda aynı hatayı mümkün kılardı. Çelişki için böyle bir kısıt
     # YOK — aynı kaynak kendi kendisiyle pekâlâ çelişebilir (ve bu değerli bir sinyaldir).
@@ -644,7 +644,7 @@ def link_claims_batch(payload: ClaimLinkBatch) -> ClaimLinkBatchResult:
 
         if link == "CORROBORATES":
             _link_corroborates(conn, a_id, b_id)
-            titles = ("Claim bağımsız olarak doğrulandı", "Claim bağımsız olarak doğrulandı")
+            titles = ("İddia bağımsız olarak doğrulandı", "İddia bağımsız olarak doğrulandı")
         else:
             # Çelişki tek yön saklanıyor (bkz. add_claim_contradiction) — anlamı simetrik ama
             # okuma tarafı iki yöne de bakıyor, iki yön yazmak çift sayım olurdu.
@@ -653,7 +653,7 @@ def link_claims_batch(payload: ClaimLinkBatch) -> ClaimLinkBatchResult:
                 "CREATE (a)-[:CLAIM_CONTRADICTS {status: 'UNRESOLVED', detected_at: $now}]->(b)",
                 {"a": a_id, "b": b_id, "now": datetime.now(timezone.utc)},
             )
-            titles = ("Claim çelişkili olarak işaretlendi", "Var olan bir claim ile çelişki tespit edildi")
+            titles = ("İddia çelişkili olarak işaretlendi", "Var olan bir iddiayla çelişki tespit edildi")
 
         after: dict[str, float] = {}
         state: dict[str, str] = {}
@@ -695,7 +695,7 @@ def get_claim(claim_id: str) -> Claim:
     result = conn.execute(f"MATCH (c:Claim {{id: $id}}) RETURN {_FIELDS}", {"id": claim_id})
     row = fetch_one(result)
     if row is None:
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     return _row_to_claim(conn, row)
 
 
@@ -753,7 +753,7 @@ def explain_claim(claim_id: str) -> dict:
     """Auditability: 'Sistem bunu neden düşünüyor?' — confidence'ın alt-skor kırılımı."""
     conn = get_connection()
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     result = _gather_confidence_inputs(conn, claim_id)
     return {
         "claim_id": claim_id,
@@ -786,7 +786,7 @@ def claim_why_matters(claim_id: str) -> dict:
     conn = get_connection()
     row = fetch_one(conn.execute(f"MATCH (c:Claim {{id: $id}}) RETURN {_FIELDS}", {"id": claim_id}))
     if row is None:
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     confidence_result = _gather_confidence_inputs(conn, claim_id)
     about_entity_id, about_event_id = _claim_about(conn, claim_id)
     reasons = why_matters(conn, claim_id, row, confidence_result, about_entity_id, about_event_id)
@@ -801,15 +801,15 @@ def update_claim_about(claim_id: str, payload: ClaimAboutUpdate) -> Claim:
     bırakılırsa bağ tamamen kaldırılır (claim silinmez — History Is Immutable)."""
     conn = get_connection()
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     if payload.about_entity_id and payload.about_event_id:
         raise HTTPException(
-            status_code=422, detail="Bir claim ya bir entity ya da bir event hakkında olabilir, ikisi birden değil"
+            status_code=422, detail="Bir iddia ya bir varlık ya da bir olay hakkında olabilir, ikisi birden değil"
         )
     if payload.about_entity_id and not _node_exists(conn, "Entity", payload.about_entity_id):
-        raise HTTPException(status_code=404, detail=f"Entity not found: {payload.about_entity_id}")
+        raise HTTPException(status_code=404, detail=f"Varlık bulunamadı: {payload.about_entity_id}")
     if payload.about_event_id and not _node_exists(conn, "Event", payload.about_event_id):
-        raise HTTPException(status_code=404, detail=f"Event not found: {payload.about_event_id}")
+        raise HTTPException(status_code=404, detail=f"Olay bulunamadı: {payload.about_event_id}")
 
     # Değişmezler (entity/event dışlayıcılığı, olaya taşınırken entity'nin INVOLVED_IN ile
     # korunması, iki olayın da yeniden hesaplanması) tek yerde: `eventcluster.set_claim_about`.
@@ -834,11 +834,11 @@ def add_claim_contradiction(claim_id: str, payload: ClaimContradictionAdd) -> Cl
     zaten hem gelen hem giden kenara bakıyor, iki yön birden yazmak çift sayıma yol açardı."""
     conn = get_connection()
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     if not _node_exists(conn, "Claim", payload.other_claim_id):
-        raise HTTPException(status_code=404, detail=f"Claim not found: {payload.other_claim_id}")
+        raise HTTPException(status_code=404, detail=f"İddia bulunamadı: {payload.other_claim_id}")
     if claim_id == payload.other_claim_id:
-        raise HTTPException(status_code=422, detail="Bir claim kendisiyle çelişemez")
+        raise HTTPException(status_code=422, detail="Bir iddia kendisiyle çelişemez")
 
     # Her iki yön de kontrol edilir (ilişki tek yön saklanıyor ama anlamı simetrik).
     existing = None
@@ -853,7 +853,7 @@ def add_claim_contradiction(claim_id: str, payload: ClaimContradictionAdd) -> Cl
         if existing:
             break
     if existing:
-        raise HTTPException(status_code=409, detail="Bu iki claim arasında zaten bir çelişki kaydı var")
+        raise HTTPException(status_code=409, detail="Bu iki iddia arasında zaten bir çelişki kaydı var")
 
     now = datetime.now(timezone.utc)
     conn.execute(
@@ -865,8 +865,8 @@ def add_claim_contradiction(claim_id: str, payload: ClaimContradictionAdd) -> Cl
     # İKİ claim de yeniden hesaplanır: çelişki her ikisinin de knowledge_state'ini
     # CONTRADICTED'a çeker (bkz. confidence.py) — tek taraflı bırakmak grafı tutarsız yapardı.
     for cid, title in (
-        (claim_id, "Claim çelişkili olarak işaretlendi"),
-        (payload.other_claim_id, "Var olan bir claim ile çelişki tespit edildi"),
+        (claim_id, "İddia çelişkili olarak işaretlendi"),
+        (payload.other_claim_id, "Var olan bir iddiayla çelişki tespit edildi"),
     ):
         result = _recompute_and_store(conn, cid)
         about_entity, about_event = _claim_about(conn, cid)
@@ -923,14 +923,14 @@ def add_claim_supersede(claim_id: str, payload: ClaimSupersedeAdd) -> Claim:
         conn.execute(f"MATCH (c:Claim {{id: $id}}) RETURN {_FIELDS}", {"id": claim_id})
     )
     if yeni is None:
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     eski = fetch_one(
         conn.execute(f"MATCH (c:Claim {{id: $id}}) RETURN {_FIELDS}", {"id": payload.supersedes_claim_id})
     )
     if eski is None:
-        raise HTTPException(status_code=404, detail=f"Claim not found: {payload.supersedes_claim_id}")
+        raise HTTPException(status_code=404, detail=f"İddia bulunamadı: {payload.supersedes_claim_id}")
     if claim_id == payload.supersedes_claim_id:
-        raise HTTPException(status_code=422, detail="Bir claim kendi yerini alamaz")
+        raise HTTPException(status_code=422, detail="Bir iddia kendi yerini alamaz")
 
     blocked = _supersede_block(
         conn, old_claim_id=payload.supersedes_claim_id, new_valid_from=yeni["valid_from"], new_claim_id=claim_id
@@ -979,9 +979,9 @@ def decide_mentions(payload: MentionBatch) -> MentionBatchResult:
         if decision.action.upper() not in ("CONFIRM", "REJECT"):
             raise HTTPException(status_code=422, detail=f"Geçersiz aksiyon: {decision.action}")
         if not _node_exists(conn, "Claim", decision.claim_id):
-            raise HTTPException(status_code=404, detail=f"Claim not found: {decision.claim_id}")
+            raise HTTPException(status_code=404, detail=f"İddia bulunamadı: {decision.claim_id}")
         if not _node_exists(conn, "Entity", decision.entity_id):
-            raise HTTPException(status_code=404, detail=f"Entity not found: {decision.entity_id}")
+            raise HTTPException(status_code=404, detail=f"Varlık bulunamadı: {decision.entity_id}")
     confirmed = rejected = 0
     for decision in payload.decisions:
         status = "CONFIRMED" if decision.action.upper() == "CONFIRM" else "REJECTED"
@@ -998,7 +998,7 @@ def decide_mentions(payload: MentionBatch) -> MentionBatchResult:
 def list_claim_mentions(claim_id: str) -> list[ClaimMention]:
     conn = get_connection()
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     return [ClaimMention(**row) for row in claim_mentions(conn, claim_id)]
 
 
@@ -1008,8 +1008,8 @@ def remove_claim_mention(claim_id: str, entity_id: str) -> None:
     Immutable ile tutarlı, hem de aday listesine geri düşmesini engeller."""
     conn = get_connection()
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     if not _node_exists(conn, "Entity", entity_id):
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     set_mention(conn, claim_id, entity_id, "REJECTED")
     safe_render_vault(conn)

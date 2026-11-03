@@ -8,6 +8,7 @@ import { ErrorState, EmptyState } from "@/components/ui/state";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { WireframeRipple } from "@/components/ui/wireframe-ripple";
 import { NewInvestigationDialog } from "@/components/forms/new-investigation-dialog";
+import { statusLabel } from "@/lib/labels";
 
 export default function InvestigationsPage() {
   const { data: investigations, error, loading, reload } = useApi(() => api.investigations.list(), []);
@@ -17,8 +18,8 @@ export default function InvestigationsPage() {
       <WireframeRipple className="pointer-events-none absolute -right-10 -top-14 -z-10 h-52 w-52 text-white/5" />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Investigation&apos;lar</h1>
-          <p className="text-sm text-text-secondary">Research Question → Findings → Conclusion.</p>
+          <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Soruşturmalar</h1>
+          <p className="text-sm text-text-secondary">Araştırma sorusu → Bulgular → Sonuç.</p>
         </div>
         {/* F38: investigation acmanin arayuzde hicbir yolu yoktu. */}
         <NewInvestigationDialog onCreated={reload} />
@@ -27,8 +28,8 @@ export default function InvestigationsPage() {
       {loading && <SkeletonRows />}
       {error && <ErrorState error={error} onRetry={reload} />}
       {!loading && !error && investigations?.length === 0 && <EmptyState
-          title="Henüz investigation yok"
-          description="Bir araştırma açtığında kapsamı, hipotezleri ve bulguları burada takip edersin." />}
+          title="Henüz soruşturma yok"
+          description="Bir soruşturma açtığında kapsamını, hipotezlerini ve bulgularını burada takip edersin." />}
 
       <div className="flex flex-col gap-2">
         {!loading && investigations?.map((inv) => (
@@ -41,7 +42,7 @@ export default function InvestigationsPage() {
               <p className="text-sm font-medium text-foreground">{inv.title}</p>
               <p className="text-xs text-text-tertiary">{inv.research_question}</p>
             </div>
-            <Badge variant="outline">{inv.status}</Badge>
+            <Badge variant="outline">{statusLabel("investigation", inv.status)}</Badge>
           </Link>
         ))}
       </div>

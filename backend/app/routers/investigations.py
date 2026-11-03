@@ -54,7 +54,7 @@ def _require_editable(conn, investigation_id: str) -> None:
         conn.execute("MATCH (i:Investigation {id: $id}) RETURN i.status AS status", {"id": investigation_id})
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="Investigation not found")
+        raise HTTPException(status_code=404, detail="Soruşturma bulunamadı")
     if row["status"] in READ_ONLY_STATUSES:
         raise HTTPException(
             status_code=409,
@@ -91,7 +91,7 @@ def get_investigation(investigation_id: str) -> Investigation:
     result = conn.execute(f"MATCH (i:Investigation {{id: $id}}) RETURN {_INV_FIELDS}", {"id": investigation_id})
     row = fetch_one(result)
     if row is None:
-        raise HTTPException(status_code=404, detail="Investigation not found")
+        raise HTTPException(status_code=404, detail="Soruşturma bulunamadı")
     return Investigation(**row)
 
 
@@ -103,7 +103,7 @@ def transition_investigation(investigation_id: str, payload: InvestigationTransi
     if payload.to_status not in allowed:
         raise HTTPException(
             status_code=409,
-            detail=f"Cannot transition from {current.status} to {payload.to_status}. Allowed: {list(allowed)}",
+            detail=f"{current.status} durumundan {payload.to_status} durumuna geçilemez. İzin verilenler: {list(allowed)}",
         )
     # Faz 13 (madde 30): CLOSED, bulguların uzun süreli hafızaya promote edildiği adım —
     # yani "bu araştırma bitti ve şu bilgiyi bilgi grafına ekliyorum" demek. Sonucu hiçbir
@@ -114,9 +114,9 @@ def transition_investigation(investigation_id: str, payload: InvestigationTransi
         raise HTTPException(
             status_code=409,
             detail=(
-                "Sonuç (Conclusion) yazılmadan kapatılamaz: kapanış, doğrulanmış bulguları "
-                "Knowledge Graph'a yükselten adım. Araştırmayı cevapsız bırakmak istiyorsan "
-                "ARCHIVED kullan."
+                "Sonuç yazılmadan kapatılamaz: kapanış, doğrulanmış bulguları "
+                "Bilgi Grafı'na yükselten adım. Soruşturmayı cevapsız bırakmak istiyorsan "
+                "arşivle."
             ),
         )
     now = datetime.now(timezone.utc)
@@ -177,7 +177,7 @@ def _notify_investigation_update(conn, investigation_id: str, from_status: str, 
 
 
 def _notify_investigation_update_disabled(conn, investigation_id: str, from_status: str, to_status: str) -> None:
-    title = f"Investigation durumu değişti: {from_status} -> {to_status}"
+    title = f"Soruşturma durumu değişti: {from_status} -> {to_status}"
     detail = {"investigation_id": investigation_id, "from_status": from_status, "to_status": to_status}
     notify_if_monitored(
         conn, target_type="Investigation", target_id=investigation_id,
@@ -257,7 +257,7 @@ def get_scope(investigation_id: str) -> dict:
     Faz 3'ün "Research Question → Scope → Entities → ..." akışının Scope adımı bu."""
     conn = get_connection()
     if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+        raise HTTPException(status_code=404, detail="Soruşturma bulunamadı")
     entities = fetch_all(
         conn.execute(
             "MATCH (i:Investigation {id: $iid})-[:INCLUDES]->(e:Entity) "
@@ -417,7 +417,7 @@ def include_entity(investigation_id: str, entity_id: str) -> None:
     conn = get_connection()
     _require_editable(conn, investigation_id)
     if not _node_exists(conn, "Entity", entity_id):
-        raise HTTPException(status_code=404, detail="Entity not found")
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı")
     # F35: PUT idempotent olmalı; guard yokken aynı entity iki kez eklenince graf'ta iki
     # INCLUDES kenarı oluşuyordu (kapsam listesi kaydı çift gösterirdi).
     if _scope_edge_exists(conn, investigation_id, "INCLUDES", entity_id):
@@ -448,7 +448,7 @@ def investigate_event(investigation_id: str, event_id: str) -> None:
     conn = get_connection()
     _require_editable(conn, investigation_id)
     if not _node_exists(conn, "Event", event_id):
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=404, detail="Olay bulunamadı")
     if _scope_edge_exists(conn, investigation_id, "INVESTIGATES", event_id):
         return
     conn.execute(
@@ -474,7 +474,7 @@ def add_finding(investigation_id: str, claim_id: str) -> None:
     conn = get_connection()
     _require_editable(conn, investigation_id)
     if not _node_exists(conn, "Claim", claim_id):
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     # F38: kapsam PUT'larıyla aynı sorun — guard yokken aynı claim iki kez eklenince iki
     # HAS_FINDING kenarı oluşuyor ve finding listesi kaydı çift gösteriyordu.
     if _scope_edge_exists(conn, investigation_id, "HAS_FINDING", claim_id):
@@ -503,7 +503,7 @@ def remove_finding(investigation_id: str, claim_id: str) -> None:
 def list_findings(investigation_id: str) -> list[dict]:
     conn = get_connection()
     if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+        raise HTTPException(status_code=404, detail="Soruşturma bulunamadı")
     rows = fetch_all(
         conn.execute(
             "MATCH (i:Investigation {id: $id})-[:HAS_FINDING]->(c:Claim) "
@@ -557,7 +557,7 @@ def create_hypothesis(investigation_id: str, payload: HypothesisCreate) -> Hypot
 def list_hypotheses(investigation_id: str) -> list[Hypothesis]:
     conn = get_connection()
     if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+        raise HTTPException(status_code=404, detail="Soruşturma bulunamadı")
     result = conn.execute(
         f"MATCH (i:Investigation {{id: $id}})-[:HAS_HYPOTHESIS]->(h:Hypothesis) "
         f"RETURN {_HYP_FIELDS} ORDER BY h.created_at",
@@ -572,7 +572,7 @@ def get_hypothesis(hypothesis_id: str) -> Hypothesis:
     result = conn.execute(f"MATCH (h:Hypothesis {{id: $id}}) RETURN {_HYP_FIELDS}", {"id": hypothesis_id})
     row = fetch_one(result)
     if row is None:
-        raise HTTPException(status_code=404, detail="Hypothesis not found")
+        raise HTTPException(status_code=404, detail="Hipotez bulunamadı")
     return Hypothesis(**row)
 
 
@@ -610,7 +610,7 @@ def _hypothesis_investigation(conn, hypothesis_id: str) -> str:
         )
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="Hypothesis not found")
+        raise HTTPException(status_code=404, detail="Hipotez bulunamadı")
     return row["id"]
 
 
@@ -625,9 +625,9 @@ def link_hypothesis_evidence(hypothesis_id: str, payload: HypothesisEvidenceLink
     conn = get_connection()
     _require_editable(conn, _hypothesis_investigation(conn, hypothesis_id))
     if not _node_exists(conn, "Evidence", payload.evidence_id):
-        raise HTTPException(status_code=404, detail="Evidence not found")
+        raise HTTPException(status_code=404, detail="Kanıt bulunamadı")
     if payload.stance not in ("SUPPORTS", "WEAKENS", "REFUTES"):
-        raise HTTPException(status_code=422, detail="stance must be SUPPORTS, WEAKENS or REFUTES")
+        raise HTTPException(status_code=422, detail="Duruş SUPPORTS, WEAKENS ya da REFUTES olmalı")
     # Varsa ikizler dahil eski bağlar silinip tek bağ yazılıyor (önceki sürümün bıraktığı
     # mükerrer kenarları da kendiliğinden temizler).
     conn.execute(
@@ -650,7 +650,7 @@ def list_hypothesis_evidence(hypothesis_id: str) -> list[dict]:
     "Neden REFUTED?" sorusu, cevabı görünmeden sorulamaz (Auditability)."""
     conn = get_connection()
     if not _node_exists(conn, "Hypothesis", hypothesis_id):
-        raise HTTPException(status_code=404, detail="Hypothesis not found")
+        raise HTTPException(status_code=404, detail="Hipotez bulunamadı")
     return fetch_all(
         conn.execute(
             "MATCH (ev:Evidence)-[r:HYPOTHESIS_EVIDENCE]->(h:Hypothesis {id: $id}) "
@@ -728,7 +728,7 @@ def ach_matrix(investigation_id: str) -> dict:
     asıl değeri bu boşlukları görünür kılmak: her kanıt her hipoteze karşı tartılmalı."""
     conn = get_connection()
     if not _node_exists(conn, "Investigation", investigation_id):
-        raise HTTPException(status_code=404, detail="Investigation not found")
+        raise HTTPException(status_code=404, detail="Soruşturma bulunamadı")
     hyps = [h.model_dump(mode="json") for h in list_hypotheses(investigation_id)]
     hids = [h["id"] for h in hyps]
     links = fetch_all(conn.execute(

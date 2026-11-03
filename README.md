@@ -13,7 +13,7 @@ biriktirir. İlkeler: önce kanıt, geçmiş değişmez, karar insanda (merge, s
 | Bilgi grafı | Entity, olay, iddia, investigation; KùzuDB (gömülü graf), zamansal sürümleme, Obsidian vault çıktısı |
 | Pivot | Seçici katmanı (alan adı, IP, ASN, hash … deterministik çıkarım), anahtarsız zenginleştirme modülleri, pivot grafı, altyapı izleme |
 | Araç Rehberi | 713 dış araç, 21 kategori, her birinin kaynağı; arama operatörü kurucu, Ctrl+K hızlı pivot |
-| Rapor | Investigation'ı iddiaları, confidence'ı ve kanıtıyla dışa aktarır |
+| Rapor | Soruşturmayı iddiaları, güven skoru ve kanıtıyla dışa aktarır |
 
 Ayrıntı: `docs/Final-Dokuman.md` (kararlar ve mimari), `docs/Roadmap.md` (36 faz), `DESIGN.md` (arayüz kimliği).
 

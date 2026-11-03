@@ -36,7 +36,7 @@ TLP_LEVELS = {
 }
 
 STATE_LABELS = {
-    "UNKNOWN": "Bilinmiyor", "OBSERVED": "Gözlendi", "REPORTED": "Bildirildi", "SUPPORTED": "Desteklendi",
+    "UNKNOWN": "Bilinmiyor", "OBSERVED": "Gözlemlendi", "REPORTED": "Bildirildi", "SUPPORTED": "Destekleniyor",
     "CORROBORATED": "Doğrulandı", "HIGH_CONFIDENCE": "Yüksek güven", "CONTRADICTED": "Çelişkili",
 }
 
@@ -191,8 +191,8 @@ def to_markdown(r: dict, tlp: str = "CLEAR") -> str:
             "",
             f"- **Durum:** {STATE_LABELS.get(c['knowledge_state'], c['knowledge_state'])} ({_pct(c['confidence'])})"
             + (" · kapanışta doğrulanmış bulgu" if c.get("validated") else "")
-            + (" · **yerini daha yeni bir claim aldı**" if c.get("superseded") else ""),
-            f"- **Confidence dökümü:** kaynak kalitesi {_pct(b['source_quality'])}, bağımsızlık {_pct(b['independence'])}, "
+            + (" · **yerini daha yeni bir iddia aldı**" if c.get("superseded") else ""),
+            f"- **Güven dökümü:** kaynak kalitesi {_pct(b['source_quality'])}, bağımsızlık {_pct(b['independence'])}, "
             f"kanıt {_pct(b['evidence'])}, doğrulama {_pct(b['corroboration'])}",
             f"- **Kaynak:** {_md(c.get('source') or '?')}" + (f" ({_md(c['source_url'])})" if c.get("source_url") else ""),
             f"- **NATO/Admiralty:** {c['admiralty']['code']} ({c['admiralty']['source_label']} kaynak · "
@@ -221,7 +221,7 @@ def to_markdown(r: dict, tlp: str = "CLEAR") -> str:
               "## Sonuç (araştırmacının yorumu)", "", inv.get("conclusion") or "_(yazılmamış)_", ""]
 
     if others:
-        lines += ["## Kapsamdaki diğer claim'ler", ""]
+        lines += ["## Kapsamdaki diğer iddialar", ""]
         for i, c in enumerate(others, 1):
             lines += claim_block(i, c)
 
@@ -248,7 +248,7 @@ def to_markdown(r: dict, tlp: str = "CLEAR") -> str:
     lines += [
         "## Yöntem",
         "",
-        "Confidence deterministik bir formülle hesaplanır (kaynak kalitesi %40, bağımsızlık %25, kanıt %20, doğrulama %15); "
+        "Güven skoru deterministik bir formülle hesaplanır (kaynak kalitesi %40, bağımsızlık %25, kanıt %20, doğrulama %15); "
         "türetilmiş kaynaklar bağımsız sayılmaz. Zenginleştirme sonuçları herkese açık kaynaklardan alınmıştır ve her birinin "
         "ham yanıtı OsintLab'de SHA-256 ile saklanır. Claim metinleri kaynaklardan aynen alınmıştır; yorum yalnızca "
         "'Analiz' ve 'Sonuç' bölümlerindedir.",

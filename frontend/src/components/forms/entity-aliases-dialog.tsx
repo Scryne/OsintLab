@@ -47,7 +47,7 @@ export function EntityAliasesDialog({ entity, onSaved }: { entity: Entity; onSav
         name: entity.name,
         aliases,
       });
-      toast(aliases.length > 0 ? `${aliases.length} alias kaydedildi` : "Alias'lar temizlendi", "success");
+      toast(aliases.length > 0 ? `${aliases.length} diğer ad kaydedildi` : "Diğer adlar temizlendi", "success");
       setOpen(false);
       onSaved();
     } catch (err) {
@@ -69,17 +69,17 @@ export function EntityAliasesDialog({ entity, onSaved }: { entity: Entity; onSav
         render={
           <Button size="sm" variant="outline">
             <Tags aria-hidden className="h-4 w-4" />
-            Alias&apos;lar
+            Diğer adlar
           </Button>
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{entity.name} — alias&apos;lar</DialogTitle>
-          <DialogDescription>Bu entity&apos;nin bilinen diğer adlarını yönetir. Alias&apos;lar arama ve eşleştirmede kullanılır.</DialogDescription>
+          <DialogTitle>{entity.name} — diğer adlar</DialogTitle>
+          <DialogDescription>Bu varlığın bilinen diğer adlarını yönetir. Diğer adlar arama ve eşleştirmede kullanılır.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="entity-aliases">Alias&apos;lar (virgülle ayır)</Label>
+          <Label htmlFor="entity-aliases">Diğer adlar (virgülle ayır)</Label>
           <Input
             id="entity-aliases"
             value={value}
@@ -87,7 +87,7 @@ export function EntityAliasesDialog({ entity, onSaved }: { entity: Entity; onSav
             placeholder="INFINITE NIGHTMARE, MSNightmare, Nightmare-Eclipse"
           />
           <p className="text-xs leading-relaxed text-text-tertiary">
-            Alias&apos;lar olası eşleşme tespitine girdi olur — aynı aktörün farklı isimleri
+            Diğer adlar olası eşleşme tespitine girdi olur — aynı aktörün farklı isimleri
             buraya yazılırsa sistem eşleşmeyi kendi bulabilir.
           </p>
         </div>

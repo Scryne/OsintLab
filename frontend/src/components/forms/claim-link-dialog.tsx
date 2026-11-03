@@ -48,7 +48,7 @@ export function ClaimLinkDialog({ entityId, onLinked }: { entityId: string; onLi
     setSubmitting(true);
     try {
       await api.claims.updateAbout(claimId, { about_entity_id: entityId });
-      toast("Claim bu entity'ye bağlandı", "success");
+      toast("İddia bu varlığa bağlandı", "success");
       setClaimId(null);
       setOpen(false);
       onLinked();
@@ -65,20 +65,20 @@ export function ClaimLinkDialog({ entityId, onLinked }: { entityId: string; onLi
         render={
           <Button size="sm" variant="outline">
             <Link2 aria-hidden className="h-4 w-4" />
-            Mevcut claim&apos;i bağla
+            Mevcut iddiayı bağla
           </Button>
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Claim&apos;i bu entity&apos;ye bağla</DialogTitle>
-          <DialogDescription>Bir claim&apos;i bu entity ile ilişkilendirir. Claim&apos;in metni değişmez, yalnızca neyle ilgili olduğu düzeltilir.</DialogDescription>
+          <DialogTitle>İddiayı bu varlığa bağla</DialogTitle>
+          <DialogDescription>Bir iddiayı bu varlıkla ilişkilendirir. İddianın metni değişmez, yalnızca neyle ilgili olduğu düzeltilir.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="claim-link-dialog-claim-1">Claim</Label>
-          <SearchablePicker id="claim-link-dialog-claim-1" items={items} value={claimId} onChange={setClaimId} placeholder="Claim ara…" />
+          <Label htmlFor="claim-link-dialog-claim-1">İddia</Label>
+          <SearchablePicker id="claim-link-dialog-claim-1" items={items} value={claimId} onChange={setClaimId} placeholder="İddia ara…" />
           <p className="text-xs text-text-tertiary">
-            Bağlantısız claim&apos;ler listenin başında. Claim&apos;in metni değişmez, yalnızca neyle
+            Bağlantısız iddialar listenin başında. İddianın metni değişmez, yalnızca neyle
             ilgili olduğu düzeltilir.
           </p>
         </div>

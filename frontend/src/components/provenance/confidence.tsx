@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { KnowledgeState } from "@/lib/types";
+import { STATUS_LABELS } from "@/lib/labels";
 
 // Confidence Spectrum — bkz. DESIGN.md "Colors". Bu sıralama bilinçli:
 // soğuktan (belirsiz) sıcağa (yüksek güven) bir rampa; CONTRADICTED rampanın DIŞINDA.
@@ -36,15 +37,8 @@ export const CONFIDENCE_TEXT_VAR: Record<KnowledgeState, string> = {
   CONTRADICTED: "var(--confidence-contradicted-text)",
 };
 
-export const CONFIDENCE_LABEL_TR: Record<KnowledgeState, string> = {
-  UNKNOWN: "Bilinmiyor",
-  OBSERVED: "Gözlemlendi",
-  REPORTED: "Bildirildi",
-  SUPPORTED: "Destekleniyor",
-  CORROBORATED: "Doğrulandı",
-  HIGH_CONFIDENCE: "Yüksek Güven",
-  CONTRADICTED: "Çelişkili",
-};
+// Tek kaynak: lib/labels.ts (terim sözlüğü — docs/Terim-Sozlugu.md).
+export const CONFIDENCE_LABEL_TR: Record<KnowledgeState, string> = STATUS_LABELS.knowledge;
 
 export function ConfidenceBadge({
   state,
@@ -86,7 +80,7 @@ export function ConfidenceRail({
   onSelect?: (state: KnowledgeState | null) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1" role="group" aria-label="Confidence Spectrum">
+    <div className="flex flex-col gap-1" role="group" aria-label="Güven yelpazesi">
       {CONFIDENCE_ORDER.map((state) => {
         const isActive = active === state;
         return (

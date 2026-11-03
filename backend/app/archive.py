@@ -176,7 +176,7 @@ def create_archive(conn, claim_id: str) -> dict:
     if observation is None:
         return {"claim_id": claim_id, "action": "atlandi", "evidence_id": None,
                 "archive_status": None,
-                "reason": "Bu claim bir gözlemden üretilmemiş (PRODUCED bağı yok) — "
+                "reason": "Bu iddia bir gözlemden üretilmemiş (üretim bağı yok) — "
                           "arşivlenecek ham içerik yok."}
     text = observation["raw_content"] or ""
     if not text.strip():

@@ -37,7 +37,7 @@ export default function SameAsQueuePage() {
       <div>
         <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">Olası Eşleşmeler</h1>
         <p className="text-sm text-text-secondary">
-          Aynı gerçek varlığa ait olabilecek entity çiftleri — sistem hiçbirini kendi başına birleştirmez, onay senin.
+          Aynı gerçek dünya varlığına ait olabilecek varlık çiftleri — sistem hiçbirini kendi başına birleştirmez, onay senin.
         </p>
       </div>
 
@@ -46,7 +46,7 @@ export default function SameAsQueuePage() {
       {!loading && !error && (!pending || pending.length === 0) && (
         <EmptyState
           title="Onay bekleyen eşleşme yok"
-          description="Bir entity sayfasındaki 'Olası Eşleşmeler' sekmesinden aday önerebilirsin."
+          description="Bir varlık sayfasındaki 'Olası Eşleşmeler' sekmesinden aday önerebilirsin."
         />
       )}
 

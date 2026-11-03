@@ -20,11 +20,11 @@ const STEPS: { key: WorkflowStep; label: string }[] = [
   { key: "scope", label: "Kapsam" },
   { key: "sources", label: "Kaynaklar" },
   { key: "observations", label: "Gözlemler" },
-  { key: "claims", label: "Claim'ler" },
+  { key: "claims", label: "İddialar" },
   { key: "evidence", label: "Kanıtlar" },
   { key: "hypotheses", label: "Hipotezler" },
   { key: "analysis", label: "Analiz" },
-  { key: "findings", label: "Findings" },
+  { key: "findings", label: "Bulgular" },
   { key: "conclusion", label: "Sonuç" },
 ];
 

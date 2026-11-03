@@ -167,14 +167,14 @@ def graph(selector_id: str, depth: int = Query(2, ge=1, le=3)) -> dict:
 @router.post("/{selector_id:path}/entities", status_code=201)
 def link_entity(selector_id: str, payload: SelectorEntityLinkCreate) -> dict:
     if not pivot.link_entity(selector_id, payload.entity_id, payload.note):
-        raise HTTPException(status_code=404, detail="Seçici ya da entity bulunamadı")
+        raise HTTPException(status_code=404, detail="Seçici ya da varlık bulunamadı")
     return {"selector_id": selector_id, "entity_id": payload.entity_id}
 
 
 @router.delete("/{selector_id:path}/entities/{entity_id}", status_code=204)
 def unlink_entity(selector_id: str, entity_id: str) -> None:
     if not pivot.unlink_entity(selector_id, entity_id):
-        raise HTTPException(status_code=404, detail="Bu seçici bu entity'ye bağlı değil")
+        raise HTTPException(status_code=404, detail="Bu seçici bu varlığa bağlı değil")
 
 
 @router.patch("/{selector_id:path}", response_model=Selector)
@@ -198,7 +198,7 @@ def claim_grade(claim_id: str) -> dict:
         {"id": claim_id},
     ))
     if row is None:
-        raise HTTPException(status_code=404, detail="Claim bulunamadı")
+        raise HTTPException(status_code=404, detail="İddia bulunamadı")
     return admiralty.code(row["reliability"], row["state"])
 
 

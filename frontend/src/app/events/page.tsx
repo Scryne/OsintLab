@@ -93,8 +93,7 @@ export default function EventsPage() {
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
             Toplanan verinin çoğu bir olay hakkındadır: bir lansman, bir kesinti, bir dava.
-            Claim&apos;i olaya bağlamak, tek bir entity&apos;de yığılan iddiaları okunur hale getirir —
-            entity olaya <span className="text-foreground">karışan</span> taraf olarak bağlı kalır.
+            İddiayı olaya bağlamak, tek bir varlıkta yığılan iddiaları okunur hâle getirir — varlık olaya <span className="text-foreground">karışan</span> taraf olarak bağlı kalır.
           </p>
         </div>
         <NewEventDialog onCreated={afterCreate} existingTypes={events?.map((e) => e.event_type) ?? []} />
@@ -143,15 +142,14 @@ export default function EventsPage() {
         <>
           <p className="text-sm leading-relaxed text-text-secondary">
             Bu adaylar yeni bir sinyalden değil, senin kurduğun doğrulama bağlarından geliyor:
-            birbirini doğrulayan claim&apos;lerin oluşturduğu her küme bir olay adayı. Küme bir
-            <span className="text-foreground"> öneri</span>dir — başlığı sen verirsin, kümeye ait
-            olmayan claim&apos;i çıkarabilirsin.
+            birbirini doğrulayan iddiaların oluşturduğu her küme bir olay adayı. Küme bir
+            <span className="text-foreground"> öneri</span>dir — başlığı sen verirsin, kümeye ait olmayan iddiayı çıkarabilirsin.
           </p>
           {candidatesLoading && <SkeletonList />}
           {!candidatesLoading && candidateCount === 0 && (
             <EmptyState
               title="Olay adayı yok"
-              description="Aday üretmek için önce Doğrulama ekranında birbirini doğrulayan claim'leri bağla; bağlı her küme burada olay adayı olur."
+              description="Aday üretmek için önce Doğrulama ekranında birbirini doğrulayan iddiaları bağla; bağlı her küme burada olay adayı olur."
               action={
                 <Link
                   href="/corroboration"
@@ -248,8 +246,8 @@ function CandidateCard({
         claim_ids: selected,
       });
       toast(
-        `"${res.event.title}" kuruldu — ${res.linked_claims} claim bağlandı` +
-          (res.linked_entities.length ? `, ${res.linked_entities.length} entity taşındı` : ""),
+        `"${res.event.title}" kuruldu — ${res.linked_claims} iddia bağlandı` +
+          (res.linked_entities.length ? `, ${res.linked_entities.length} varlık taşındı` : ""),
         "success"
       );
       onCreated();
@@ -331,7 +329,7 @@ function CandidateCard({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${idBase}-when`}>Ne zaman oldu (opsiyonel)</Label>
+          <Label htmlFor={`${idBase}-when`}>Ne zaman oldu (isteğe bağlı)</Label>
           <Input
             id={`${idBase}-when`}
             type="date"
@@ -343,11 +341,11 @@ function CandidateCard({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-text-tertiary">
-          {selected.length} claim bu olaya bağlanacak.
+          {selected.length} iddia bu olaya bağlanacak.
           {candidate.entities.length > 0 && (
             <>
               {" "}
-              Claim&apos;lerin entity bağı silinmez, olaya taşınır:{" "}
+              İddiaların varlık bağı silinmez, olaya taşınır:{" "}
               <span className="text-text-secondary">{entityNames.join(", ")}</span> olaya karışan taraf
               olarak bağlanır.
             </>
@@ -401,7 +399,7 @@ function NewEventDialog({ onCreated, existingTypes }: { onCreated: () => void; e
         render={
           <Button size="sm">
             <Plus aria-hidden className="h-4 w-4" />
-            Yeni Olay
+            Yeni olay
           </Button>
         }
       />
@@ -409,8 +407,7 @@ function NewEventDialog({ onCreated, existingTypes }: { onCreated: () => void; e
         <DialogHeader>
           <DialogTitle>Yeni olay ekle</DialogTitle>
           <DialogDescription>
-            Grafa yeni bir olay ekler. Claim&apos;ler sonradan bağlanabilir; olayın confidence&apos;ı
-            bağlanan claim&apos;lerden türetilir.
+            Grafa yeni bir olay ekler. İddialar sonradan bağlanabilir; olayın güven skoru bağlanan iddialardan türetilir.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -434,7 +431,7 @@ function NewEventDialog({ onCreated, existingTypes }: { onCreated: () => void; e
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="event-when">Ne zaman oldu (opsiyonel)</Label>
+            <Label htmlFor="event-when">Ne zaman oldu (isteğe bağlı)</Label>
             <Input
               id="event-when"
               type="date"
@@ -442,11 +439,11 @@ function NewEventDialog({ onCreated, existingTypes }: { onCreated: () => void; e
               onChange={(e) => setOccurredAt(e.target.value)}
             />
             <p className="text-xs text-text-tertiary">
-              Boş bırakılırsa olay zaman çizgisinde kayıt tarihiyle durur.
+              Boş bırakılırsa olay zaman çizelgesinde kayıt tarihiyle durur.
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="event-location">Yer (opsiyonel)</Label>
+            <Label htmlFor="event-location">Yer (isteğe bağlı)</Label>
             <Input
               id="event-location"
               value={location}

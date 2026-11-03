@@ -142,8 +142,8 @@ def collect_from_url(url: str, mode: str, *, limit: int, since_days: int | None)
         # içeriktir — ayırt edip söylüyoruz.
         if available == 0 and "xml" not in content_type.lower():
             raise CollectorFetchError(
-                f"Yanıt bir feed değil: {content_type or 'tür belirtilmemiş'} döndü ve hiç "
-                f"öğe ayrıştırılamadı ({final_url}). Adres bir RSS/Atom feed'i mi, yoksa "
+                f"Yanıt bir besleme değil: {content_type or 'tür belirtilmemiş'} döndü ve hiç "
+                f"öğe ayrıştırılamadı ({final_url}). Adres bir RSS/Atom beslemesi mi, yoksa "
                 "normal bir sayfa mı? Sayfaysa 'web' modunu dene."
             )
         selected = _select_items(parsed_items, limit=limit, since_days=since_days)

@@ -220,7 +220,7 @@ def analyze(path: Path) -> dict:
     if editors:
         flags.append({"code": "EDITED", "text": f"Düzenleme yazılımı izi: {', '.join(editors)}"})
     if not fields and not gps and not xmp:
-        flags.append({"code": "NO_METADATA", "text": "Metadata yok — sosyal medya platformları yüklemede siler; bu kendi başına bir şey kanıtlamaz."})
+        flags.append({"code": "NO_METADATA", "text": "Üst veri (metadata) yok — sosyal medya platformları yüklemede siler; bu kendi başına bir şey kanıtlamaz."})
     if "DateTimeOriginal" in fields and "DateTime" in fields and fields["DateTimeOriginal"] != fields["DateTime"]:
         flags.append({"code": "MODIFIED_AFTER", "text": f"Çekimden sonra kaydedilmiş: çekim {fields['DateTimeOriginal']}, son kayıt {fields['DateTime']}."})
 
