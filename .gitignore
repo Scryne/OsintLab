@@ -30,3 +30,6 @@ __pycache__/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+
+# `next dev` bu dosyayı her açılışta yeniden yazıyor; izlenirse çalışma ağacı hep kirli kalır
+/frontend/AGENTS.md

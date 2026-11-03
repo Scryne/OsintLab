@@ -28,6 +28,12 @@ Ayrıntı: `docs/Final-Dokuman.md` (kararlar ve mimari), `docs/Roadmap.md` (36 f
 
 - Arayüz http://localhost:3000, API dokümanı http://127.0.0.1:8420/docs, vault `data/vault/`.
 - Portlar sabit: frontend `NEXT_PUBLIC_API_BASE`, CORS ve oturum sonu vault senkronu 8420'ye bağlı.
+- Arayüz portu: varsayılan 3000. Başka bir uygulama 3000'i tutuyorsa `.\start.ps1 -WebPort 3001`.
+  Backend tarayıcıdan okuma (CORS) ve yazma (CSRF) iznini aynı listeden verir: varsayılan
+  `localhost:3000` / `127.0.0.1:3000`, `OSINTLAB_FRONTEND_PORT=3001` (virgülle birden fazla) bu
+  porta yalnızca `localhost` ve `127.0.0.1` origin'ini ekler; başka bir site için izin açmaz, geçersiz
+  değerde backend açılmaz. `start.ps1 -WebPort` değişkeni kendisi verir; backend autostart ile zaten
+  ayaktaysa ve portu tanımıyorsa uyarır (`.\start.ps1 -InstallAutostart -WebPort 3001` görevi o portla kurar).
 - İlk kurulum: `cd backend; py -3.12 -m venv .venv; .venv\Scripts\pip install -r requirements-dev.txt`,
   `cd frontend; npm install`.
 
