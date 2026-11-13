@@ -428,9 +428,12 @@ export function ForceGraph({
                   {/* Etiket yalnızca bağlantısı olan ya da üzerine gelinen düğümlerde:
                       tüm etiketleri birden basmak çizimi okunmaz yapıyordu. */}
                   {(node.degree > 0 || hovered === node.id) && (
+                    // Sağ kenara yakın düğümün etiketi sola yazılır: düğümler W-30'a kadar
+                    // yerleşebiliyor, sağa yazılan etiket tuvalin dışında kesiliyordu ("Ordi…").
                     <text
-                      x={node.x + radius + 4}
+                      x={node.x > W * 0.7 ? node.x - radius - 4 : node.x + radius + 4}
                       y={node.y + 3.5}
+                      textAnchor={node.x > W * 0.7 ? "end" : "start"}
                       className={cn(
                         "pointer-events-none text-[10px]",
                         hovered === node.id ? "fill-foreground" : "fill-text-secondary"
