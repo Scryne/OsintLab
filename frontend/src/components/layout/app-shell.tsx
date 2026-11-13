@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Archive,
   CalendarClock,
@@ -114,8 +114,19 @@ const NAV_GROUPS: { title: string | null; items: NavItem[] }[] = [
 
 const NAV: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
 
+/** Sekme başlığı: rotaya en uzun eşleşen menü maddesi; menüde olmayan alt sayfa üst maddesini alır. */
+function sayfaBasligi(pathname: string): string {
+  const uygun = NAV.filter((m) =>
+    m.href === "/" ? pathname === "/" : pathname === m.href || pathname.startsWith(`${m.href}/`),
+  ).sort((a, b) => b.href.length - a.href.length)[0];
+  return uygun ? `${uygun.label} · OsintLab` : "OsintLab";
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  useEffect(() => {
+    document.title = sayfaBasligi(pathname);
+  }, [pathname]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Rozet de canlı: sayfa değişimini beklemek, "arkada bir şey düştü mü" sorusunu ancak
   // kullanıcı gezinirse cevaplardı — oysa Gelen Kutusu'na bakmayı hatırlatan şey tam da bu rozet.
