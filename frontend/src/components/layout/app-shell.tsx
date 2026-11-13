@@ -124,8 +124,17 @@ function sayfaBasligi(pathname: string): string {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // Next, kök metadata'daki <title>'ı hidrasyondan sonra yeniden yazıyor; tek seferlik atama
+  // ezildiği için (ölçüldü: 8 sn sonra hâlâ "OsintLab") <head> izlenir ve başlık geri konur.
   useEffect(() => {
-    document.title = sayfaBasligi(pathname);
+    const istenen = sayfaBasligi(pathname);
+    const uygula = () => {
+      if (document.title !== istenen) document.title = istenen;
+    };
+    uygula();
+    const gozcu = new MutationObserver(uygula);
+    gozcu.observe(document.head, { subtree: true, childList: true, characterData: true });
+    return () => gozcu.disconnect();
   }, [pathname]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Rozet de canlı: sayfa değişimini beklemek, "arkada bir şey düştü mü" sorusunu ancak
