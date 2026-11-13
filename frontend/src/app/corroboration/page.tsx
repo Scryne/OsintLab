@@ -564,7 +564,7 @@ function ClaimSide({ claim, projected }: { claim: CandidateClaim; projected: num
           >
             <ArrowRight aria-hidden className="h-3 w-3" />
             {projected.toFixed(2)}
-            {crosses && " · SUPPORTED"}
+            {crosses && ` · ${statusLabel("knowledge", "SUPPORTED")}`}
           </span>
         )}
       </div>
