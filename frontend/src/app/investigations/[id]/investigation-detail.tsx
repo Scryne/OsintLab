@@ -112,7 +112,7 @@ export function InvestigationDetail({ investigationId }: { investigationId: stri
         <div className="mt-3 flex flex-wrap gap-1.5">
           {TRANSITIONS[inv.status].map((to) => (
             <Button key={to} size="sm" variant="outline" disabled={transitioning} onClick={() => transition(to)}>
-              → {to}
+              → {statusLabel("investigation", to)}
             </Button>
           ))}
         </div>
