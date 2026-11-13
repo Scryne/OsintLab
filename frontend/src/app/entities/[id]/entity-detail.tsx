@@ -142,8 +142,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       {/* Faz 11 (F33): aksiyon sayısı 4'ten 6'ya çıkınca (Çelişki kur, Alias'lar) tek satırlık
           yerleşim başlığı daralttı — "Chaotic Eclipse" iki satıra kırılıp tür rozeti araya
-          sıkıştı. Aksiyonlar artık kendi satırına sarabiliyor; başlık tam genişliği alıyor. */}
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          sıkıştı. Aksiyonlar artık kendi satırına sarabiliyor; başlık tam genişliği alıyor.
+          2026-11-13: 7 aksiyonla `lg:flex-row` + `shrink-0` yine aynı sorunu yaptı (1440'ta "MV Vela
+          Nord" iki satıra kırıldı). Başlık her genişlikte üstte, aksiyonlar altında. */}
+      <header className="flex flex-col gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">{entity.name}</h1>
@@ -172,7 +174,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             {new Date(entity.created_at).toLocaleString("tr-TR")} tarihinde eklendi
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           <NewClaimDialog
             aboutEntityId={entityId}
             relatedClaims={recall.related_claims}
