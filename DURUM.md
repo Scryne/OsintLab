@@ -30,7 +30,7 @@
 
 ## Bilinen / açık
 
-- Grafta sağ üst köşeye yerleşen düğüm yakınlaştırma denetiminin altında kalabiliyor (demo veride bir alan adı
-  düğümü). Küçük iş: yerleşimde üst sağ köşeye pay bırakmak.
+- ~~Grafta sağ üst köşeye yerleşen düğüm yakınlaştırma denetiminin altında kalabiliyor.~~ Kapandı (11-16):
+  yerleşim denetimin bölgesini (220×64 viewBox birimi) boş bırakıyor.
 - Kareler: `_portfolyo/ekranlar/OsintLab/2026-11/` (kapak: varlık sayfası + güven yelpazesi ve çelişki rozetleri,
   960×600 @3; ana-calisma-alani, bilgi-grafi, varlik-vela, dogrulama, 1440×900 @2). Hepsi kurgusal demo verisi.

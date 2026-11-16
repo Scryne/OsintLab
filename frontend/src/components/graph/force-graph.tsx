@@ -51,6 +51,18 @@ const COLLISION_PASSES = 24;
 
 type Positioned = GraphNode & { x: number; y: number };
 
+// Sağ üst köşede yakınlaştırma denetimi (dört düğme, ~150×36 px; dar kapsayıcıda viewBox biriminde
+// daha geniş) grafın üstünde durur; o köşeye yerleşen düğüm denetimin altında kalıyordu (demo veride
+// bir alan adı düğümü). Yerleşim o bölgeyi boş bırakır: bölgeye düşen düğüm bölgenin altına itilir.
+const CONTROL_ZONE_W = 220;
+const CONTROL_ZONE_H = 64;
+
+function clampPoint(p: { x: number; y: number }, W: number, H: number): void {
+  p.x = Math.min(W - 30, Math.max(30, p.x));
+  p.y = Math.min(H - 24, Math.max(24, p.y));
+  if (p.x > W - CONTROL_ZONE_W && p.y < CONTROL_ZONE_H) p.y = CONTROL_ZONE_H;
+}
+
 function nodeRadius(node: GraphNode): number {
   return node.kind === "event" ? 7 : 5 + Math.min(6, node.degree);
 }
@@ -130,8 +142,9 @@ function layout(nodes: GraphNode[], edges: GraphEdge[]): Positioned[] {
 
       const disp = Math.max(0.01, Math.hypot(dx[i], dy[i]));
       const limit = Math.min(disp, temperature);
-      points[i].x = Math.min(W - 30, Math.max(30, points[i].x + (dx[i] / disp) * limit));
-      points[i].y = Math.min(H - 24, Math.max(24, points[i].y + (dy[i] / disp) * limit));
+      points[i].x += (dx[i] / disp) * limit;
+      points[i].y += (dy[i] / disp) * limit;
+      clampPoint(points[i], W, H);
     }
     temperature *= 0.972;
   }
@@ -158,10 +171,12 @@ function layout(nodes: GraphNode[], edges: GraphEdge[]): Positioned[] {
         const push = (min - dist) / 2;
         const ux = (vx / dist) * push;
         const uy = (vy / dist) * push;
-        points[i].x = Math.min(W - 30, Math.max(30, points[i].x + ux));
-        points[i].y = Math.min(H - 24, Math.max(24, points[i].y + uy));
-        points[j].x = Math.min(W - 30, Math.max(30, points[j].x - ux));
-        points[j].y = Math.min(H - 24, Math.max(24, points[j].y - uy));
+        points[i].x += ux;
+        points[i].y += uy;
+        points[j].x -= ux;
+        points[j].y -= uy;
+        clampPoint(points[i], W, H);
+        clampPoint(points[j], W, H);
         moved = true;
       }
     }
