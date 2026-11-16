@@ -68,7 +68,8 @@ export function EventDetail({ eventId }: { eventId: string }) {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      {/* Varlık sayfasıyla aynı: beş eylem düğmesi başlığın yanına konunca max-w-4xl sütunda başlık üç satıra kırılıyordu (2026-11-16). */}
+      <header className="flex flex-col gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display text-[2rem] font-semibold tracking-tight text-balance text-foreground">{event.title}</h1>
@@ -92,7 +93,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
               : `${new Date(event.created_at).toLocaleString("tr-TR")} tarihinde kaydedildi · olay tarihi girilmedi`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           <NewClaimDialog aboutEventId={eventId} relatedClaims={recall.related_claims} onCreated={reloadAll} />
           <LinkClaimDialog eventId={eventId} onLinked={reloadAll} />
           <LinkEntityDialog eventId={eventId} linked={recall.related_entities.map((e) => e.id)} onLinked={reloadAll} />
