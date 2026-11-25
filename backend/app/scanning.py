@@ -39,7 +39,7 @@ from app.collector import (
 )
 from app.db import fetch_all, fetch_one, get_connection, graph_lock
 from app.models import Observation
-from app.monitoring import claim_headline, has_active_investigation, notify_if_monitored
+from app.monitoring import _pending_item_for, claim_headline, has_active_investigation, notify_if_monitored
 from app.vault import safe_render_vault
 
 logger = logging.getLogger(__name__)
@@ -321,6 +321,23 @@ def _notify_scan_failure(conn, schedule: dict, error: str, failures: int) -> dic
     )
 
 
+def _clear_scan_failure(conn, schedule: dict) -> None:
+    """Düzelen bir taramanın karar bekleyen "üst üste başarısız" uyarısını INFO'ya indirir.
+
+    2026-11-25: CISA 10-24..10-31 arası düştü, 11-01'de düzeldi; uyarı bir ay sonra hâlâ Ana Çalışma Alanı'nın
+    öncelikli listesindeydi. Öğe silinmez ve durumu (NEW) değişmez: IGNORED gibi bir durum kullanıcı kararı
+    olarak okunur (Q14), sahte bir karar yazılmaz. Başarılı her koşuda bakılır, böylece bu değişiklikten önce
+    düzelmiş kaynakların bayat uyarısı da bir sonraki taramada iner."""
+    pending = _pending_item_for(conn, "Source", schedule["source_id"], "SCAN_FAILED", schedule["id"])
+    if pending is None:
+        return
+    label = schedule.get("label") or schedule.get("source_name") or schedule["url"]
+    conn.execute(
+        "MATCH (n:InboxItem {id: $id}) SET n.priority = 'INFO', n.title = $title",
+        {"id": pending["id"], "title": f"{label}: otomatik tarama yeniden çalışıyor (önceki başarısızlıklar giderildi)"},
+    )
+
+
 # ---- Zamanlama durumu ----------------------------------------------------
 
 def get_schedule_row(conn, schedule_id: str) -> dict | None:
@@ -453,6 +470,7 @@ def _run_schedule(conn, schedule_id: str) -> dict:
 
     observations = result["observations"]
     _record_success(conn, schedule_id, now, len(observations))
+    _clear_scan_failure(conn, schedule)
     notified = _notify_new_observations(conn, schedule, observations)
     if observations:
         # Yeni gözlemler kaynak notunda/dashboard'da görünsün. Gözlem yoksa render etmiyoruz:

@@ -282,3 +282,41 @@ def test_schedule_patch_rejects_null_interval(client, conn, make_source):
     )
     assert client.patch(f"/collectors/schedules/{sid}", json={"interval_minutes": None}).status_code == 422
     assert client.patch(f"/collectors/schedules/{sid}", json={"since_days": 999999}).status_code == 422
+
+
+def _scan_failed_items(conn, source_id):
+    return [
+        dict(zip(("priority", "title"), r))
+        for r in conn.execute(
+            "MATCH (n:InboxItem) WHERE n.item_type = 'SCAN_FAILED' AND n.target_id = $tid "
+            "RETURN n.priority, n.title",
+            {"tid": source_id},
+        ).get_all()
+    ]
+
+
+def test_a_recovered_feed_takes_its_failure_alert_out_of_the_priority_list(client, conn, make_source, monkeypatch):
+    """2026-11-25: CISA 10-24..10-31 arası üç kez düştü, 11-01'de düzeldi; "3 kez üst üste başarısız" uyarısı
+    bir ay sonra hâlâ Ana Çalışma Alanı'nın öncelikli listesindeydi. Düzelen kaynağın uyarısı INFO'ya iner."""
+    src = make_source(url="https://example.com/feed")
+    assert client.post("/monitors", json={"target_type": "Source", "target_id": src["id"]}).status_code == 201
+    schedule_id = scanning.create_schedule(
+        conn, source_id=src["id"], url="https://example.com/feed", mode="rss",
+        interval_minutes=60, item_limit=5, since_days=7, label="CISA",
+    )
+
+    def down(*a, **k):
+        raise CollectorFetchError("502 Bad Gateway")
+
+    monkeypatch.setattr(scanning, "collect_from_url", down)
+    for _ in range(scanning.FAILURE_NOTIFY_THRESHOLD):
+        scanning.run_schedule(conn, schedule_id)
+    [alert] = _scan_failed_items(conn, src["id"])
+    assert alert["priority"] != "INFO" and "üst üste başarısız" in alert["title"]
+
+    ok = {"observations": [], "final_url": "https://example.com/feed", "items_available": 0, "items_considered": 0,
+          "duplicates_skipped": 0}
+    monkeypatch.setattr(scanning, "collect_from_url", lambda *a, **k: ok)
+    assert scanning.run_schedule(conn, schedule_id)["status"] == "OK"
+    [alert] = _scan_failed_items(conn, src["id"])
+    assert alert["priority"] == "INFO" and "yeniden çalışıyor" in alert["title"]
