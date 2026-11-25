@@ -2,7 +2,36 @@
 
 > Envanter, sertifika değil: ölçülen gerçek durum. Yol haritası `docs/Roadmap.md`, kararlar `docs/Final-Dokuman.md`.
 
-**Ölçüm tarihi:** 2026-11-13 (bitirme denetimi)
+**Ölçüm tarihi:** 2026-11-25 (yayına hazır turu; önceki: 2026-11-13)
+
+**Yayına hazır karnesi (2026-11-25):** Kod ✅ · Ürün ✅ · Ön yüz ✅ (vitrin: siniyor) · Belge ✅ · Kapı: ağaç temiz, geçmişte
+`1737109` (11-03 `gh pr merge`) gerçek e-posta kimliği taşıyor, geçmişi yeniden yazma kararı Scryne'da · Dış adım yok
+(yerel, tek kullanıcılı araç). Bitiş çizgisi ScryneOS `🎯 100-Command-Center/Yayina-Hazir-Karnesi.md`'de; bundan sonra
+bulunan şey aşağıdaki "v2 fikirleri"ne girer.
+
+## 2026-11-25 ölçümü
+
+- **Canlı servis:** `\OsintLab Backend` görevi bir aydır kesintisiz; günlükte 10-24'ten sonra hata yok, son uyarılar
+  11-13'teki geçici DNS kesintisi. Toplama sürüyor (11-24'te 100, 11-25 öğlene kadar 55 kayıt; CISA ICS duyuruları dahil).
+- **Kod:** pytest 143/143, `tsc --noEmit` 0, eslint 0, `next build` temiz. `npm audit`: next 16.4.3'te 1 orta açık →
+  16.4.6 (kesin sürüm, `eslint-config-next` aynı), 0.
+- **Gezi (canlı veri, `next start` + canlı API):** 19 rota (ana sayfa, gelen kutusu, olaylar, graf, varlıklar,
+  soruşturmalar, kaynaklar, iddialar, kanıt, gözlemler, toplayıcılar, doğrulama, zenginleştirme, seçiciler, araçlar,
+  arşiv) × 390/1440 × 2 tema + ana sayfa 4 genişlik: taşma 0, konsol 0.
+- **Bulunan → düzeltilen:** CISA 10-24..10-31 arası düşmüş, 11-01'de düzelmişti; "3 kez üst üste başarısız" uyarısı bir
+  ay sonra hâlâ Ana Çalışma Alanı'nın öncelikli listesindeydi. Başarılı taramada karar bekleyen `SCAN_FAILED` öğesi
+  INFO'ya iniyor, başlığı "yeniden çalışıyor" oluyor (durumu NEW kalır; IGNORED kullanıcı kararı sayıldığı için
+  yazılmaz). Test düzeltmeden önce düştü. Servis yeni kodla yeniden başlatıldı, CISA taraması elle koşturuldu, uyarı
+  listeden indi (`d8e999f`).
+
+## v2 fikirleri
+
+- Düzelen kaynak için ayrı bir "kaynak yeniden çalışıyor" bildirimi yerine kaynak sağlığı paneli.
+- Terfi kuyruğu 948 öğe: kuyruk tazeliği kuralı çalışıyor ama kuyruk büyüyor; eşik/otomatik eleme incelemesi.
+
+---
+
+**Önceki ölçüm (2026-11-13, bitirme denetimi)**
 
 ## Ölçüldü
 
